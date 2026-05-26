@@ -2,7 +2,7 @@
 
 Aplicación personal de finanzas — escritorio multiplataforma, base de datos local SQLite, multimoneda.
 
-> Estado actual: **Lote 1** — cascarón Tauri + Next.js. Solo arranca una ventana con texto de bienvenida.
+> Estado actual: **Lote 2** — base de datos funcionando. Pantalla de diagnóstico que verifica que todo está en orden.
 
 ## Requisitos previos
 
@@ -12,59 +12,76 @@ Aplicación personal de finanzas — escritorio multiplataforma, base de datos l
 - WebView2 (preinstalado en Windows 11)
 - Git
 
-Verifica con:
+## Puesta en marcha (si vienes del Lote 1)
+
+Como el Lote 2 añade ficheros y modifica algunos, conviene reinstalar dependencias por si hay nuevas:
 
 ```powershell
-node --version
-npm --version
-rustc --version
-cargo --version
-```
+# Si ya tenías node_modules del Lote 1, lo borramos para empezar limpio
+Remove-Item -Recurse -Force node_modules
+del package-lock.json
 
-## Primera puesta en marcha
-
-Desde la raíz del proyecto en una terminal de VS Code:
-
-```powershell
-# 1. Instalar dependencias de Node (tarda 1-3 minutos)
+# Instalar (incluye drizzle-orm, drizzle-kit, raw-loader y otras)
 npm install
 
-# 2. Generar tipos de Next.js (se hace solo al primer arranque, pero por si acaso)
-npx next telemetry disable
-
-# 3. Arrancar el modo desarrollo: levanta Next + abre ventana Tauri
+# Arrancar la app
 npm run tauri:dev
 ```
 
-La primera vez, `npm run tauri:dev` también compila el binario Rust. Eso descarga ~200 MB de crates y tarda **5-15 minutos**. Solo la primera vez. Las siguientes son instantáneas.
+## Qué debería pasar al arrancar
 
-## Qué deberías ver
+1. Se abre la ventana titulada "Finanzas"
+2. Muestra brevemente "Inicializando base de datos..."
+3. Tras 1-2 segundos cambia a "Base de datos lista" con un resumen:
+   - Migraciones aplicadas: `0000_init`
+   - Monedas insertadas: 13
+   - Categorías insertadas: 12
+   - Fila de settings creada: sí
+4. Más abajo aparece una tabla con el conteo de filas (currencies=13, categories=12, settings=1, el resto a 0)
 
-Al cabo de unos minutos se abre una ventana titulada "Finanzas" con un mensaje de bienvenida. No es el navegador, es una ventana nativa de Windows.
+Si **reinicias la app**:
+- Migraciones aplicadas: `ninguna (ya estaban)`
+- Monedas y categorías insertadas: 0 (el seed es idempotente)
+- Los conteos persisten
 
-Si solo quieres ver la parte web (sin la ventana nativa), puedes correr `npm run dev` por separado y abrir <http://localhost:3000>.
-
-## Estructura del proyecto
+## Estructura actualizada
 
 ```
 .
-├── src/                # Frontend Next.js / React / TypeScript
-│   ├── app/            # Rutas (App Router)
-│   ├── components/     # Componentes reutilizables (vacío de momento)
-│   ├── lib/            # Lógica de negocio + DB + repositorios (vacío de momento)
-│   ├── hooks/          # Hooks personalizados (vacío de momento)
-│   └── contexts/       # Contextos React (vacío de momento)
-├── src-tauri/          # Envoltorio Rust de Tauri
-│   ├── src/            # Código Rust (mínimo)
-│   ├── capabilities/   # Permisos de plugins
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── drizzle/            # Migraciones SQL (vacío de momento)
-├── package.json
-├── tsconfig.json
-├── next.config.mjs
-└── tailwind.config.ts
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx       # Envuelto en DatabaseProvider
+│   │   ├── page.tsx         # Pantalla diagnóstico del Lote 2
+│   │   └── globals.css
+│   ├── contexts/
+│   │   └── DatabaseProvider.tsx   # Inicializa DB + expone via context
+│   ├── lib/
+│   │   └── db/
+│   │       ├── schema.ts          # Esquema Drizzle (las 12 tablas)
+│   │       ├── client.ts          # Singleton que abre SQLite + Drizzle
+│   │       ├── proxy-driver.ts    # Adaptador Drizzle ↔ Tauri SQL
+│   │       ├── migrate.ts         # Aplicador de migraciones
+│   │       └── seed.ts            # Inserción inicial (monedas/categorías)
+│   └── types.d.ts                 # Declaraciones para imports ?raw
+├── drizzle/
+│   └── 0000_init.sql              # Primera migración (creación tablas)
+├── drizzle.config.ts              # Config drizzle-kit
+├── src-tauri/                     # Sin cambios respecto al Lote 1
+├── ...
 ```
+
+## Dónde vive el fichero `.db`
+
+El plugin SQL de Tauri lo crea en el AppDataDir del SO:
+
+- **Windows**: `C:\Users\<TuUsuario>\AppData\Roaming\personal.finanzas.app\finanzas.db`
+- **macOS**: `~/Library/Application Support/personal.finanzas.app/finanzas.db`
+- **Linux**: `~/.local/share/personal.finanzas.app/finanzas.db`
+
+**Backup**: copia ese fichero. **Restaurar**: pégalo en la misma ruta.
+**Empezar de cero**: bórralo y reinicia la app.
+
+Puedes abrir el fichero con la extensión "SQLite Viewer" de VS Code para inspeccionar tablas, ejecutar SELECTs, etc.
 
 ## Comandos útiles
 
@@ -73,14 +90,14 @@ Si solo quieres ver la parte web (sin la ventana nativa), puedes correr `npm run
 | `npm run dev` | Solo frontend Next, sirve en :3000 |
 | `npm run tauri:dev` | App de escritorio completa con hot reload |
 | `npm run build` | Genera frontend estático en `/out` |
-| `npm run tauri:build` | Genera ejecutable nativo (`.exe`/`.msi` en Windows) |
+| `npm run tauri:build` | Genera ejecutable nativo (`.exe`/`.msi`) |
 | `npm run typecheck` | Verifica tipos sin compilar |
-| `npm run lint` | Linter |
+| `npm run db:generate` | Genera nueva migración SQL desde cambios en schema.ts |
+| `npm run db:studio` | Abre Drizzle Studio (UI web para la BD) |
 
 ## Próximos pasos
 
-- Lote 2: esquema Drizzle + primera migración + cliente DB
-- Lote 3: contexto de Settings + página de configuración
-- Lote 4: capa de dominio (conversión monedas, PMT, agregaciones)
-- Lote 5: repositorios + primera CRUD (Cuentas o Categorías)
+- **Lote 3**: Contexto de Settings + página de configuración (cambiar moneda local/vista, año/mes activo, etc.)
+- **Lote 4**: Capa de dominio (conversión de monedas, PMT hipoteca, agregaciones)
+- **Lote 5**: Primer CRUD completo (Cuentas o Categorías)
 - ...

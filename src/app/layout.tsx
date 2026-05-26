@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DatabaseProvider } from "@/contexts/DatabaseProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        <DatabaseProvider>{children}</DatabaseProvider>
+      </body>
     </html>
   );
 }
