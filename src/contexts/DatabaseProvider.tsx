@@ -9,13 +9,20 @@
  *    1. Carga el fichero SQLite via Tauri
  *    2. Aplica las migraciones pendientes
  *    3. Ejecuta el seed (idempotente)
- *    4. Expone el cliente Drizzle al resto via React context
+ *    4. Crea los repositorios sobre la conexion
+ *    5. Expone {db, repos} al resto via React context
  *
  *  Mientras se inicializa, muestra una pantalla de carga. Si algo falla,
- *  muestra el error en pantalla (mejor que pantalla en blanco).
+ *  muestra el error en pantalla.
  *
- *  USO: ya queda envuelto en el RootLayout. En cualquier componente cliente
- *  puedes hacer `const { db, status } = useDatabase()` para acceder a Drizzle.
+ *  HOOKS PUBLICOS QUE EXPONE
+ *  -------------------------
+ *    - useDatabase():  status completo (loading | ready | error)
+ *    - useDb():        cliente Drizzle (lanza si no esta ready)
+ *    - useRepos():     bolsa de repositorios (lanza si no esta ready)
+ *
+ *  Los hooks useDb/useRepos asumen que solo se llaman desde componentes
+ *  hijos de un <DatabaseReady> (que solo renderiza cuando todo esta listo).
  * ============================================================================
  */
 
@@ -30,12 +37,14 @@ import { getDb } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { runSeed } from "@/lib/db/seed";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
+import { createRepositories, type Repositories } from "@/lib/repositories";
 
 type Status =
   | { kind: "loading" }
   | {
       kind: "ready";
       db: DrizzleDb;
+      repos: Repositories;
       migrationsApplied: string[];
       seed: { currencies: number; categories: number; settingsCreated: boolean };
     }
@@ -43,33 +52,26 @@ type Status =
 
 const DatabaseContext = createContext<Status>({ kind: "loading" });
 
-/**
- * Hook publico: devuelve el estado actual del contexto de BD.
- * En componentes que solo se renderizan cuando la BD ya esta lista,
- * podemos asumir status.kind === 'ready' y desestructurar el `db`.
- */
 export function useDatabase(): Status {
   return useContext(DatabaseContext);
 }
 
-/**
- * Hook estrecho: devuelve directamente el cliente Drizzle, lanzando si
- * la BD no esta lista. Util en componentes que SOLO se renderizan dentro
- * de DatabaseReady (ver mas abajo).
- */
 export function useDb(): DrizzleDb {
   const status = useDatabase();
   if (status.kind !== "ready") {
-    throw new Error(
-      "useDb llamado antes de que la BD este lista. Envuelve en <DatabaseReady>.",
-    );
+    throw new Error("useDb llamado antes de que la BD este lista.");
   }
   return status.db;
 }
 
-/**
- * Provider que se monta una sola vez en RootLayout.
- */
+export function useRepos(): Repositories {
+  const status = useDatabase();
+  if (status.kind !== "ready") {
+    throw new Error("useRepos llamado antes de que la BD este lista.");
+  }
+  return status.repos;
+}
+
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
 
@@ -78,15 +80,19 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        // Importante: getDb() es idempotente, asi que aunque el efecto
-        // se ejecute dos veces en dev (StrictMode), la conexion se abre
-        // una sola vez.
         const db = await getDb();
         const migrationsApplied = await runMigrations();
         const seed = await runSeed();
+        const repos = createRepositories(db);
 
         if (!cancelled) {
-          setStatus({ kind: "ready", db, migrationsApplied, seed });
+          setStatus({
+            kind: "ready",
+            db,
+            repos,
+            migrationsApplied,
+            seed,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -108,4 +114,40 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       {children}
     </DatabaseContext.Provider>
   );
+}
+
+/**
+ * Componente que solo renderiza sus hijos cuando la BD esta lista.
+ * Util para envolver paginas/layouts que necesitan acceso a datos.
+ * Muestra fallbacks de loading y error automaticamente.
+ */
+export function DatabaseReady({ children }: { children: ReactNode }) {
+  const status = useDatabase();
+
+  if (status.kind === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <p className="text-sm text-muted-foreground">
+          Inicializando base de datos...
+        </p>
+      </div>
+    );
+  }
+
+  if (status.kind === "error") {
+    return (
+      <div className="mx-auto max-w-2xl p-8">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+          <p className="font-medium text-destructive">
+            Error inicializando la base de datos
+          </p>
+          <pre className="mt-2 whitespace-pre-wrap text-xs text-destructive/80">
+            {status.error.message}
+          </pre>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }
