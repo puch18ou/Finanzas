@@ -24,8 +24,6 @@
  *    3. Mensajes de error custom:
  *         z.number().min(0, "El importe no puede ser negativo")
  *
- *  USO EN ESTE PROYECTO
- *  --------------------
  *  Aqui definimos los esquemas de los DATOS DE LOS FORMULARIOS, no de
  *  las filas de la BD. Diferencias:
  *
@@ -33,11 +31,6 @@
  *      se generan automaticamente. Los formularios no los piden.
  *    - Los formularios pueden tener campos no-finales (string vacio que
  *      se convierte a null al guardar).
- *    - Los formularios validan reglas que en BD podrian ser solo CHECK
- *      constraints (e.g. "el presupuesto no puede ser negativo").
- *
- *  Los formularios usaran react-hook-form + zodResolver para integrar
- *  estos esquemas como validacion automatica de los inputs.
  * ============================================================================
  */
 
@@ -47,10 +40,6 @@ import { z } from "zod";
 //  CATEGORIA
 // ============================================================================
 
-/**
- * Esquema para el formulario de crear/editar categoria.
- * Los campos opcionales se pueden dejar vacios en el form.
- */
 export const categoryFormSchema = z.object({
   nombre: z
     .string()
@@ -78,10 +67,6 @@ export const categoryFormSchema = z.object({
 
 export type CategoryFormData = z.infer<typeof categoryFormSchema>;
 
-/**
- * Tipos comunes preestablecidos. Aparecen como sugerencias en el select
- * pero el usuario puede teclear cualquier otro.
- */
 export const TIPOS_CATEGORIA = [
   "Esencial",
   "Ocio",
@@ -94,11 +79,6 @@ export const TIPOS_CATEGORIA = [
 //  MONEDA
 // ============================================================================
 
-/**
- * Esquema para crear/editar una moneda.
- * El codigo se valida como 3-4 caracteres alfabeticos (ISO 4217 + algun
- * margen para tokens crypto si quisieramos).
- */
 export const currencyFormSchema = z.object({
   code: z
     .string()
@@ -141,4 +121,109 @@ export const TIPOS_CUENTA = [
   "Broker",
   "Cash",
   "Credito",
+] as const;
+
+// ============================================================================
+//  GASTO
+// ============================================================================
+
+/**
+ * Esquema para crear/editar un gasto.
+ *
+ * Notas de diseño:
+ *  - `fecha` es Date (no string). Los componentes Calendar de shadcn la
+ *    manejan asi. Para inputs nativos type=date, usaremos un schema
+ *    distinto (quickExpense) que la recibe como string.
+ *  - `cuentaId` es opcional: puedes registrar un gasto sin saber de que
+ *    cuenta salio (luego lo enlazas).
+ *  - El presupuesto check (`presupuestoMensual >= 0`) lo hace el repo.
+ *    Aqui solo validamos forma.
+ */
+export const expenseFormSchema = z.object({
+  fecha: z.date({ message: "Fecha obligatoria" }),
+  concepto: z
+    .string()
+    .min(1, "El concepto es obligatorio")
+    .max(200, "Maximo 200 caracteres"),
+  categoriaId: z.string().min(1, "Selecciona una categoria"),
+  importe: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("El importe no puede ser negativo"),
+  moneda: z.string().min(2).max(4),
+  cuentaId: z.string().nullable().optional(),
+  notas: z.string().max(500).nullable().optional(),
+});
+
+export type ExpenseFormData = z.infer<typeof expenseFormSchema>;
+
+/**
+ * Variante del schema para el "añadido rápido": acepta fecha como string
+ * 'YYYY-MM-DD' (input nativo type=date). Lo convertimos a Date en la capa
+ * de aplicacion antes de pasar al repo.
+ *
+ * Sin notas ni cuentaId, solo lo esencial.
+ */
+export const quickExpenseFormSchema = z.object({
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha invalida"),
+  concepto: z.string().min(1, "Concepto obligatorio").max(200),
+  categoriaId: z.string().min(1, "Selecciona una categoria"),
+  importe: z.number({ message: "Debe ser un numero" }).nonnegative(),
+  moneda: z.string().min(2).max(4),
+});
+
+export type QuickExpenseFormData = z.infer<typeof quickExpenseFormSchema>;
+
+// ============================================================================
+//  INGRESO MENSUAL (fila editable inline)
+// ============================================================================
+
+/**
+ * Esquema para editar UNA fila de ingresos mensuales. (anio, mes, moneda)
+ * no van porque son la clave; solo se editan los importes y las notas.
+ */
+export const monthlyIncomeFormSchema = z.object({
+  salario: z.number({ message: "Debe ser un numero" }).nonnegative(),
+  bonus: z.number().nonnegative(),
+  otros: z.number().nonnegative(),
+  moneda: z.string().min(2).max(4),
+  notas: z.string().max(500).nullable().optional(),
+});
+
+export type MonthlyIncomeFormData = z.infer<typeof monthlyIncomeFormSchema>;
+
+// ============================================================================
+//  INGRESO PUNTUAL
+// ============================================================================
+
+export const extraIncomeFormSchema = z.object({
+  fecha: z.date({ message: "Fecha obligatoria" }),
+  concepto: z
+    .string()
+    .min(1, "El concepto es obligatorio")
+    .max(200),
+  categoria: z
+    .string()
+    .min(1, "Selecciona o escribe una categoria")
+    .max(40),
+  tipo: z.string().min(1).max(40).default("Ingreso extra"),
+  importe: z.number({ message: "Debe ser un numero" }).positive("Debe ser positivo"),
+  moneda: z.string().min(2).max(4),
+  notas: z.string().max(500).nullable().optional(),
+});
+
+export type ExtraIncomeFormData = z.infer<typeof extraIncomeFormSchema>;
+
+/**
+ * Sugerencias de categoria para ingresos puntuales. El usuario puede
+ * escribir cualquier otra (campo libre).
+ */
+export const CATEGORIAS_INGRESO_EXTRA = [
+  "Bonus",
+  "Premio",
+  "Regalo",
+  "Reembolso",
+  "Venta",
+  "Dividendos",
+  "Intereses",
+  "Otros",
 ] as const;

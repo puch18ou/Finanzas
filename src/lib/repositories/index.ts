@@ -16,12 +16,18 @@ import { SettingsRepository } from "./settings-repository";
 import { CurrencyRepository } from "./currency-repository";
 import { CategoryRepository } from "./category-repository";
 import { AccountRepository } from "./account-repository";
+import { ExpenseRepository } from "./expense-repository";
+import { MonthlyIncomeRepository } from "./monthly-income-repository";
+import { ExtraIncomeRepository } from "./extra-income-repository";
 
 export interface Repositories {
   settings: SettingsRepository;
   currencies: CurrencyRepository;
   categories: CategoryRepository;
   accounts: AccountRepository;
+  expenses: ExpenseRepository;
+  monthlyIncomes: MonthlyIncomeRepository;
+  extraIncomes: ExtraIncomeRepository;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
@@ -30,10 +36,13 @@ export function createRepositories(db: DrizzleDb): Repositories {
     currencies: new CurrencyRepository(db),
     categories: new CategoryRepository(db),
     accounts: new AccountRepository(db),
+    expenses: new ExpenseRepository(db),
+    monthlyIncomes: new MonthlyIncomeRepository(db),
+    extraIncomes: new ExtraIncomeRepository(db),
   };
 }
 
-// Re-exports utiles para los consumidores
+// Re-exports utiles
 export type { ISettingsRepository, SettingsPatch } from "./settings-repository";
 export type {
   CreateCategoryData,
@@ -47,3 +56,16 @@ export type {
   CreateCurrencyData,
   UpdateCurrencyData,
 } from "./currency-repository";
+export type {
+  CreateExpenseData,
+  UpdateExpenseData,
+  ExpenseFilter,
+} from "./expense-repository";
+export type {
+  MonthlyIncomeFields,
+} from "./monthly-income-repository";
+export type {
+  CreateExtraIncomeData,
+  UpdateExtraIncomeData,
+  ExtraIncomeFilter,
+} from "./extra-income-repository";

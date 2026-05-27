@@ -119,7 +119,11 @@ describe("recomputeRatesForNewView", () => {
     // SGD/USD debe ser igual en ambos sistemas
     const ratioOld = ratesEur.SGD / ratesEur.USD;
     const newRates = recomputeRatesForNewView(ratesEur, "USD");
-    const ratioNew = newRates.SGD / newRates.USD;
+    const sgd = newRates.SGD;
+    const usd = newRates.USD;
+    expect(sgd).toBeDefined();
+    expect(usd).toBeDefined();
+    const ratioNew = sgd! / usd!;
     expect(ratioNew).toBeCloseTo(ratioOld, 10);
   });
 
