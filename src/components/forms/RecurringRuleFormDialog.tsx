@@ -3,10 +3,14 @@
 /**
  * src/components/forms/RecurringRuleFormDialog.tsx
  *
- * Dialog para crear/editar una regla recurrente manual.
+ * Lote 11c-fix2: las fechas seleccionadas en el calendario se normalizan
+ * a mediodia UTC antes de enviarse al backend. Esto evita el bug de zonas
+ * horarias en el que al seleccionar "1 mayo" en hora local Singapur
+ * (UTC+8) se guardaba como "30 abril 16:00 UTC", haciendo que el
+ * RecurringService interpretara la regla como iniciada en abril.
  *
- * Las reglas vinculadas (cuota, intereses) NO se editan desde aqui,
- * solo gasto/ingreso/transferencia.
+ * La normalizacion se hace SOLO al enviar al backend; en el form sigue
+ * mostrandose la fecha que selecciono el usuario.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -66,6 +70,22 @@ const TIPO_LABELS: Record<TipoReglaManual, string> = {
   ingreso: "Ingreso",
   transferencia: "Transferencia",
 };
+
+/**
+ * Normaliza una fecha LOCAL a "mediodia UTC del mismo dia visible".
+ *
+ * Si el usuario ve "1 mayo 2026" en el calendario:
+ *   - El Date local puede ser "1 mayo 00:00 SGT" (en Singapur)
+ *   - Esto en UTC seria "30 abril 16:00 UTC"  <-- problematico
+ *
+ * Esta funcion lo convierte a "1 mayo 12:00 UTC", que es el mismo dia
+ * sin importar la zona horaria del usuario.
+ */
+function normalizeDateToUTCNoon(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0),
+  );
+}
 
 export function RecurringRuleFormDialog({
   open,
@@ -168,7 +188,13 @@ export function RecurringRuleFormDialog({
   const tipo = watch("tipoMovimiento");
 
   const internalSubmit = handleSubmit(async (data) => {
-    await onSubmit(data);
+    // FIX zona horaria: normalizar fechas a mediodia UTC antes de guardar
+    const normalized: RecurringRuleFormData = {
+      ...data,
+      fechaInicio: normalizeDateToUTCNoon(data.fechaInicio),
+      fechaFin: data.fechaFin ? normalizeDateToUTCNoon(data.fechaFin) : null,
+    };
+    await onSubmit(normalized);
     onOpenChange(false);
   });
 
@@ -287,7 +313,6 @@ export function RecurringRuleFormDialog({
             </div>
           </div>
 
-          {/* Campos específicos por tipo */}
           {tipo === "gasto" && (
             <>
               <div className="space-y-2">
