@@ -20,7 +20,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { getDb } from "./client";
+import { getDb, getRawDb } from "./client";
 
 import init0000 from "../../../drizzle/0000_init.sql?raw";
 import migration0001 from "../../../drizzle/0001_add_mostrar_fab.sql?raw";
@@ -49,26 +49,31 @@ function isAlreadyExistsError(err: unknown): boolean {
 }
 
 export async function runMigrations(): Promise<string[]> {
-  const db = await getDb();
+  const db = await getRawDb();
 
   // Tabla de control: garantizamos que existe
-  await db.run(sql`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS _migrations (
       name TEXT PRIMARY KEY NOT NULL,
       applied_at INTEGER NOT NULL
-    );
+    )
   `);
 
   // Detectamos si la BD ya tiene tablas de aplicacion ANTES de empezar.
   // Si `currencies` (la primera tabla de 0000_init) ya existe, asumimos
   // que 0000 fue aplicada por un sistema anterior.
-  const existingTables = await db.all<{ name: string }>(sql`
-    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'currencies'
-  `);
+  const existingTables = await db.select<{ name: string }[]>(
+    `
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table'
+    AND name = 'currencies'
+  `,
+  );
   const baseSchemaExists = existingTables.length > 0;
 
   // Migraciones ya registradas
-  const applied = await db.all<{ name: string }>(sql`
+  const applied = await db.select<{ name: string }[]>(`
     SELECT name FROM _migrations
   `);
   const appliedSet = new Set(applied.map((r) => r.name));
@@ -76,13 +81,17 @@ export async function runMigrations(): Promise<string[]> {
   // Si las tablas ya existen pero 0000_init no esta registrada, la
   // damos por aplicada (migracion legacy desde Lote 2 original).
   if (baseSchemaExists && !appliedSet.has("0000_init")) {
-    await db.run(sql` INSERT INTO _migrations
-      (name, applied_at) VALUES ('0000_init', ${Date.now()})
-    `);
-    appliedSet.add("0000_init");
-    console.log(
-      "[migrate] 0000_init marcada como aplicada (BD pre-existente detectada)",
-    );
+    try {
+      await db.select<{ name: string }[]>(` INSERT INTO _migrations
+        (name, applied_at) VALUES ('0000_init', ${Date.now()})
+      `);
+      appliedSet.add("0000_init");
+      console.log(
+        "[migrate] 0000_init marcada como aplicada (BD pre-existente detectada)",
+      );
+    } catch (err) {
+      console.error("REAL ERROR:", err);
+    }
   }
 
   const newlyApplied: string[] = [];
@@ -98,7 +107,7 @@ export async function runMigrations(): Promise<string[]> {
       if (!trimmed) continue;
 
       try {
-        await db.run(sql.raw(trimmed));
+        await db.execute(trimmed);
         anyApplied = true;
       } catch (err) {
         if (isAlreadyExistsError(err)) {
@@ -117,7 +126,7 @@ export async function runMigrations(): Promise<string[]> {
     // migracion como aplicada para no reintentar la proxima vez.
     void anyApplied;
 
-    await db.run(sql`
+    await db.select<{ name: string }[]>(`
       INSERT INTO _migrations (name, applied_at) VALUES (${migration.name}, ${Date.now()})
     `);
 
