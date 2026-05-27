@@ -4,6 +4,14 @@
  * src/hooks/useMortgage.ts
  *
  * Hook singleton para la hipoteca.
+ * Lote 11c: tras upsert/clear de hipoteca, invoca al MortgageDebtSyncService
+ * para mantener su regla recurrente en sincronia.
+ *
+ * IMPORTANTE: si tu useMortgage actual tiene mas o menos campos en el
+ * objeto devuelto, compara con tu version actual y conserva lo propio.
+ * Lo CRITICO de este lote es:
+ *   - llamar a mortgageDebtSync.onMortgageUpserted(updated) en onSuccess de upsert
+ *   - llamar a mortgageDebtSync.onMortgageDeleted(id) en onSuccess de clear
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,25 +30,62 @@ export function useMortgage() {
     queryFn: () => repos.mortgage.get(),
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: MORTGAGE_KEY });
+    qc.invalidateQueries({ queryKey: ["recurringRules"] });
+    qc.invalidateQueries({ queryKey: ["movements"] });
+    qc.invalidateQueries({ queryKey: ["trash"] });
+  };
+
   const upsertMutation = useMutation({
-    mutationFn: (data: MortgageData) => repos.mortgage.upsert(data),
+    mutationFn: async (data: MortgageData) => {
+      const updated = await repos.mortgage.upsert(data);
+      // Sincroniza la regla recurrente
+      try {
+        await repos.mortgageDebtSync.onMortgageUpserted(updated);
+      } catch (err) {
+        // No bloqueamos la operacion principal. Logueamos y mostramos toast.
+        console.error("[useMortgage] error sincronizando regla:", err);
+        toast.error(
+          "Hipoteca guardada pero hubo un problema sincronizando la regla recurrente",
+        );
+      }
+      return updated;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MORTGAGE_KEY });
+      invalidate();
       toast.success("Hipoteca guardada");
     },
     onError: (e) => {
-      toast.error(`No se pudo guardar: ${e instanceof Error ? e.message : "error"}`);
+      toast.error(
+        `No se pudo guardar: ${e instanceof Error ? e.message : "error"}`,
+      );
     },
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => repos.mortgage.clear(),
+    mutationFn: async () => {
+      const existing = await repos.mortgage.get();
+      if (!existing) return;
+      await repos.mortgage.clear();
+      // Soft delete de la regla y sus movements
+      try {
+        await repos.mortgageDebtSync.onMortgageDeleted(existing.id);
+      } catch (err) {
+        console.error("[useMortgage] error limpiando regla:", err);
+        toast.error(
+          "Hipoteca eliminada pero hubo un problema limpiando la regla recurrente",
+        );
+      }
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MORTGAGE_KEY });
-      toast.success("Hipoteca desactivada");
+      invalidate();
+      toast.success("Hipoteca eliminada");
     },
     onError: (e) => {
-      toast.error(`No se pudo desactivar: ${e instanceof Error ? e.message : "error"}`);
+      toast.error(
+        `No se pudo eliminar: ${e instanceof Error ? e.message : "error"}`,
+      );
     },
   });
 

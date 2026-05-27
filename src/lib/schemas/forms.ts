@@ -203,6 +203,7 @@ export const mortgageFormSchema = z.object({
     .max(50)
     .default(0),
   moneda: z.string().min(2).max(4),
+  cuentaPagoId: z.string().nullable().optional(),
   fechaInicio: z.date({ message: "Fecha de inicio obligatoria" }),
   notas: z.string().max(500).nullable().optional(),
 });
@@ -247,6 +248,7 @@ export const otherDebtFormSchema = z.object({
     .int()
     .nonnegative("No puede ser negativo"),
   moneda: z.string().min(2).max(4),
+  cuentaPagoId: z.string().nullable().optional(),
   fechaInicio: z.date().nullable().optional(),
   notas: z.string().max(500).nullable().optional(),
 });

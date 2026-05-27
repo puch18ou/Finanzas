@@ -1,7 +1,8 @@
 /**
  * src/lib/repositories/index.ts
  *
- * Lote 11a: añade RecurringRuleRepository al container.
+ * Lote 11c-fix: MortgageDebtSyncService recibe ahora tambien el db
+ * (necesario para buscar categorias y actualizar movements masivos).
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -17,6 +18,8 @@ import { MovementRepository } from "./movement-repository";
 import { RecurringRuleRepository } from "./recurring-rule-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
+import { RecurringService } from "@/lib/services/recurring-service";
+import { MortgageDebtSyncService } from "@/lib/services/mortgage-debt-sync-service";
 
 export interface Repositories {
   settings: SettingsRepository;
@@ -31,9 +34,19 @@ export interface Repositories {
   recurringRules: RecurringRuleRepository;
   trash: TrashService;
   backup: BackupService;
+  recurringService: RecurringService;
+  mortgageDebtSync: MortgageDebtSyncService;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
+  const recurringRules = new RecurringRuleRepository(db);
+  const recurringService = new RecurringService(db);
+  const mortgageDebtSync = new MortgageDebtSyncService(
+    recurringRules,
+    recurringService,
+    db,
+  );
+
   return {
     settings: new SettingsRepository(db),
     currencies: new CurrencyRepository(db),
@@ -44,9 +57,11 @@ export function createRepositories(db: DrizzleDb): Repositories {
     mortgage: new MortgageRepository(db),
     otherDebts: new OtherDebtRepository(db),
     movements: new MovementRepository(db),
-    recurringRules: new RecurringRuleRepository(db),
+    recurringRules,
     trash: new TrashService(db),
     backup: new BackupService(db),
+    recurringService,
+    mortgageDebtSync,
   };
 }
 

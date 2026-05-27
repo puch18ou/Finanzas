@@ -1,5 +1,5 @@
 /**
- * src/lib/db/migrate.ts — añade migracion 0006.
+ * src/lib/db/migrate.ts — añade migracion 0007_add_cuenta_pago.
  */
 
 import { getDb, getRawDb } from "./client";
@@ -11,6 +11,7 @@ import migration0003 from "../../../drizzle/0003_create_movements.sql?raw";
 import migration0004 from "../../../drizzle/0004_drop_legacy_movement_tables.sql?raw";
 import migration0005 from "../../../drizzle/0005_create_recurring_rules.sql?raw";
 import migration0006 from "../../../drizzle/0006_migrate_monthly_incomes_to_movements.sql?raw";
+import migration0007 from "../../../drizzle/0007_add_cuenta_pago.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -20,6 +21,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0004_drop_legacy_movement_tables", sql: migration0004 },
   { name: "0005_create_recurring_rules", sql: migration0005 },
   { name: "0006_migrate_monthly_incomes_to_movements", sql: migration0006 },
+  { name: "0007_add_cuenta_pago", sql: migration0007 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {
@@ -97,9 +99,6 @@ export async function runMigrations(): Promise<string[]> {
           );
           continue;
         }
-        // Tolerancia especial para 0006: si monthly_incomes ya no existe
-        // (BD nueva), los INSERTs y DROP fallan con "no such table".
-        // Es benigno: no hay datos que migrar y la tabla no esta.
         if (
           migration.name === "0006_migrate_monthly_incomes_to_movements" &&
           isMissingTableError(err)

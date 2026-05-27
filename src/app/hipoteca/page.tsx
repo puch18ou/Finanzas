@@ -1,16 +1,9 @@
 "use client";
 
 /**
- * src/app/hipoteca/page.tsx — VERSION CON DEBUG
+ * src/app/hipoteca/page.tsx
  *
- * Esta version anade logs y muestra los errores de validacion arriba del
- * todo de forma visible para diagnosticar por que no se guarda.
- *
- * Abre DevTools (Ctrl+Shift+I) → Console y observa la salida al:
- *   1. Cargar la pagina
- *   2. Pulsar el switch "Hipoteca activa"
- *   3. Pulsar "Guardar"
- *   4. Volver a la pagina
+ * Lote 11c-fix: añade selector de cuenta de pago.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +22,7 @@ import {
 } from "lucide-react";
 import { useMortgage } from "@/hooks/useMortgage";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useAccounts } from "@/hooks/useAccounts";
 import {
   mortgageFormSchema,
   type MortgageFormData,
@@ -82,6 +76,7 @@ import { cn } from "@/lib/utils/cn";
 export default function HipotecaPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
+  const { accounts } = useAccounts();
   const { mortgage, upsert, clear, isMutating } = useMortgage();
 
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -90,10 +85,10 @@ export default function HipotecaPage() {
   const monedaPorDefecto =
     settings?.monedaHipoteca ?? settings?.monedaLocal ?? "EUR";
 
-  // DEBUG ver mortgage al llegar
-  useEffect(() => {
-    console.log("[hipoteca] mortgage recibido del backend:", mortgage);
-  }, [mortgage]);
+  const cuentasActivas = useMemo(
+    () => accounts.filter((a) => a.activa),
+    [accounts],
+  );
 
   const {
     register,
@@ -117,6 +112,7 @@ export default function HipotecaPage() {
       tipoReferencia: 0,
       aniosTipoFijo: 0,
       moneda: monedaPorDefecto,
+      cuentaPagoId: null,
       fechaInicio: new Date(),
       notas: "",
     },
@@ -124,7 +120,6 @@ export default function HipotecaPage() {
 
   useEffect(() => {
     if (mortgage) {
-      console.log("[hipoteca] hidratando form desde mortgage");
       reset({
         activa: mortgage.activa,
         precioVivienda: mortgage.precioVivienda,
@@ -137,6 +132,7 @@ export default function HipotecaPage() {
         tipoReferencia: mortgage.tipoReferencia,
         aniosTipoFijo: mortgage.aniosTipoFijo,
         moneda: mortgage.moneda,
+        cuentaPagoId: mortgage.cuentaPagoId ?? null,
         fechaInicio:
           mortgage.fechaInicio instanceof Date
             ? mortgage.fechaInicio
@@ -154,13 +150,6 @@ export default function HipotecaPage() {
   const tipo = watch("tipo");
   const moneda = watch("moneda");
   const activa = watch("activa");
-
-  // DEBUG: ver el state del form en cada cambio
-  useEffect(() => {
-    console.log("[hipoteca] form state:", {
-      activa, precioVivienda, entrada, gastosAsociados, tin, plazoAnios, tipo, moneda,
-    });
-  }, [activa, precioVivienda, entrada, gastosAsociados, tin, plazoAnios, tipo, moneda]);
 
   const capitalPrestado = useMemo(() => {
     const p = Number(precioVivienda) || 0;
@@ -187,36 +176,24 @@ export default function HipotecaPage() {
     return { summary, monthly, annual };
   }, [capitalPrestado, precioVivienda, entrada, gastosAsociados, tin, plazoAnios]);
 
-  // DEBUG: el submit con captura amplia
-  const internalSubmit = handleSubmit(
-    async (data) => {
-      console.log("[hipoteca] submit ejecutado con data:", data);
-      try {
-        await upsert({
-          activa: data.activa,
-          precioVivienda: data.precioVivienda,
-          entrada: data.entrada,
-          gastosAsociados: data.gastosAsociados,
-          plazoAnios: data.plazoAnios,
-          tin: data.tin,
-          tipo: data.tipo,
-          diferencial: data.diferencial,
-          tipoReferencia: data.tipoReferencia,
-          aniosTipoFijo: data.aniosTipoFijo,
-          moneda: data.moneda,
-          fechaInicio: data.fechaInicio,
-          notas: data.notas ?? null,
-        });
-        console.log("[hipoteca] upsert completado");
-      } catch (err) {
-        console.error("[hipoteca] upsert lanzo error:", err);
-      }
-    },
-    (validationErrors) => {
-      // ESTA FUNCION SE LLAMA CUANDO LA VALIDACION FALLA
-      console.error("[hipoteca] VALIDACION FALLO:", validationErrors);
-    },
-  );
+  const internalSubmit = handleSubmit(async (data) => {
+    await upsert({
+      activa: data.activa,
+      precioVivienda: data.precioVivienda,
+      entrada: data.entrada,
+      gastosAsociados: data.gastosAsociados,
+      plazoAnios: data.plazoAnios,
+      tin: data.tin,
+      tipo: data.tipo,
+      diferencial: data.diferencial,
+      tipoReferencia: data.tipoReferencia,
+      aniosTipoFijo: data.aniosTipoFijo,
+      moneda: data.moneda,
+      cuentaPagoId: data.cuentaPagoId ?? null,
+      fechaInicio: data.fechaInicio,
+      notas: data.notas ?? null,
+    });
+  });
 
   const handleDeactivate = async () => {
     if (!mortgage) return;
@@ -268,7 +245,6 @@ export default function HipotecaPage() {
         </div>
       </header>
 
-      {/* AVISO DE ERRORES DE VALIDACION VISIBLE */}
       {erroresKeys.length > 0 && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4">
           <div className="flex items-start gap-2">
@@ -311,10 +287,7 @@ export default function HipotecaPage() {
                     <Switch
                       id="activa"
                       checked={field.value}
-                      onCheckedChange={(v) => {
-                        console.log("[hipoteca] toggle activa cambiado a:", v);
-                        field.onChange(v);
-                      }}
+                      onCheckedChange={field.onChange}
                     />
                   )}
                 />
@@ -383,6 +356,37 @@ export default function HipotecaPage() {
                   </Select>
                 )} />
               </div>
+            </div>
+
+            {/* Cuenta de pago (Lote 11c-fix) */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Cuenta de pago</Label>
+                <Controller
+                  control={control}
+                  name="cuentaPagoId"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value ?? "__none__"}
+                      onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sin asignar</SelectItem>
+                        {cuentasActivas.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.alias}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">
+                  La cuota mensual saldra de esta cuenta como movimiento automatico.
+                </p>
+              </div>
+              <div></div>
             </div>
 
             {(tipo === "Variable" || tipo === "Mixta") && (

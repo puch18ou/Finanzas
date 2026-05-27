@@ -385,6 +385,8 @@ export const mortgage = sqliteTable("mortgage", {
     .notNull()
     .references(() => currencies.code),
 
+  cuentaPagoId: text("cuenta_pago_id").references(() => accounts.id),
+
   fechaInicio: integer("fecha_inicio", { mode: "timestamp_ms" }).notNull(),
 
   notas: text("notas"),
@@ -415,6 +417,8 @@ export const otherDebts = sqliteTable(
     moneda: text("moneda")
       .notNull()
       .references(() => currencies.code),
+
+    cuentaPagoId: text("cuenta_pago_id").references(() => accounts.id),
 
     fechaInicio: integer("fecha_inicio", { mode: "timestamp_ms" }),
     notas: text("notas"),
