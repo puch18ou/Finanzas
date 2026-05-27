@@ -2,27 +2,15 @@
 
 /**
  * ============================================================================
- *  src/components/layout/AppSidebar.tsx — Barra lateral de navegacion
+ *  src/components/layout/AppSidebar.tsx
  * ============================================================================
  *
- *  Sidebar con todas las secciones de la app. Usa el componente Sidebar
- *  de shadcn (mas su SidebarProvider, SidebarHeader, SidebarMenu, etc.).
+ *  Lote 10a-2: el grupo "Movimientos" ahora tiene un solo item
+ *  ("Movimientos"). Las antiguas entradas "Gastos" e "Ingresos" se quitan
+ *  del sidebar.
  *
- *  La estructura se basa en GRUPOS de items relacionados:
- *
- *    Resumen    → Dashboard, Evolucion, Proyeccion
- *    Movimientos → Gastos, Ingresos
- *    Patrimonio → Cuentas, Inversiones, Metas
- *    Deuda      → Hipoteca, Otras deudas
- *    Catalogos  → Categorias, Monedas
- *    Sistema    → Ajustes, Papelera
- *
- *  El item activo se detecta con usePathname() de Next y se resalta.
- *
- *  AL PIE: SidebarFooterHints muestra dos botones discretos con los
- *  atajos Ctrl+K (paleta) y Ctrl+/ (ayuda atajos).
- *
- *  ICONOS: lucide-react. Cada item lleva su icono (16-18px).
+ *  Las rutas /gastos e /ingresos siguen funcionando (redirigen a
+ *  /movimientos) por compatibilidad con enlaces antiguos.
  * ============================================================================
  */
 
@@ -33,8 +21,6 @@ import {
   LayoutDashboard,
   TrendingUp,
   Telescope,
-  Receipt,
-  Wallet,
   Landmark,
   PieChart,
   Target,
@@ -83,8 +69,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Movimientos",
     items: [
       { title: "Movimientos", url: "/movimientos", icon: ArrowLeftRight },
-      { title: "Gastos", url: "/gastos", icon: Receipt },
-      { title: "Ingresos", url: "/ingresos", icon: Wallet },
     ],
   },
   {
@@ -130,7 +114,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Finanzas</span>
-            <span className="text-xs text-muted-foreground">v0.1 · local</span>
+            <span className="text-xs text-muted-foreground">v0.2 · local</span>
           </div>
         </div>
       </SidebarHeader>
@@ -142,9 +126,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  // Una ruta esta activa si el pathname actual empieza por su url.
-                  // Para "/dashboard" hace match exacto; para subrutas tambien
-                  // (e.g. /gastos/nuevo seguiria activando "Gastos").
                   const isActive =
                     pathname === item.url ||
                     pathname.startsWith(`${item.url}/`);

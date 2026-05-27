@@ -1,58 +1,27 @@
 /**
- * ============================================================================
- *  src/lib/services/backup-service.ts
- * ============================================================================
+ * src/lib/services/backup-service.ts
  *
- *  Export / import del JSON completo de la BD.
+ * Lote 10a-3: el backup ya no exporta monthly_incomes. Se mantiene
+ * la version 2 del formato. Los backups v2 anteriores que tenian
+ * monthlyIncomes simplemente ignoraran ese campo al importar.
  *
- *  FORMATO DEL JSON
- *  ----------------
- *  {
- *    "version": 1,
- *    "exportedAt": "2026-05-27T10:23:45.000Z",
- *    "app": "finanzas",
- *    "data": {
- *      "currencies": [...],
- *      "settings": [...],
- *      "categories": [...],
- *      ...
- *    }
- *  }
- *
- *  Las fechas se serializan como ISO strings (gracias a Date.prototype.toJSON).
- *  Al importar las parseamos de vuelta a Date.
- *
- *  IMPORTACION
- *  -----------
- *  La importacion BORRA todos los datos actuales (DELETE FROM todas las
- *  tablas, ignorando soft-delete) y reinserta los del archivo. Es la
- *  estrategia mas simple y robusta para garantizar consistencia.
- *
- *  Las tablas se borran/insertan en orden inverso/directo de dependencias
- *  para respetar las foreign keys.
- *
- *  La tabla _migrations NO se exporta ni se toca al importar: queda como
- *  esta en la BD destino.
- * ============================================================================
+ * Los v1 (con expenses + extraIncomes) siguen siendo importables.
  */
 
-import { sql } from "drizzle-orm";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
 import {
   currencies,
   settings,
   categories,
   accounts,
-  expenses,
-  monthlyIncomes,
-  extraIncomes,
   investments,
   goals,
   mortgage,
   otherDebts,
+  movements,
 } from "@/lib/db/schema";
 
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const APP_ID = "finanzas";
 
 export type BackupFile = {
@@ -64,47 +33,34 @@ export type BackupFile = {
     settings: unknown[];
     categories: unknown[];
     accounts: unknown[];
-    expenses: unknown[];
-    monthlyIncomes: unknown[];
-    extraIncomes: unknown[];
     investments: unknown[];
     goals: unknown[];
     mortgage: unknown[];
     otherDebts: unknown[];
+    movements: unknown[];
+    // Compatibilidad con formatos anteriores (ignorados al importar)
+    monthlyIncomes?: unknown[];
+    expenses?: unknown[];
+    extraIncomes?: unknown[];
   };
 };
 
 export class BackupService {
   constructor(private db: DrizzleDb) {}
 
-  /**
-   * Exporta toda la BD a un objeto JSON serializable.
-   */
   async exportAll(): Promise<BackupFile> {
     const [
-      curs,
-      sets,
-      cats,
-      accs,
-      exps,
-      mInc,
-      eInc,
-      invs,
-      gls,
-      mort,
-      debts,
+      curs, sets, cats, accs, invs, gls, mort, debts, movs,
     ] = await Promise.all([
       this.db.select().from(currencies),
       this.db.select().from(settings),
       this.db.select().from(categories),
       this.db.select().from(accounts),
-      this.db.select().from(expenses),
-      this.db.select().from(monthlyIncomes),
-      this.db.select().from(extraIncomes),
       this.db.select().from(investments),
       this.db.select().from(goals),
       this.db.select().from(mortgage),
       this.db.select().from(otherDebts),
+      this.db.select().from(movements),
     ]);
 
     return {
@@ -116,21 +72,15 @@ export class BackupService {
         settings: sets,
         categories: cats,
         accounts: accs,
-        expenses: exps,
-        monthlyIncomes: mInc,
-        extraIncomes: eInc,
         investments: invs,
         goals: gls,
         mortgage: mort,
         otherDebts: debts,
+        movements: movs,
       },
     };
   }
 
-  /**
-   * Valida que el archivo tenga el formato esperado.
-   * Lanza Error con mensaje legible si no es valido.
-   */
   validateBackup(obj: unknown): asserts obj is BackupFile {
     if (!obj || typeof obj !== "object") {
       throw new Error("El archivo no es un JSON valido.");
@@ -157,9 +107,6 @@ export class BackupService {
       "settings",
       "categories",
       "accounts",
-      "expenses",
-      "monthlyIncomes",
-      "extraIncomes",
       "investments",
       "goals",
       "mortgage",
@@ -171,64 +118,105 @@ export class BackupService {
         throw new Error(`El archivo no contiene 'data.${key}' como array.`);
       }
     }
+    if (b.version >= 2) {
+      if (!Array.isArray((b.data as Record<string, unknown>).movements)) {
+        throw new Error(`El archivo v${b.version} requiere 'data.movements'.`);
+      }
+    } else {
+      if (
+        !Array.isArray((b.data as Record<string, unknown>).expenses) ||
+        !Array.isArray((b.data as Record<string, unknown>).extraIncomes)
+      ) {
+        throw new Error(
+          `El archivo v1 requiere 'data.expenses' y 'data.extraIncomes'.`,
+        );
+      }
+    }
   }
 
-  /**
-   * Importa el backup: borra todos los datos actuales y reinserta los del
-   * archivo. Sin confirmacion (la pide la UI).
-   *
-   * Las tablas se vacian en ORDEN INVERSO de dependencias para respetar
-   * las FKs (las hijas primero, las padres despues). Y se reinsertan en
-   * orden DIRECTO.
-   */
   async importAll(backup: BackupFile): Promise<void> {
     this.validateBackup(backup);
 
-    // Convertir fechas ISO de vuelta a Date en los registros
     const convert = (rows: unknown[]): unknown[] =>
       rows.map((row) => this.convertDates(row));
 
-    // 1. Vaciar en orden INVERSO (hijos primero)
-    //    expenses, extraIncomes, investments, goals, otherDebts, mortgage
-    //    todas dependen de categories/accounts/currencies → se borran antes
-    //    que sus padres
-    await this.db.delete(expenses);
-    await this.db.delete(extraIncomes);
+    // Vaciar en orden inverso de dependencias
+    await this.db.delete(movements);
     await this.db.delete(investments);
     await this.db.delete(goals);
     await this.db.delete(otherDebts);
     await this.db.delete(mortgage);
-    await this.db.delete(monthlyIncomes);
     await this.db.delete(accounts);
     await this.db.delete(categories);
     await this.db.delete(settings);
     await this.db.delete(currencies);
 
-    // 2. Reinsertar en orden DIRECTO (padres primero)
+    // Reinsertar padres primero
     await this.insertBatch(currencies, convert(backup.data.currencies));
     await this.insertBatch(settings, convert(backup.data.settings));
     await this.insertBatch(categories, convert(backup.data.categories));
     await this.insertBatch(accounts, convert(backup.data.accounts));
-    await this.insertBatch(monthlyIncomes, convert(backup.data.monthlyIncomes));
-    await this.insertBatch(expenses, convert(backup.data.expenses));
-    await this.insertBatch(extraIncomes, convert(backup.data.extraIncomes));
     await this.insertBatch(investments, convert(backup.data.investments));
     await this.insertBatch(goals, convert(backup.data.goals));
     await this.insertBatch(mortgage, convert(backup.data.mortgage));
     await this.insertBatch(otherDebts, convert(backup.data.otherDebts));
+
+    // Movements: v2 directo; v1 convierte expenses + extraIncomes
+    if (backup.version >= 2 && backup.data.movements) {
+      await this.insertBatch(movements, convert(backup.data.movements));
+    } else {
+      const exps = (backup.data.expenses ?? []) as Array<Record<string, unknown>>;
+      const extras = (backup.data.extraIncomes ?? []) as Array<Record<string, unknown>>;
+
+      const movFromExp = exps.map((e) => ({
+        id: e.id,
+        tipo: "gasto" as const,
+        fecha: e.fecha,
+        concepto: e.concepto,
+        importe: e.importe,
+        moneda: e.moneda,
+        cuentaOrigenId: e.cuentaId ?? null,
+        cuentaDestinoId: null,
+        categoriaId: e.categoriaId,
+        categoriaTexto: null,
+        mes: e.mes,
+        anio: e.anio,
+        notas: e.notas ?? null,
+        esAutomatico: false,
+        origenAutomatico: null,
+        origenAutomaticoId: null,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+        deletedAt: e.deletedAt ?? null,
+      }));
+
+      const movFromExtra = extras.map((e) => ({
+        id: e.id,
+        tipo: "ingreso" as const,
+        fecha: e.fecha,
+        concepto: e.concepto,
+        importe: e.importe,
+        moneda: e.moneda,
+        cuentaOrigenId: null,
+        cuentaDestinoId: null,
+        categoriaId: null,
+        categoriaTexto: e.categoria ?? null,
+        mes: e.mes,
+        anio: e.anio,
+        notas: e.notas ?? null,
+        esAutomatico: false,
+        origenAutomatico: null,
+        origenAutomaticoId: null,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+        deletedAt: e.deletedAt ?? null,
+      }));
+
+      await this.insertBatch(movements, convert([...movFromExp, ...movFromExtra]));
+    }
+    // monthlyIncomes en backups antiguos: IGNORADO (tabla deprecated en uso)
   }
 
-  // ---------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------
-
-  /**
-   * Inserta filas una a una (mas seguro que insert masivo con tipos
-   * mixtos). Si una fila esta corrupta, el error indica cual.
-   *
-   * No usamos Drizzle's bulk insert porque el typing es restrictivo y
-   * aqui aceptamos `unknown` (validacion ya hecha por validateBackup).
-   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async insertBatch(table: any, rows: unknown[]): Promise<void> {
     for (const row of rows) {
@@ -237,13 +225,6 @@ export class BackupService {
     }
   }
 
-  /**
-   * Convierte campos que parecen fechas ISO a Date. Drizzle espera Date
-   * en columnas con mode: 'timestamp_ms', y el JSON las trae como string.
-   *
-   * Detectamos por nombre de campo: cualquier campo terminado en 'At' o
-   * que se llame 'fecha*' o 'fechaInicio' / 'fechaCompra' / 'fechaObjetivo'.
-   */
   private convertDates(row: unknown): unknown {
     if (!row || typeof row !== "object") return row;
     const result: Record<string, unknown> = {};
@@ -264,10 +245,6 @@ export class BackupService {
   }
 }
 
-/**
- * Helper: dispara la descarga de un archivo JSON en el navegador.
- * Funciona dentro de Tauri (que es un Chromium embebido).
- */
 export function downloadJson(filename: string, data: unknown): void {
   const text = JSON.stringify(data, null, 2);
   const blob = new Blob([text], { type: "application/json" });
@@ -280,13 +257,9 @@ export function downloadJson(filename: string, data: unknown): void {
   a.click();
   document.body.removeChild(a);
 
-  // Cleanup
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/**
- * Helper: lee un archivo seleccionado por el usuario y lo parsea como JSON.
- */
 export function readJsonFile(file: File): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

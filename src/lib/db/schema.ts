@@ -246,79 +246,6 @@ export const accounts = sqliteTable(
 );
 
 // ============================================================================
-//  5. EXPENSES — registro detallado de gastos
-// ============================================================================
-//
-//  La tabla mas voluminosa (puede llegar a decenas de miles de filas).
-//  Por eso lleva DENORMALIZACION deliberada: los campos `mes` y `anio` se
-//  podrian calcular desde `fecha`, pero los guardamos explicitos para
-//  acelerar las queries agregadas que el Dashboard hace constantemente:
-//
-//    SELECT SUM(importe) FROM expenses WHERE mes=1 AND anio=2026 ...
-//
-//  Con `mes` y `anio` indexados es O(log n) + scan del rango.
-//  Sin denormalizar tendriamos que aplicar funciones MONTH()/YEAR() a
-//  la fecha en cada query, lo cual impide usar el indice.
-//
-//  Esto SI introduce un riesgo: si actualizan `fecha` y olvidan recalcular
-//  mes/anio, queda inconsistente. La capa de dominio (en Lote 4) tendra
-//  una funcion helper que siempre los pone juntos.
-// ============================================================================
-export const expenses = sqliteTable(
-  "expenses",
-  {
-    id: text("id").primaryKey(),
-
-    // Timestamp en ms. Representa una fecha sin hora (poner 00:00 UTC).
-    fecha: integer("fecha", { mode: "timestamp_ms" }).notNull(),
-    concepto: text("concepto").notNull(),
-
-    categoriaId: text("categoria_id")
-      .notNull()
-      .references(() => categories.id),
-
-    importe: real("importe").notNull(),
-    moneda: text("moneda")
-      .notNull()
-      .references(() => currencies.code),
-
-    // Opcional: de que cuenta salio el dinero. Permite restar al saldo
-    // cuando lleguemos a la fase de conciliacion automatica de cuentas.
-    cuentaId: text("cuenta_id").references(() => accounts.id),
-
-    // Denormalizados desde `fecha` (ver bloque de comentarios arriba):
-    mes: integer("mes").notNull(),
-    anio: integer("anio").notNull(),
-
-    notas: text("notas"),
-
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [
-    // Indice para "todos los gastos del mes X del anio Y" — la consulta
-    // mas frecuente del Dashboard.
-    index("idx_expenses_anio_mes")
-      .on(t.anio, t.mes)
-      .where(sql`${t.deletedAt} IS NULL`),
-
-    // Indice para "todos los gastos de la categoria C en el mes/anio actual"
-    index("idx_expenses_categoria")
-      .on(t.categoriaId)
-      .where(sql`${t.deletedAt} IS NULL`),
-
-    // Indice para listar gastos por fecha descendente (pantalla principal).
-    index("idx_expenses_fecha")
-      .on(t.fecha)
-      .where(sql`${t.deletedAt} IS NULL`),
-
-    check("expenses_importe_no_neg", sql`${t.importe} >= 0`),
-    check("expenses_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
-  ],
-);
-
-// ============================================================================
 //  6. MONTHLY_INCOMES — ingresos mensuales fijos (salario, etc)
 // ============================================================================
 //
@@ -353,48 +280,6 @@ export const monthlyIncomes = sqliteTable(
     // El UNIQUE impide tener dos filas para el mismo (anio, mes).
     uniqueIndex("ux_monthly_incomes_anio_mes").on(t.anio, t.mes),
     check("monthly_incomes_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
-  ],
-);
-
-// ============================================================================
-//  7. EXTRA_INCOMES — ingresos puntuales (bonus extra, premios, regalos)
-// ============================================================================
-//
-//  Misma logica que expenses pero para ingresos. Se suman al total mensual
-//  del Dashboard (junto a monthlyIncomes).
-// ============================================================================
-export const extraIncomes = sqliteTable(
-  "extra_incomes",
-  {
-    id: text("id").primaryKey(),
-
-    fecha: integer("fecha", { mode: "timestamp_ms" }).notNull(),
-    concepto: text("concepto").notNull(),
-
-    // Texto libre. Valores tipicos: 'Bonus', 'Premio', 'Regalo', 'Reembolso'.
-    categoria: text("categoria").notNull(),
-
-    tipo: text("tipo").notNull().default("Ingreso extra"),
-
-    importe: real("importe").notNull(),
-    moneda: text("moneda")
-      .notNull()
-      .references(() => currencies.code),
-
-    mes: integer("mes").notNull(),
-    anio: integer("anio").notNull(),
-
-    notas: text("notas"),
-
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [
-    index("idx_extra_incomes_anio_mes")
-      .on(t.anio, t.mes)
-      .where(sql`${t.deletedAt} IS NULL`),
-    check("extra_incomes_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
   ],
 );
 
@@ -743,14 +628,8 @@ export type NewCategory = typeof categories.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 
-export type Expense = typeof expenses.$inferSelect;
-export type NewExpense = typeof expenses.$inferInsert;
-
 export type MonthlyIncome = typeof monthlyIncomes.$inferSelect;
 export type NewMonthlyIncome = typeof monthlyIncomes.$inferInsert;
-
-export type ExtraIncome = typeof extraIncomes.$inferSelect;
-export type NewExtraIncome = typeof extraIncomes.$inferInsert;
 
 export type Investment = typeof investments.$inferSelect;
 export type NewInvestment = typeof investments.$inferInsert;

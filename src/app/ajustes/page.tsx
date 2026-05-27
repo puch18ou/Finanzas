@@ -58,8 +58,18 @@ import { BackupCard } from "@/components/papelera/BackupCard";
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
 const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 /**
@@ -78,11 +88,14 @@ function safeSet<T extends string>(
 
 export default function AjustesPage() {
   const { settings, update, isLoading: settingsLoading } = useSettings();
-  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies();
+  const { data: currencies = [], isLoading: currenciesLoading } =
+    useCurrencies();
 
   const [monedaLocal, setMonedaLocal] = useState("EUR");
   const [monedaVista, setMonedaVista] = useState("EUR");
-  const [anioActual, setAnioActual] = useState<number>(new Date().getFullYear());
+  const [anioActual, setAnioActual] = useState<number>(
+    new Date().getFullYear(),
+  );
   const [mesActual, setMesActual] = useState<number>(new Date().getMonth() + 1);
   const [objetivoAhorroPct, setObjetivoAhorroPct] = useState<number>(0.2);
   const [tieneHipoteca, setTieneHipoteca] = useState(false);
@@ -161,7 +174,12 @@ export default function AjustesPage() {
   // previene que los Select de monedas se monten con value="SGD" cuando
   // sus options aun no existen, lo que causaria que Radix dispare
   // onValueChange("") y ensucie el state.
-  if (settingsLoading || currenciesLoading || !settings || currencies.length === 0) {
+  if (
+    settingsLoading ||
+    currenciesLoading ||
+    !settings ||
+    currencies.length === 0
+  ) {
     return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
   }
 
@@ -183,14 +201,17 @@ export default function AjustesPage() {
           <CardHeader>
             <CardTitle>Monedas</CardTitle>
             <CardDescription>
-              La moneda local es la que usas para los ingresos del trabajo.
-              La moneda vista es la que se muestra en los totales.
+              La moneda local es la que usas para los ingresos del trabajo. La
+              moneda vista es la que se muestra en los totales.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="moneda-local">Moneda local</Label>
-              <Select value={monedaLocal} onValueChange={safeSet(setMonedaLocal)}>
+              <Select
+                value={monedaLocal}
+                onValueChange={safeSet(setMonedaLocal)}
+              >
                 <SelectTrigger id="moneda-local">
                   <SelectValue />
                 </SelectTrigger>
@@ -205,7 +226,10 @@ export default function AjustesPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="moneda-vista">Moneda vista</Label>
-              <Select value={monedaVista} onValueChange={safeSet(setMonedaVista)}>
+              <Select
+                value={monedaVista}
+                onValueChange={safeSet(setMonedaVista)}
+              >
                 <SelectTrigger id="moneda-vista">
                   <SelectValue />
                 </SelectTrigger>
@@ -225,8 +249,7 @@ export default function AjustesPage() {
           <CardHeader>
             <CardTitle>Periodo activo</CardTitle>
             <CardDescription>
-              Mes y anio por defecto al abrir pantallas de gastos e
-              ingresos.
+              Mes y anio por defecto al abrir pantallas de gastos e ingresos.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
@@ -300,8 +323,8 @@ export default function AjustesPage() {
           <CardHeader>
             <CardTitle>Hipoteca</CardTitle>
             <CardDescription>
-              Si tienes hipoteca, los calculos del Dashboard pueden integrar
-              la cuota.
+              Si tienes hipoteca, los calculos del Dashboard pueden integrar la
+              cuota.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -321,7 +344,10 @@ export default function AjustesPage() {
             {tieneHipoteca && (
               <div className="space-y-2">
                 <Label htmlFor="moneda-hipo">Moneda hipoteca</Label>
-                <Select value={monedaHipoteca} onValueChange={safeSet(setMonedaHipoteca)}>
+                <Select
+                  value={monedaHipoteca}
+                  onValueChange={safeSet(setMonedaHipoteca)}
+                >
                   <SelectTrigger id="moneda-hipo" className="max-w-[200px]">
                     <SelectValue placeholder="Selecciona moneda" />
                   </SelectTrigger>
@@ -391,8 +417,8 @@ export default function AjustesPage() {
               <Label htmlFor="mostrar-fab" className="flex flex-col gap-1">
                 <span>Boton flotante de gasto rapido</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Muestra el boton + en la esquina inferior derecha. Aunque
-                  lo ocultes, el atajo Ctrl+Shift+G sigue funcionando.
+                  Muestra el boton + en la esquina inferior derecha. Aunque lo
+                  ocultes, el atajo Ctrl+Shift+G sigue funcionando.
                 </span>
               </Label>
               <Switch
@@ -403,11 +429,14 @@ export default function AjustesPage() {
             </div>
 
             <div className="flex items-center justify-between rounded-md border p-3">
-              <Label htmlFor="integrar-hipoteca" className="flex flex-col gap-1">
+              <Label
+                htmlFor="integrar-hipoteca"
+                className="flex flex-col gap-1"
+              >
                 <span>Integrar cuota de hipoteca en Dashboard</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Si esta activo, la cuota mensual de la hipoteca activa se
-                  suma a los gastos del mes en el Dashboard.
+                  Si esta activo, la cuota mensual de la hipoteca activa se suma
+                  a los gastos del mes en el Dashboard.
                 </span>
               </Label>
               <Switch
@@ -443,7 +472,9 @@ export default function AjustesPage() {
           {feedback && (
             <p
               className={`text-sm ${
-                feedback.kind === "success" ? "text-primary" : "text-destructive"
+                feedback.kind === "success"
+                  ? "text-primary"
+                  : "text-destructive"
               } flex items-center gap-1`}
             >
               {feedback.kind === "success" ? (

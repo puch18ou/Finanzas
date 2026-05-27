@@ -84,66 +84,6 @@ export const TIPOS_CUENTA = [
   "Credito",
 ] as const;
 
-// ============================================================================
-//  GASTO
-// ============================================================================
-
-export const expenseFormSchema = z.object({
-  fecha: z.date({ message: "Fecha obligatoria" }),
-  concepto: z.string().min(1, "El concepto es obligatorio").max(200),
-  categoriaId: z.string().min(1, "Selecciona una categoria"),
-  importe: z
-    .number({ message: "Debe ser un numero" })
-    .nonnegative("El importe no puede ser negativo"),
-  moneda: z.string().min(2).max(4),
-  cuentaId: z.string().nullable().optional(),
-  notas: z.string().max(500).nullable().optional(),
-});
-
-export type ExpenseFormData = z.infer<typeof expenseFormSchema>;
-
-export const quickExpenseFormSchema = z.object({
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha invalida"),
-  concepto: z.string().min(1, "Concepto obligatorio").max(200),
-  categoriaId: z.string().min(1, "Selecciona una categoria"),
-  importe: z.number({ message: "Debe ser un numero" }).nonnegative(),
-  moneda: z.string().min(2).max(4),
-});
-
-export type QuickExpenseFormData = z.infer<typeof quickExpenseFormSchema>;
-
-// ============================================================================
-//  INGRESO MENSUAL
-// ============================================================================
-
-export const monthlyIncomeFormSchema = z.object({
-  salario: z.number({ message: "Debe ser un numero" }).nonnegative(),
-  bonus: z.number().nonnegative(),
-  otros: z.number().nonnegative(),
-  moneda: z.string().min(2).max(4),
-  notas: z.string().max(500).nullable().optional(),
-});
-
-export type MonthlyIncomeFormData = z.infer<typeof monthlyIncomeFormSchema>;
-
-// ============================================================================
-//  INGRESO PUNTUAL
-// ============================================================================
-
-export const extraIncomeFormSchema = z.object({
-  fecha: z.date({ message: "Fecha obligatoria" }),
-  concepto: z.string().min(1, "El concepto es obligatorio").max(200),
-  categoria: z.string().min(1, "Selecciona o escribe una categoria").max(40),
-  tipo: z.string().min(1).max(40).default("Ingreso extra"),
-  importe: z
-    .number({ message: "Debe ser un numero" })
-    .positive("Debe ser positivo"),
-  moneda: z.string().min(2).max(4),
-  notas: z.string().max(500).nullable().optional(),
-});
-
-export type ExtraIncomeFormData = z.infer<typeof extraIncomeFormSchema>;
-
 export const CATEGORIAS_INGRESO_EXTRA = [
   "Bonus",
   "Premio",

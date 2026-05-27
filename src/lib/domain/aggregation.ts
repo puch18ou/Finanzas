@@ -1,194 +1,109 @@
 /**
  * ============================================================================
- *  src/lib/domain/aggregation.ts — Agregaciones (SUMIFS, GROUPBY, etc)
+ *  src/lib/domain/aggregation.ts — Agregaciones para Dashboard/Evolucion
  * ============================================================================
  *
- *  Funciones puras que toman colecciones (gastos, ingresos, inversiones)
- *  y devuelven resumenes utiles para Dashboard y vistas.
+ *  Lote 10a-3: eliminada la dependencia de `monthlyIncomes`. Los ingresos
+ *  vienen exclusivamente de movements (tipo: ingreso o intereses).
  *
- *  POR QUE EN MEMORIA Y NO EN SQL
- *  ------------------------------
- *  Para los volumenes de datos personales (miles de gastos al año, no
- *  millones), procesar en JavaScript es perfectamente eficiente y nos
- *  da maxima flexibilidad. Si crece mucho, migraremos las hot paths a
- *  queries SQL agregadas.
+ *  Hasta que llegue el Lote 11 (movements recurrentes), el salario
+ *  mensual NO se contara automaticamente. El usuario tendra que meterlo
+ *  como movement tipo 'ingreso' a mano, o esperar al Lote 11.
  *
- *  Ademas, todas estas funciones reciben datos YA convertidos a la
- *  moneda vista. La conversion la hace el caller usando convert() del
- *  modulo currency. Esto separa responsabilidades.
+ *  CONCEPTOS
+ *  ---------
+ *    "Gastos del periodo" = movimientos con tipo ∈ {gasto, cuota}
+ *    "Ingresos del periodo" = movimientos con tipo ∈ {ingreso, intereses}
+ *    "Transferencias y ajustes" NO se suman a ingresos ni gastos.
+ *
+ *  El monto siempre se trata POSITIVO. La direccion la decide el tipo.
  * ============================================================================
  */
 
-import type { Expense, ExtraIncome, MonthlyIncome } from "@/lib/db/schema";
+import type { Movement } from "@/lib/db/schema";
 import { convert, type RatesMap } from "./currency";
 
-/**
- * Suma los importes de una lista de gastos, convertidos a la moneda vista.
- * Filtra antes los borrados (soft delete) por seguridad: la lista deberia
- * llegar ya sin borrados, pero por robustez los descartamos aqui tambien.
- */
-export function sumExpensesInView(
-  expenses: Expense[],
-  rates: RatesMap,
-  viewCurrency: string,
-): number {
-  let total = 0;
-  for (const e of expenses) {
-    if (e.deletedAt !== null) continue;
-    total += convert(e.importe, e.moneda, viewCurrency, rates);
-  }
-  return total;
-}
+const TIPOS_GASTO = new Set(["gasto", "cuota"]);
+const TIPOS_INGRESO = new Set(["ingreso", "intereses"]);
 
-/**
- * Filtra una lista de gastos por mes y anio. Util como pre-paso a sum.
- */
-export function filterExpensesByPeriod(
-  expenses: Expense[],
-  mes: number,
-  anio: number,
-): Expense[] {
-  return expenses.filter(
-    (e) => e.deletedAt === null && e.mes === mes && e.anio === anio,
-  );
-}
-
-/**
- * Filtra una lista de gastos por anio completo (todos los meses).
- */
-export function filterExpensesByYear(
-  expenses: Expense[],
-  anio: number,
-): Expense[] {
-  return expenses.filter((e) => e.deletedAt === null && e.anio === anio);
-}
-
-/**
- * Agrupa una lista de gastos por categoria, devolviendo un mapa
- * categoria_id → total convertido a la moneda vista.
- */
-export function sumExpensesByCategory(
-  expenses: Expense[],
-  rates: RatesMap,
-  viewCurrency: string,
-): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const e of expenses) {
-    if (e.deletedAt !== null) continue;
-    const value = convert(e.importe, e.moneda, viewCurrency, rates);
-    result[e.categoriaId] = (result[e.categoriaId] ?? 0) + value;
-  }
-  return result;
-}
-
-/**
- * Suma los ingresos mensuales de un mes/anio especifico. Devuelve el
- * total convertido a la moneda vista. Si no hay fila para ese mes/anio,
- * devuelve 0.
- */
-export function sumMonthlyIncomeInView(
-  incomes: MonthlyIncome[],
-  mes: number,
-  anio: number,
-  rates: RatesMap,
-  viewCurrency: string,
-): number {
-  const row = incomes.find(
-    (i) => i.deletedAt === null && i.mes === mes && i.anio === anio,
-  );
-  if (!row) return 0;
-
-  const total = row.salario + row.bonus + row.otros;
-  return convert(total, row.moneda, viewCurrency, rates);
-}
-
-/**
- * Suma todos los ingresos puntuales de un mes/anio, en moneda vista.
- */
-export function sumExtraIncomesInView(
-  extras: ExtraIncome[],
-  mes: number,
-  anio: number,
-  rates: RatesMap,
-  viewCurrency: string,
-): number {
-  let total = 0;
-  for (const e of extras) {
-    if (e.deletedAt !== null) continue;
-    if (e.mes !== mes || e.anio !== anio) continue;
-    total += convert(e.importe, e.moneda, viewCurrency, rates);
-  }
-  return total;
-}
-
-/**
- * Resumen mensual de ingresos, gastos, ahorro y tasa de ahorro para un
- * mes especifico. Es el bloque base del Dashboard y de la pagina Evolucion.
- */
-export type MonthSummary = {
-  mes: number;
-  anio: number;
+export type PeriodSummary = {
   ingresos: number;
   gastos: number;
   ahorro: number;
-  /** ahorro / ingresos. Si ingresos = 0, tasa = 0. */
-  tasaAhorro: number;
+  tasaAhorro: number; // 0..1
 };
 
-export function summarizeMonth(args: {
+export type SummarizeMonthArgs = {
   mes: number;
   anio: number;
-  expenses: Expense[];
-  monthlyIncomes: MonthlyIncome[];
-  extraIncomes: ExtraIncome[];
+  movements: Movement[];
   rates: RatesMap;
   viewCurrency: string;
-}): MonthSummary {
-  const ingresos =
-    sumMonthlyIncomeInView(args.monthlyIncomes, args.mes, args.anio, args.rates, args.viewCurrency) +
-    sumExtraIncomesInView(args.extraIncomes, args.mes, args.anio, args.rates, args.viewCurrency);
+};
 
-  const filtered = filterExpensesByPeriod(args.expenses, args.mes, args.anio);
-  const gastos = sumExpensesInView(filtered, args.rates, args.viewCurrency);
+/**
+ * Calcula los totales del mes en moneda vista.
+ */
+export function summarizeMonth(args: SummarizeMonthArgs): PeriodSummary {
+  const { mes, anio, movements, rates, viewCurrency } = args;
+
+  const movsMes = filterMovementsByPeriod(movements, mes, anio);
+
+  let gastos = 0;
+  let ingresos = 0;
+
+  for (const m of movsMes) {
+    if (TIPOS_GASTO.has(m.tipo)) {
+      try {
+        gastos += convert(m.importe, m.moneda, viewCurrency, rates);
+      } catch {
+        // Si la moneda no tiene rate, lo ignoramos
+      }
+    } else if (TIPOS_INGRESO.has(m.tipo)) {
+      try {
+        ingresos += convert(m.importe, m.moneda, viewCurrency, rates);
+      } catch {
+        // ignorar
+      }
+    }
+  }
 
   const ahorro = ingresos - gastos;
   const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
 
-  return {
-    mes: args.mes,
-    anio: args.anio,
-    ingresos,
-    gastos,
-    ahorro,
-    tasaAhorro,
-  };
+  return { ingresos, gastos, ahorro, tasaAhorro };
 }
 
 /**
- * Resumen de los 12 meses de un anio. Itera summarizeMonth.
- * Ideal para la pagina de Evolucion y para tablas anuales.
+ * Filtra movimientos a los de un mes/anio concreto.
  */
-export function summarizeYear(args: {
-  anio: number;
-  expenses: Expense[];
-  monthlyIncomes: MonthlyIncome[];
-  extraIncomes: ExtraIncome[];
-  rates: RatesMap;
-  viewCurrency: string;
-}): MonthSummary[] {
-  const result: MonthSummary[] = [];
-  for (let mes = 1; mes <= 12; mes++) {
-    result.push(
-      summarizeMonth({
-        mes,
-        anio: args.anio,
-        expenses: args.expenses,
-        monthlyIncomes: args.monthlyIncomes,
-        extraIncomes: args.extraIncomes,
-        rates: args.rates,
-        viewCurrency: args.viewCurrency,
-      }),
-    );
+export function filterMovementsByPeriod(
+  movements: Movement[],
+  mes: number,
+  anio: number,
+): Movement[] {
+  return movements.filter((m) => m.mes === mes && m.anio === anio);
+}
+
+/**
+ * Suma de gastos por categoria, en moneda vista.
+ */
+export function sumMovementsByCategory(
+  movements: Movement[],
+  rates: RatesMap,
+  viewCurrency: string,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const m of movements) {
+    if (!TIPOS_GASTO.has(m.tipo)) continue;
+    if (!m.categoriaId) continue;
+    let value = 0;
+    try {
+      value = convert(m.importe, m.moneda, viewCurrency, rates);
+    } catch {
+      continue;
+    }
+    result[m.categoriaId] = (result[m.categoriaId] ?? 0) + value;
   }
   return result;
 }

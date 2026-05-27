@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * src/hooks/useMovements.ts
+ * src/hooks/useMovements.ts — sin cambios funcionales respecto a 10a-1.
+ * Lo incluyo en el pack por completitud y para evitar confusion.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

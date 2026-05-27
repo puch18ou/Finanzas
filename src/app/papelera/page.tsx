@@ -1,20 +1,10 @@
 "use client";
 
 /**
- * ============================================================================
- *  src/app/papelera/page.tsx — Papelera unificada
- * ============================================================================
+ * src/app/papelera/page.tsx — Papelera
  *
- *  Pantalla unica con tabs por tipo de elemento. Cada tab muestra los
- *  items soft-deleted de su tabla, con opciones de Restaurar y Borrar
- *  definitivamente.
- *
- *  Tabs:
- *    Gastos · Ingresos puntuales · Categorias · Cuentas · Inversiones ·
- *    Metas · Hipoteca · Otras deudas
- *
- *  Cada tab muestra en el label el contador entre parentesis: "Gastos (3)".
- * ============================================================================
+ * Lote 10a-2: el tab "Gastos" e "Ingresos" se sustituyen por
+ * "Movimientos".
  */
 
 import { useState } from "react";
@@ -53,8 +43,7 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
-  { type: "expenses", label: "Gastos" },
-  { type: "extraIncomes", label: "Ingresos" },
+  { type: "movements", label: "Movimientos" },
   { type: "categories", label: "Categorias" },
   { type: "accounts", label: "Cuentas" },
   { type: "investments", label: "Inversiones" },
@@ -114,7 +103,7 @@ export default function PapeleraPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={firstNonEmptyTab(counts) ?? "expenses"}>
+            <Tabs defaultValue={firstNonEmptyTab(counts) ?? "movements"}>
               <TabsList className="mb-4 flex w-full flex-wrap h-auto">
                 {TABS.map((t) => {
                   const c = counts?.[t.type] ?? 0;
@@ -176,8 +165,6 @@ export default function PapeleraPage() {
   );
 }
 
-// Helper: devuelve el primer tipo con count > 0 para que el tab por
-// defecto sea uno con datos.
 function firstNonEmptyTab(
   counts: Record<TrashItemType, number> | undefined,
 ): TrashItemType | null {

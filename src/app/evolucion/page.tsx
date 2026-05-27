@@ -1,29 +1,15 @@
 "use client";
 
 /**
- * ============================================================================
- *  src/app/evolucion/page.tsx
- * ============================================================================
+ * src/app/evolucion/page.tsx — Evolucion anual (Lote 10a-3)
  *
- *  Tabla anual y grafico de evolucion mensual.
- *
- *  Contenido:
- *    [Selector de año]
- *    [Grafico configurable: lineas / barras / areas]
- *    [Tabla 12 meses: ingresos, gastos, ahorro, tasa, cumple objetivo]
- *    [Fila de total/promedio anual]
- *
- *  Todo en moneda vista.
- * ============================================================================
+ * Eliminada la dependencia de monthlyIncomes.
  */
 
-import { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { useMemo } from "react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
-import { useExpenses } from "@/hooks/useExpenses";
-import { useMonthlyIncomes } from "@/hooks/useMonthlyIncomes";
-import { useExtraIncomes } from "@/hooks/useExtraIncomes";
-import { EvolutionChart } from "@/components/charts/EvolutionChart";
+import { useMovements } from "@/hooks/useMovements";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import {
   Card,
   CardContent,
@@ -32,219 +18,240 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { buildRatesMap, formatAmount } from "@/lib/domain/currency";
-import { summarizeYear } from "@/lib/domain/aggregation";
-import { MESES_ES } from "@/lib/utils/dates";
+import { summarizeMonth } from "@/lib/domain/aggregation";
 import { cn } from "@/lib/utils/cn";
 
+const MESES_LABEL = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+];
+
 export default function EvolucionPage() {
+  const today = new Date();
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
 
-  const [anio, setAnio] = useState<number>(
-    settings?.anioActual ?? new Date().getFullYear(),
+  const [anio, setAnio] = useLocalStorage<number>(
+    "evolucion:anio",
+    settings?.anioActual ?? today.getFullYear(),
   );
 
-  // Para evolucion necesitamos TODO el año
-  const { expenses } = useExpenses({ anio });
-  const { rows: monthlyIncomes } = useMonthlyIncomes(
-    anio,
-    settings?.monedaLocal ?? "EUR",
-  );
-  const { extras } = useExtraIncomes({ anio });
+  const { movements } = useMovements({ anio });
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
-  const yearSummary = useMemo(() => {
-    if (!settings) return null;
-    return summarizeYear({
-      anio,
-      expenses,
-      monthlyIncomes,
-      extraIncomes: extras,
-      rates,
-      viewCurrency,
-    });
-  }, [settings, anio, expenses, monthlyIncomes, extras, rates, viewCurrency]);
+  const monthlyData = useMemo(() => {
+    if (!settings) return [];
+    const result = [];
+    for (let mes = 1; mes <= 12; mes++) {
+      const summary = summarizeMonth({
+        mes,
+        anio,
+        movements,
+        rates,
+        viewCurrency,
+      });
+      result.push({ mes, ...summary });
+    }
+    return result;
+  }, [settings, anio, movements, rates, viewCurrency]);
 
-  const totalAnual = useMemo(() => {
-    if (!yearSummary) return null;
-    const ingresos = yearSummary.reduce((s, m) => s + m.ingresos, 0);
-    const gastos = yearSummary.reduce((s, m) => s + m.gastos, 0);
+  const yearTotals = useMemo(() => {
+    let ingresos = 0;
+    let gastos = 0;
+    for (const r of monthlyData) {
+      ingresos += r.ingresos;
+      gastos += r.gastos;
+    }
     const ahorro = ingresos - gastos;
-    const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
-    return { ingresos, gastos, ahorro, tasaAhorro };
-  }, [yearSummary]);
+    const tasa = ingresos > 0 ? ahorro / ingresos : 0;
+    return { ingresos, gastos, ahorro, tasa };
+  }, [monthlyData]);
 
-  if (!settings || !yearSummary || !totalAnual) {
-    return <p className="text-sm text-muted-foreground">Cargando...</p>;
-  }
+  const chartData = useMemo(() => {
+    return monthlyData.map((r) => ({
+      mes: MESES_LABEL[r.mes - 1],
+      Ingresos: Math.round(r.ingresos * 100) / 100,
+      Gastos: Math.round(r.gastos * 100) / 100,
+      Ahorro: Math.round(r.ahorro * 100) / 100,
+    }));
+  }, [monthlyData]);
 
-  const objetivo = settings.objetivoAhorroPct;
   const currentYear = new Date().getFullYear();
   const years: number[] = [];
   for (let y = currentYear + 1; y >= currentYear - 5; y--) years.push(y);
 
-  // Datos para el grafico (renombrando campos)
-  const chartData = yearSummary.map((m) => ({
-    mes: m.mes,
-    ingresos: m.ingresos,
-    gastos: m.gastos,
-    ahorro: m.ahorro,
-  }));
+  if (!settings) {
+    return <p className="text-sm text-muted-foreground">Cargando...</p>;
+  }
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Evolucion</h1>
           <p className="text-sm text-muted-foreground">
-            Tabla mensual con ingresos, gastos, ahorro y tasa de ahorro a lo
-            largo del anio.
+            Resumen mensual del anio seleccionado.
           </p>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="anio-evol" className="text-xs">Anio</Label>
-          <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
-            <SelectTrigger id="anio-evol" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
+          <SelectTrigger className="w-[120px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </header>
-
-      <EvolutionChart
-        data={chartData}
-        viewCurrency={viewCurrency}
-        title={`Evolucion mensual ${anio}`}
-        description={`Valores convertidos a ${viewCurrency}.`}
-      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Resumen mensual</CardTitle>
+          <CardTitle>Resumen {anio}</CardTitle>
           <CardDescription>
-            Objetivo de ahorro: {(objetivo * 100).toFixed(0)}%. Los meses que
-            lo cumplen aparecen con un check verde.
+            Totales anuales en {viewCurrency}
           </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <YearTotal label="Ingresos" value={formatAmount(yearTotals.ingresos, viewCurrency)} intent="positive" />
+          <YearTotal label="Gastos" value={formatAmount(yearTotals.gastos, viewCurrency)} intent="negative" />
+          <YearTotal
+            label="Ahorro"
+            value={formatAmount(yearTotals.ahorro, viewCurrency)}
+            intent={yearTotals.ahorro >= 0 ? "positive" : "negative"}
+          />
+          <YearTotal
+            label="Tasa media"
+            value={`${(yearTotals.tasa * 100).toFixed(0)}%`}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mes a mes</CardTitle>
+          <CardDescription>Ingresos vs gastos en {viewCurrency}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <XAxis dataKey="mes" />
+                <YAxis />
+                <Tooltip
+                  formatter={(v: unknown) => formatAmount(Number(v) || 0, viewCurrency)}
+                  contentStyle={{
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="Ingresos" fill="var(--color-primary)" />
+                <Bar dataKey="Gastos" fill="var(--color-destructive)" />
+                <Bar dataKey="Ahorro" fill="var(--color-chart-3, #888)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalle por mes</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[110px]">Mes</TableHead>
+                <TableHead className="w-[80px]">Mes</TableHead>
                 <TableHead className="text-right">Ingresos</TableHead>
                 <TableHead className="text-right">Gastos</TableHead>
                 <TableHead className="text-right">Ahorro</TableHead>
                 <TableHead className="text-right">Tasa</TableHead>
-                <TableHead className="text-center w-[60px]">Objetivo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {yearSummary.map((m) => {
-                const cumple = m.ingresos > 0 && m.tasaAhorro >= objetivo;
-                const ningunDato = m.ingresos === 0 && m.gastos === 0;
-                return (
-                  <TableRow
-                    key={m.mes}
-                    className={ningunDato ? "opacity-60" : ""}
+              {monthlyData.map((r) => (
+                <TableRow key={r.mes}>
+                  <TableCell className="font-medium">{MESES_LABEL[r.mes - 1]}</TableCell>
+                  <TableCell className="text-right tabular-nums text-primary">
+                    {formatAmount(r.ingresos, viewCurrency)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-destructive">
+                    {formatAmount(r.gastos, viewCurrency)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums",
+                      r.ahorro >= 0 ? "text-primary" : "text-destructive",
+                    )}
                   >
-                    <TableCell className="font-medium">
-                      {MESES_ES[m.mes - 1]}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatAmount(m.ingresos, viewCurrency)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatAmount(m.gastos, viewCurrency)}
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums",
-                        m.ahorro < 0 && "text-destructive",
-                        m.ahorro > 0 && "text-primary",
-                      )}
-                    >
-                      {formatAmount(m.ahorro, viewCurrency)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {m.ingresos > 0
-                        ? `${(m.tasaAhorro * 100).toFixed(0)}%`
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {ningunDato ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : cumple ? (
-                        <Check className="mx-auto h-4 w-4 text-primary" />
-                      ) : (
-                        <X className="mx-auto h-4 w-4 text-destructive" />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                    {formatAmount(r.ahorro, viewCurrency)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {r.ingresos > 0 ? `${(r.tasaAhorro * 100).toFixed(0)}%` : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell className="font-semibold">Total {anio}</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatAmount(totalAnual.ingresos, viewCurrency)}
-                </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatAmount(totalAnual.gastos, viewCurrency)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right font-semibold tabular-nums",
-                    totalAnual.ahorro < 0 && "text-destructive",
-                    totalAnual.ahorro > 0 && "text-primary",
-                  )}
-                >
-                  {formatAmount(totalAnual.ahorro, viewCurrency)}
-                </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {totalAnual.ingresos > 0
-                    ? `${(totalAnual.tasaAhorro * 100).toFixed(0)}%`
-                    : "—"}
-                </TableCell>
-                <TableCell className="text-center">
-                  {totalAnual.ingresos > 0 &&
-                  totalAnual.tasaAhorro >= objetivo ? (
-                    <Check className="mx-auto h-4 w-4 text-primary" />
-                  ) : (
-                    <X className="mx-auto h-4 w-4 text-destructive" />
-                  )}
-                </TableCell>
-              </TableRow>
-            </TableFooter>
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function YearTotal({
+  label,
+  value,
+  intent = "neutral",
+}: {
+  label: string;
+  value: string;
+  intent?: "neutral" | "positive" | "negative";
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "text-2xl font-bold tabular-nums",
+          intent === "positive" && "text-primary",
+          intent === "negative" && "text-destructive",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }

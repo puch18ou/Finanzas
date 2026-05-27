@@ -1,20 +1,12 @@
 "use client";
 
 /**
- * ============================================================================
- *  src/app/dashboard/page.tsx — Dashboard principal (Lote 8)
- * ============================================================================
+ * src/app/dashboard/page.tsx — Dashboard (Lote 10a-3)
  *
- *  Cambios vs Lote 7:
- *    - Si `settings.integrarCuotaHipoteca` esta activo Y hay hipoteca
- *      activa, la cuota mensual (calculada en vivo) se suma a los gastos
- *      del KPI "Gastos" y al calculo de Ahorro.
- *    - Patrimonio neto descuenta:
- *        + Capital prestado de la hipoteca activa (= precioVivienda
- *          - entrada + gastosAsociados)
- *        + Capital pendiente de Otras deudas
- *      todo convertido a moneda vista.
- * ============================================================================
+ * Eliminada la dependencia de monthly_incomes. Los ingresos vienen solo
+ * de movements tipo ingreso/intereses. Hasta el Lote 11, el salario no
+ * se cuenta automaticamente — el usuario tendra que meterlo a mano
+ * como movement tipo "ingreso" si quiere verlo en el Dashboard.
  */
 
 import { useMemo } from "react";
@@ -28,9 +20,7 @@ import {
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useExpenses } from "@/hooks/useExpenses";
-import { useMonthlyIncomes } from "@/hooks/useMonthlyIncomes";
-import { useExtraIncomes } from "@/hooks/useExtraIncomes";
+import { useMovements } from "@/hooks/useMovements";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useMortgage } from "@/hooks/useMortgage";
 import { useOtherDebts } from "@/hooks/useOtherDebts";
@@ -39,7 +29,7 @@ import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CategoryChart } from "@/components/charts/CategoryChart";
 import { BudgetProgress } from "@/components/dashboard/BudgetProgress";
-import { RecentExpenses } from "@/components/dashboard/RecentExpenses";
+import { RecentMovements } from "@/components/dashboard/RecentMovements";
 import {
   buildRatesMap,
   convert,
@@ -47,8 +37,8 @@ import {
 } from "@/lib/domain/currency";
 import {
   summarizeMonth,
-  sumExpensesByCategory,
-  filterExpensesByPeriod,
+  sumMovementsByCategory,
+  filterMovementsByPeriod,
 } from "@/lib/domain/aggregation";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
@@ -72,18 +62,25 @@ export default function DashboardPage() {
     settings?.mesActual ?? today.getMonth() + 1,
   );
 
-  const { expenses } = useExpenses({ anio: periodAnio, mes: periodMes });
-  const { rows: monthlyIncomes } = useMonthlyIncomes(
-    periodAnio,
-    settings?.monedaLocal ?? "EUR",
-  );
-  const { extras } = useExtraIncomes({ anio: periodAnio });
+  const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
 
   const categoryById = useMemo(() => {
     const m: Record<string, { nombre: string; color: string | null }> = {};
     for (const c of categories) m[c.id] = { nombre: c.nombre, color: c.color };
     return m;
   }, [categories]);
+
+  const categoryNamesMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of categories) m[c.id] = c.nombre;
+    return m;
+  }, [categories]);
+
+  const accountNamesMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const a of accounts) m[a.id] = a.alias;
+    return m;
+  }, [accounts]);
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
@@ -93,15 +90,13 @@ export default function DashboardPage() {
     return summarizeMonth({
       mes: periodMes,
       anio: periodAnio,
-      expenses,
-      monthlyIncomes,
-      extraIncomes: extras,
+      movements,
       rates,
       viewCurrency,
     });
-  }, [settings, periodMes, periodAnio, expenses, monthlyIncomes, extras, rates, viewCurrency]);
+  }, [settings, periodMes, periodAnio, movements, rates, viewCurrency]);
 
-  // Resumen de la hipoteca (capitalPrestado, cuotaMensual, etc.)
+  // Mortgage summary para descontar capital del patrimonio
   const mortgageSummary = useMemo(() => {
     if (!mortgage) return null;
     return summarizeMortgage({
@@ -113,7 +108,7 @@ export default function DashboardPage() {
     });
   }, [mortgage]);
 
-  // Cuota mensual hipoteca en moneda vista (si aplica)
+  // Cuota mensual hipoteca en moneda vista (si toggle activo)
   const cuotaHipotecaVista = useMemo(() => {
     if (!settings?.integrarCuotaHipoteca) return 0;
     if (!mortgage || !mortgage.activa || !mortgageSummary) return 0;
@@ -124,7 +119,6 @@ export default function DashboardPage() {
     }
   }, [settings, mortgage, mortgageSummary, viewCurrency, rates]);
 
-  // Resumen final con cuota integrada
   const summary = useMemo(() => {
     if (!baseSummary) return null;
     if (cuotaHipotecaVista === 0) return baseSummary;
@@ -140,9 +134,7 @@ export default function DashboardPage() {
       if (!a.activa) continue;
       try {
         total += convert(a.saldo, a.moneda, viewCurrency, rates);
-      } catch {
-        // ignorar
-      }
+      } catch {}
     }
     return total;
   }, [accounts, rates, viewCurrency]);
@@ -152,7 +144,6 @@ export default function DashboardPage() {
     [investments, rates, viewCurrency],
   );
 
-  // Deuda total = capital prestado de hipoteca activa + capital pendiente de otras deudas
   const deudaTotalVista = useMemo(() => {
     let total = 0;
     if (mortgage && mortgage.activa && mortgageSummary) {
@@ -163,16 +154,12 @@ export default function DashboardPage() {
           viewCurrency,
           rates,
         );
-      } catch {
-        // ignorar
-      }
+      } catch {}
     }
     for (const d of debts) {
       try {
         total += convert(d.capitalPendiente, d.moneda, viewCurrency, rates);
-      } catch {
-        // ignorar
-      }
+      } catch {}
     }
     return total;
   }, [mortgage, mortgageSummary, debts, rates, viewCurrency]);
@@ -180,8 +167,8 @@ export default function DashboardPage() {
   const patrimonioNeto = valorCuentas + portfolio.valorActualVista - deudaTotalVista;
 
   const categoryChartData = useMemo(() => {
-    const filtered = filterExpensesByPeriod(expenses, periodMes, periodAnio);
-    const byCat = sumExpensesByCategory(filtered, rates, viewCurrency);
+    const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
+    const byCat = sumMovementsByCategory(filtered, rates, viewCurrency);
     return Object.entries(byCat)
       .map(([catId, value]) => {
         const cat = categoryById[catId];
@@ -193,11 +180,11 @@ export default function DashboardPage() {
       })
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [expenses, periodMes, periodAnio, rates, viewCurrency, categoryById]);
+  }, [movements, periodMes, periodAnio, rates, viewCurrency, categoryById]);
 
   const budgetRows = useMemo(() => {
-    const filtered = filterExpensesByPeriod(expenses, periodMes, periodAnio);
-    const byCat = sumExpensesByCategory(filtered, rates, viewCurrency);
+    const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
+    const byCat = sumMovementsByCategory(filtered, rates, viewCurrency);
 
     return categories.map((c) => {
       let presupuestoView = 0;
@@ -220,13 +207,7 @@ export default function DashboardPage() {
         presupuesto: presupuestoView,
       };
     });
-  }, [categories, expenses, periodMes, periodAnio, rates, viewCurrency]);
-
-  const categoryNamesMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const c of categories) m[c.id] = c.nombre;
-    return m;
-  }, [categories]);
+  }, [categories, movements, periodMes, periodAnio, rates, viewCurrency]);
 
   if (!settings || !summary) {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
@@ -270,6 +251,7 @@ export default function DashboardPage() {
           value={formatAmount(summary.ingresos, viewCurrency)}
           icon={Wallet}
           intent="positive"
+          hint={summary.ingresos === 0 ? "Llegara con movimientos recurrentes (Lote 11)" : undefined}
         />
         <KpiCard
           label="Gastos"
@@ -325,7 +307,12 @@ export default function DashboardPage() {
         <BudgetProgress rows={budgetRows} viewCurrency={viewCurrency} />
       </div>
 
-      <RecentExpenses expenses={expenses} categoryNames={categoryNamesMap} max={8} />
+      <RecentMovements
+        movements={movements}
+        categoryNames={categoryNamesMap}
+        accountNames={accountNamesMap}
+        max={8}
+      />
     </div>
   );
 }

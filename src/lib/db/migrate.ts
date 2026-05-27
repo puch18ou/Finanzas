@@ -1,13 +1,5 @@
 /**
- * ============================================================================
- *  src/lib/db/migrate.ts — Aplicador de migraciones SQL al arrancar
- * ============================================================================
- *
- *  Añadida migracion 0003_create_movements.
- *
- *  Tolerancia a errores "ya existe": si una sentencia tropieza con una
- *  tabla/columna/indice que ya existe, la salta y continua.
- * ============================================================================
+ * src/lib/db/migrate.ts — añade migracion 0004.
  */
 
 import { getDb, getRawDb } from "./client";
@@ -16,12 +8,14 @@ import init0000 from "../../../drizzle/0000_init.sql?raw";
 import migration0001 from "../../../drizzle/0001_add_mostrar_fab.sql?raw";
 import migration0002 from "../../../drizzle/0002_integrar_cuota_hipoteca.sql?raw";
 import migration0003 from "../../../drizzle/0003_create_movements.sql?raw";
+import migration0004 from "../../../drizzle/0004_drop_legacy_movement_tables.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
   { name: "0001_add_mostrar_fab", sql: migration0001 },
   { name: "0002_integrar_cuota_hipoteca", sql: migration0002 },
   { name: "0003_create_movements", sql: migration0003 },
+  { name: "0004_drop_legacy_movement_tables", sql: migration0004 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {
@@ -37,7 +31,6 @@ function isAlreadyExistsError(err: unknown): boolean {
 }
 
 export async function runMigrations(): Promise<string[]> {
-  // Aseguramos foreign keys ON antes de cualquier migracion
   await getDb();
   const db = await getRawDb();
 
@@ -48,7 +41,6 @@ export async function runMigrations(): Promise<string[]> {
     )
   `);
 
-  // BD pre-existente: si currencies ya existe, asumimos 0000 aplicada
   const existingTables = await db.select<{ name: string }[]>(
     `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'currencies'`,
   );

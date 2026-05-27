@@ -1,42 +1,22 @@
 "use client";
 
 /**
- * ============================================================================
- *  src/components/forms/QuickExpenseDialog.tsx
- * ============================================================================
+ * src/components/forms/QuickExpenseDialog.tsx
  *
- *  Modal "rapido" para anadir un gasto. Variante minimalista del formulario
- *  completo:
- *
- *    - Fecha: input nativo type=date (rapido, sin abrir popover)
- *    - Concepto
- *    - Categoria
- *    - Importe + moneda
- *
- *  No tiene cuenta ni notas. Si el usuario los quiere, editara despues
- *  desde la pagina de Gastos. El objetivo es la velocidad.
- *
- *  Por defecto, fecha = hoy y moneda = moneda local del usuario.
- *  Tras enviar, NO cierra el modal por defecto: limpia el formulario y
- *  deja el foco en "concepto" para anadir varios seguidos. (Se puede
- *  cerrar con Esc o pulsando fuera).
- *
- *  Ahora bien, si el usuario marca el checkbox "Cerrar tras anadir", si
- *  cierra. Es un toggle persistente en localStorage para que recuerde
- *  la preferencia.
- *
- *  ATENCION: localStorage NO es soportado por algunos entornos de
- *  artefactos pero SI por Tauri/Next dev. Aqui lo usamos sin problema.
- * ============================================================================
+ * Gasto rapido (Ctrl+Shift+G). Lote 10a-2: crea un movement tipo gasto.
+ * Mantenemos la ruta forms/ para no tener que cambiar el import en
+ * QuickAddProvider.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  quickExpenseFormSchema,
-  type QuickExpenseFormData,
-} from "@/lib/schemas/forms";
+import { z } from "zod";
+import { Plus } from "lucide-react";
+import { useMovements } from "@/hooks/useMovements";
+import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useCategories } from "@/hooks/useCategories";
+import { useAccounts } from "@/hooks/useAccounts";
 import {
   Dialog,
   DialogContent,
@@ -55,43 +35,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSettings, useCurrencies } from "@/hooks/useSettings";
-import { useCategories } from "@/hooks/useCategories";
-import { useExpenses } from "@/hooks/useExpenses";
-import { formatDateOnlyString, parseDateOnlyString } from "@/lib/utils/dates";
-import { Zap } from "lucide-react";
+
+const quickGastoSchema = z.object({
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha invalida"),
+  concepto: z.string().min(1, "Concepto obligatorio").max(200),
+  cuentaOrigenId: z.string().min(1, "Selecciona una cuenta"),
+  categoriaId: z.string().min(1, "Selecciona una categoria"),
+  importe: z
+    .number({ message: "Debe ser un numero" })
+    .positive("Debe ser positivo"),
+  moneda: z.string().min(2).max(4),
+});
+
+type QuickGastoData = z.infer<typeof quickGastoSchema>;
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-const STORAGE_KEY = "quickadd:closeAfterSave";
-
 export function QuickExpenseDialog({ open, onOpenChange }: Props) {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
-  const { create, isMutating } = useExpenses();
+  const { accounts } = useAccounts();
+  const { create, isMutating } = useMovements();
 
-  // Preferencia "cerrar tras guardar", persistente
-  const [closeAfter, setCloseAfter] = useState(false);
-  useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(STORAGE_KEY);
-      setCloseAfter(v === "true");
-    } catch {
-      // localStorage podria estar bloqueado, no rompemos
-    }
-  }, []);
-  const updateCloseAfter = (v: boolean) => {
-    setCloseAfter(v);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(v));
-    } catch {}
-  };
+  const cuentasActivas = useMemo(
+    () => accounts.filter((a) => a.activa),
+    [accounts],
+  );
 
-  const today = formatDateOnlyString(new Date());
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   const {
     register,
@@ -99,64 +75,51 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
     control,
     reset,
     formState: { errors },
-    setFocus,
-  } = useForm<QuickExpenseFormData>({
-    resolver: zodResolver(quickExpenseFormSchema),
+  } = useForm<QuickGastoData>({
+    resolver: zodResolver(quickGastoSchema),
     defaultValues: {
-      fecha: today,
+      fecha: todayStr,
       concepto: "",
+      cuentaOrigenId: "",
       categoriaId: "",
       importe: 0,
       moneda: settings?.monedaLocal ?? "EUR",
     },
   });
 
-  // Cuando se abre el modal, resetear con defaults frescos
   useEffect(() => {
-    if (open && settings) {
+    if (open) {
       reset({
-        fecha: today,
+        fecha: todayStr,
         concepto: "",
+        cuentaOrigenId: "",
         categoriaId: "",
         importe: 0,
-        moneda: settings.monedaLocal,
+        moneda: settings?.monedaLocal ?? "EUR",
       });
-      // Foco en concepto despues de un tick para que el DOM este montado
-      setTimeout(() => setFocus("concepto"), 50);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, settings?.monedaLocal]);
-
-  const formRef = useRef<HTMLFormElement>(null);
+  }, [open, settings, todayStr, reset]);
 
   const onSubmit = handleSubmit(async (data) => {
-    try {
-      await create({
-        fecha: parseDateOnlyString(data.fecha),
-        concepto: data.concepto,
-        categoriaId: data.categoriaId,
-        importe: data.importe,
-        moneda: data.moneda,
-        cuentaId: null,
-        notas: null,
-      });
-
-      if (closeAfter) {
-        onOpenChange(false);
-      } else {
-        // Limpia campos pero conserva fecha y moneda elegidas
-        reset({
-          fecha: data.fecha,
-          concepto: "",
-          categoriaId: data.categoriaId,
-          importe: 0,
-          moneda: data.moneda,
-        });
-        setTimeout(() => setFocus("concepto"), 30);
-      }
-    } catch {
-      // toast ya mostrado
-    }
+    const fecha = new Date(data.fecha + "T12:00:00Z");
+    await create({
+      tipo: "gasto",
+      fecha,
+      mes: fecha.getMonth() + 1,
+      anio: fecha.getFullYear(),
+      concepto: data.concepto,
+      importe: data.importe,
+      moneda: data.moneda,
+      cuentaOrigenId: data.cuentaOrigenId,
+      cuentaDestinoId: null,
+      categoriaId: data.categoriaId,
+      categoriaTexto: null,
+      notas: null,
+      esAutomatico: false,
+      origenAutomatico: null,
+      origenAutomaticoId: null,
+    });
+    onOpenChange(false);
   });
 
   return (
@@ -164,129 +127,133 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            Anadido rapido
+            <Plus className="h-5 w-5" />
+            Nuevo gasto rapido
           </DialogTitle>
           <DialogDescription>
-            Registra un gasto en segundos.{" "}
-            <kbd className="rounded bg-muted px-1 py-0.5 text-xs font-mono">
-              Ctrl+Shift+G
-            </kbd>{" "}
-            abre y cierra esta ventana.
+            Registra un gasto rapido. Ctrl+Shift+G para abrir desde cualquier
+            pantalla.
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} onSubmit={onSubmit} className="space-y-3">
-          <div className="grid grid-cols-[150px_1fr] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="qa-fecha">Fecha</Label>
-              <Input
-                id="qa-fecha"
-                type="date"
-                {...register("fecha")}
-                disabled={isMutating}
-              />
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="q-fecha">Fecha</Label>
+              <Input id="q-fecha" type="date" {...register("fecha")} />
               {errors.fecha && (
-                <p className="text-xs text-destructive">{errors.fecha.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.fecha.message}
+                </p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="qa-concepto">Concepto</Label>
+            <div className="space-y-2">
+              <Label htmlFor="q-importe">Importe</Label>
               <Input
-                id="qa-concepto"
-                {...register("concepto")}
-                placeholder="Cafe en el bar..."
-                disabled={isMutating}
-                autoComplete="off"
-              />
-              {errors.concepto && (
-                <p className="text-xs text-destructive">{errors.concepto.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="qa-categoria">Categoria</Label>
-            <Controller
-              control={control}
-              name="categoriaId"
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={isMutating}
-                >
-                  <SelectTrigger id="qa-categoria">
-                    <SelectValue placeholder="Selecciona una categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.categoriaId && (
-              <p className="text-xs text-destructive">{errors.categoriaId.message}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-[1fr_120px] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="qa-importe">Importe</Label>
-              <Input
-                id="qa-importe"
+                id="q-importe"
                 type="number"
                 step="0.01"
                 min={0}
                 {...register("importe", { valueAsNumber: true })}
-                disabled={isMutating}
               />
               {errors.importe && (
-                <p className="text-xs text-destructive">{errors.importe.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.importe.message}
+                </p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="qa-moneda">Moneda</Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="q-concepto">Concepto</Label>
+            <Input
+              id="q-concepto"
+              {...register("concepto")}
+              autoFocus
+              placeholder="Cafe, gasolina..."
+            />
+            {errors.concepto && (
+              <p className="text-xs text-destructive">
+                {errors.concepto.message}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Cuenta</Label>
               <Controller
                 control={control}
-                name="moneda"
+                name="cuentaOrigenId"
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={isMutating}
-                  >
-                    <SelectTrigger id="qa-moneda">
-                      <SelectValue />
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Cuenta" />
                     </SelectTrigger>
                     <SelectContent>
-                      {currencies.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.code}
+                      {cuentasActivas.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.alias}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               />
+              {errors.cuentaOrigenId && (
+                <p className="text-xs text-destructive">
+                  {errors.cuentaOrigenId.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria</Label>
+              <Controller
+                control={control}
+                name="categoriaId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.categoriaId && (
+                <p className="text-xs text-destructive">
+                  {errors.categoriaId.message}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              id="qa-close"
-              checked={closeAfter}
-              onChange={(e) => updateCloseAfter(e.target.checked)}
-              className="h-4 w-4"
+          <div className="space-y-2">
+            <Label htmlFor="q-moneda">Moneda</Label>
+            <Controller
+              control={control}
+              name="moneda"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="q-moneda" className="max-w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             />
-            <Label htmlFor="qa-close" className="text-xs font-normal text-muted-foreground">
-              Cerrar tras guardar
-            </Label>
           </div>
 
           <DialogFooter>
@@ -296,7 +263,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
               onClick={() => onOpenChange(false)}
               disabled={isMutating}
             >
-              Cerrar
+              Cancelar
             </Button>
             <Button type="submit" disabled={isMutating}>
               {isMutating ? "Guardando..." : "Anadir gasto"}

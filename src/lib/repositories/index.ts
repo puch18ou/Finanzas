@@ -1,7 +1,9 @@
 /**
- * src/lib/repositories/index.ts — Container de repositorios + servicios
+ * src/lib/repositories/index.ts
  *
- * Añade `movements` al container existente.
+ * Lote 10a-3: eliminado MonthlyIncomeRepository del container.
+ * La tabla monthly_incomes sigue existiendo en BD pero ningun
+ * componente la lee. El Lote 11 la eliminara fisicamente.
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -9,9 +11,6 @@ import { SettingsRepository } from "./settings-repository";
 import { CurrencyRepository } from "./currency-repository";
 import { CategoryRepository } from "./category-repository";
 import { AccountRepository } from "./account-repository";
-import { ExpenseRepository } from "./expense-repository";
-import { MonthlyIncomeRepository } from "./monthly-income-repository";
-import { ExtraIncomeRepository } from "./extra-income-repository";
 import { InvestmentRepository } from "./investment-repository";
 import { GoalRepository } from "./goal-repository";
 import { MortgageRepository } from "./mortgage-repository";
@@ -25,9 +24,6 @@ export interface Repositories {
   currencies: CurrencyRepository;
   categories: CategoryRepository;
   accounts: AccountRepository;
-  expenses: ExpenseRepository;
-  monthlyIncomes: MonthlyIncomeRepository;
-  extraIncomes: ExtraIncomeRepository;
   investments: InvestmentRepository;
   goals: GoalRepository;
   mortgage: MortgageRepository;
@@ -43,9 +39,6 @@ export function createRepositories(db: DrizzleDb): Repositories {
     currencies: new CurrencyRepository(db),
     categories: new CategoryRepository(db),
     accounts: new AccountRepository(db),
-    expenses: new ExpenseRepository(db),
-    monthlyIncomes: new MonthlyIncomeRepository(db),
-    extraIncomes: new ExtraIncomeRepository(db),
     investments: new InvestmentRepository(db),
     goals: new GoalRepository(db),
     mortgage: new MortgageRepository(db),
@@ -69,19 +62,6 @@ export type {
   CreateCurrencyData,
   UpdateCurrencyData,
 } from "./currency-repository";
-export type {
-  CreateExpenseData,
-  UpdateExpenseData,
-  ExpenseFilter,
-} from "./expense-repository";
-export type {
-  MonthlyIncomeFields,
-} from "./monthly-income-repository";
-export type {
-  CreateExtraIncomeData,
-  UpdateExtraIncomeData,
-  ExtraIncomeFilter,
-} from "./extra-income-repository";
 export type {
   CreateInvestmentData,
   UpdateInvestmentData,
