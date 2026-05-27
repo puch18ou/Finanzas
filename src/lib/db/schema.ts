@@ -246,44 +246,6 @@ export const accounts = sqliteTable(
 );
 
 // ============================================================================
-//  6. MONTHLY_INCOMES — ingresos mensuales fijos (salario, etc)
-// ============================================================================
-//
-//  Una fila por (anio, mes). El UNIQUE evita duplicados.
-//
-//  Patron de uso: al cambiar de anio o al iniciar la app, el repo se asegura
-//  de que existan las 12 filas del anio actual (las crea con valores 0 si
-//  no existen). El usuario edita salario/bonus/otros.
-// ============================================================================
-export const monthlyIncomes = sqliteTable(
-  "monthly_incomes",
-  {
-    id: text("id").primaryKey(),
-    anio: integer("anio").notNull(),
-    mes: integer("mes").notNull(),
-
-    salario: real("salario").notNull().default(0),
-    bonus: real("bonus").notNull().default(0),
-    otros: real("otros").notNull().default(0),
-
-    moneda: text("moneda")
-      .notNull()
-      .references(() => currencies.code),
-
-    notas: text("notas"),
-
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [
-    // El UNIQUE impide tener dos filas para el mismo (anio, mes).
-    uniqueIndex("ux_monthly_incomes_anio_mes").on(t.anio, t.mes),
-    check("monthly_incomes_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
-  ],
-);
-
-// ============================================================================
 //  8. INVESTMENTS — cartera (acciones, ETFs, fondos, crypto)
 // ============================================================================
 //
@@ -717,9 +679,6 @@ export type NewCategory = typeof categories.$inferInsert;
 
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
-
-export type MonthlyIncome = typeof monthlyIncomes.$inferSelect;
-export type NewMonthlyIncome = typeof monthlyIncomes.$inferInsert;
 
 export type Investment = typeof investments.$inferSelect;
 export type NewInvestment = typeof investments.$inferInsert;

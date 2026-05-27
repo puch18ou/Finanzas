@@ -38,6 +38,8 @@ import { runMigrations } from "@/lib/db/migrate";
 import { runSeed } from "@/lib/db/seed";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
 import { createRepositories, type Repositories } from "@/lib/repositories";
+import { RecurringService } from "@/lib/services/recurring-service";
+import { toast } from "sonner";
 
 type Status =
   | { kind: "loading" }
@@ -46,7 +48,11 @@ type Status =
       db: DrizzleDb;
       repos: Repositories;
       migrationsApplied: string[];
-      seed: { currencies: number; categories: number; settingsCreated: boolean };
+      seed: {
+        currencies: number;
+        categories: number;
+        settingsCreated: boolean;
+      };
     }
   | { kind: "error"; error: Error };
 
@@ -84,6 +90,26 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         const migrationsApplied = await runMigrations();
         const seed = await runSeed();
         const repos = createRepositories(db);
+
+        // [Lote 11b] Generar movimientos recurrentes pendientes
+        try {
+          const recurringService = new RecurringService(db);
+          const result =
+            await recurringService.generatePendingUpToCurrentMonth();
+          if (result.generated.length > 0) {
+            console.log(
+              `[recurring] Generados ${result.generated.length} movimientos automaticos ` +
+                `(skipped: ${result.skippedExisting})`,
+            );
+            // Opcional: toast informativo
+            toast.info(
+              `Generados ${result.generated.length} movimientos recurrentes`,
+            );
+          }
+        } catch (err) {
+          // No bloquear el arranque por esto. Lo logueamos y seguimos.
+          console.error("[recurring] Error generando movimientos:", err);
+        }
 
         if (!cancelled) {
           setStatus({

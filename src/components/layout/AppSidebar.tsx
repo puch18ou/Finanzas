@@ -1,23 +1,16 @@
 "use client";
 
 /**
- * ============================================================================
- *  src/components/layout/AppSidebar.tsx
- * ============================================================================
+ * src/components/layout/AppSidebar.tsx
  *
- *  Lote 10a-2: el grupo "Movimientos" ahora tiene un solo item
- *  ("Movimientos"). Las antiguas entradas "Gastos" e "Ingresos" se quitan
- *  del sidebar.
- *
- *  Las rutas /gastos e /ingresos siguen funcionando (redirigen a
- *  /movimientos) por compatibilidad con enlaces antiguos.
- * ============================================================================
+ * Lote 11b: añade "Recurrentes" al grupo Movimientos.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight,
+  CalendarClock,
   LayoutDashboard,
   TrendingUp,
   Telescope,
@@ -69,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Movimientos",
     items: [
       { title: "Movimientos", url: "/movimientos", icon: ArrowLeftRight },
+      { title: "Recurrentes", url: "/recurrentes", icon: CalendarClock },
     ],
   },
   {
