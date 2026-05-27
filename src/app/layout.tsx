@@ -4,6 +4,7 @@ import {
   DatabaseProvider,
   DatabaseReady,
 } from "@/contexts/DatabaseProvider";
+import { QuickAddProvider } from "@/contexts/QuickAddProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -14,16 +15,17 @@ export const metadata: Metadata = {
 };
 
 /*
- * Orden de los providers (de fuera hacia dentro):
+ * Orden de providers:
  *
- *   QueryProvider          - TanStack Query
+ *   QueryProvider          - TanStack Query (envolvente)
  *     DatabaseProvider     - Conexion BD
  *       DatabaseReady      - Bloquea hijos hasta que BD este lista
- *         AppShell         - Sidebar + topbar
- *           {children}     - Cada pagina
+ *         QuickAddProvider - Estado del modal global de anadido rapido
+ *           AppShell       - Sidebar + topbar + FAB
+ *             {children}   - Cada pagina
  *
- * Toaster (Sonner) va al final, fuera del DatabaseReady, para que pueda
- * mostrar errores INCLUSO si la BD no ha cargado.
+ *  QuickAddProvider va DENTRO de DatabaseReady porque internamente usa
+ *  el modal QuickExpenseDialog que necesita los repositorios y settings.
  */
 
 export default function RootLayout({
@@ -37,7 +39,9 @@ export default function RootLayout({
         <QueryProvider>
           <DatabaseProvider>
             <DatabaseReady>
-              <AppShell>{children}</AppShell>
+              <QuickAddProvider>
+                <AppShell>{children}</AppShell>
+              </QuickAddProvider>
             </DatabaseReady>
           </DatabaseProvider>
           <Toaster richColors closeButton />
