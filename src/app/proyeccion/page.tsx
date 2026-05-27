@@ -248,7 +248,11 @@ export default function ProyeccionPage() {
                   borderRadius: "var(--radius-md)",
                   fontSize: "12px",
                 }}
-                formatter={(value: number) => formatAmount(value, viewCurrency)}
+                formatter={(value: unknown) => {
+                  const n = typeof value === "number" ? value : Number(value);
+                  if (Number.isNaN(n)) return String(value);
+                  return formatAmount(n, viewCurrency);
+                }}
               />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Line

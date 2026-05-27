@@ -6,22 +6,7 @@
  * ============================================================================
  *
  *  Tarjeta con el grafico de gasto por categoria. Tres modos visuales,
- *  seleccionables por el usuario y persistidos en localStorage:
- *
- *    - 'pie'    Tarta tradicional
- *    - 'donut'  Tarta con hueco central
- *    - 'bars'   Barras horizontales
- *
- *  El selector aparece arriba a la derecha como icono pequeno con menu
- *  desplegable. La preferencia se guarda en localStorage clave
- *  'chart:categoryType'.
- *
- *  PROPS
- *  -----
- *    data:          array de { name, value, color? } ya agregado y convertido
- *    viewCurrency:  para formatear el tooltip
- *    title:         titulo de la card
- *    description:   subtitulo opcional
+ *  seleccionables por el usuario y persistidos en localStorage.
  * ============================================================================
  */
 
@@ -50,7 +35,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -75,8 +59,6 @@ type Props = {
   description?: string;
 };
 
-// Paleta por defecto cuando los datos no traen color. Usa los CSS vars de
-// shadcn (--chart-1...5) y rota.
 const DEFAULT_COLORS = [
   "var(--color-chart-1)",
   "var(--color-chart-2)",
@@ -90,13 +72,26 @@ function pickColor(item: ChartDatum, index: number): string {
   return DEFAULT_COLORS[index % DEFAULT_COLORS.length]!;
 }
 
+/**
+ * Helper: formatea el valor que recibe el tooltip de Recharts.
+ *
+ * Recharts tipa value como ValueType (number | string | (number|string)[]).
+ * Como nuestros datos siempre son numericos, lo casteamos a number.
+ */
+function tooltipNumberFormatter(viewCurrency: string) {
+  return (value: unknown): string => {
+    const n = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(n)) return String(value);
+    return formatAmount(n, viewCurrency);
+  };
+}
+
 export function CategoryChart({ data, viewCurrency, title, description }: Props) {
   const [chartType, setChartType] = useLocalStorage<ChartType>(
     "chart:categoryType",
     "donut",
   );
 
-  // Total para mostrar centrado en donut
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
   return (
@@ -127,10 +122,6 @@ export function CategoryChart({ data, viewCurrency, title, description }: Props)
     </Card>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Subcomponente: selector de tipo de grafico (dropdown con iconos)
-// ---------------------------------------------------------------------------
 
 function ChartTypeSelector({
   value,
@@ -170,10 +161,6 @@ function ChartTypeSelector({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Subcomponente: vista de tarta / donut
-// ---------------------------------------------------------------------------
-
 function PieView({
   data,
   viewCurrency,
@@ -212,7 +199,7 @@ function PieView({
               borderRadius: "var(--radius-md)",
               fontSize: "12px",
             }}
-            formatter={(value: number) => formatAmount(value, viewCurrency)}
+            formatter={tooltipNumberFormatter(viewCurrency)}
           />
           <Legend
             verticalAlign="bottom"
@@ -235,10 +222,6 @@ function PieView({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Subcomponente: vista de barras horizontales
-// ---------------------------------------------------------------------------
-
 function BarsView({
   data,
   viewCurrency,
@@ -246,7 +229,6 @@ function BarsView({
   data: ChartDatum[];
   viewCurrency: string;
 }) {
-  // Ordenamos descendente para que la barra mas grande quede arriba.
   const sorted = useMemo(
     () => [...data].sort((a, b) => b.value - a.value),
     [data],
@@ -277,7 +259,7 @@ function BarsView({
             borderRadius: "var(--radius-md)",
             fontSize: "12px",
           }}
-          formatter={(value: number) => formatAmount(value, viewCurrency)}
+          formatter={tooltipNumberFormatter(viewCurrency)}
         />
         <Bar dataKey="value" radius={[0, 4, 4, 0]}>
           {sorted.map((entry, idx) => (
@@ -289,5 +271,4 @@ function BarsView({
   );
 }
 
-// Pequena utilidad para el icono — evita 'unused import' con tree-shake
 void ChartNoAxesColumn;

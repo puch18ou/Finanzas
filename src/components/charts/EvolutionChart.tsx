@@ -8,7 +8,7 @@
  *  Grafico de evolucion mensual. Cuatro modos configurables:
  *
  *    - 'lines'        Lineas de ingresos/gastos + linea de ahorro
- *    - 'grouped-bars' Barras agrupadas: ingresos vs gastos lado a lado
+ *    - 'grouped-bars' Barras agrupadas
  *    - 'stacked-bars' Barras apiladas
  *    - 'area'         Areas suaves para ingresos y gastos
  *
@@ -59,11 +59,8 @@ import { MESES_ES_CORTO } from "@/lib/utils/dates";
 
 type EvolutionType = "lines" | "grouped-bars" | "stacked-bars" | "area";
 
-/**
- * Una fila por mes con los tres totales.
- */
 export type EvolutionRow = {
-  mes: number; // 1-12
+  mes: number;
   ingresos: number;
   gastos: number;
   ahorro: number;
@@ -76,13 +73,24 @@ type Props = {
   description?: string;
 };
 
+/**
+ * Formatter del tooltip de Recharts. Recharts pasa `value` como ValueType
+ * (union de number | string | array). Casteamos a number con guard.
+ */
+function tooltipNumberFormatter(viewCurrency: string) {
+  return (value: unknown): string => {
+    const n = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(n)) return String(value);
+    return formatAmount(n, viewCurrency);
+  };
+}
+
 export function EvolutionChart({ data, viewCurrency, title, description }: Props) {
   const [type, setType] = useLocalStorage<EvolutionType>(
     "chart:evolutionType",
     "lines",
   );
 
-  // Mapeamos numero de mes a etiqueta corta (Ene, Feb...)
   const chartData = data.map((row) => ({
     ...row,
     mesLabel: MESES_ES_CORTO[row.mes - 1] ?? "",
@@ -129,11 +137,11 @@ function renderChart(
       borderRadius: "var(--radius-md)",
       fontSize: "12px",
     },
-    formatter: (value: number) => formatAmount(value, viewCurrency),
+    formatter: tooltipNumberFormatter(viewCurrency),
   };
 
   const colors = {
-    ingresos: "var(--color-chart-1)", // emerald
+    ingresos: "var(--color-chart-1)",
     gastos: "var(--color-destructive)",
     ahorro: "var(--color-chart-2)",
   };
@@ -167,8 +175,6 @@ function renderChart(
       );
 
     case "stacked-bars":
-      // Apilamos gastos sobre ingresos. El area total = ingresos+gastos.
-      // Es solo para tener una comparativa visual cargada.
       return (
         <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />

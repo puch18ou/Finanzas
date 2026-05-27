@@ -19,6 +19,8 @@ import { AccountRepository } from "./account-repository";
 import { ExpenseRepository } from "./expense-repository";
 import { MonthlyIncomeRepository } from "./monthly-income-repository";
 import { ExtraIncomeRepository } from "./extra-income-repository";
+import { InvestmentRepository } from "./investment-repository";
+import { GoalRepository } from "./goal-repository";
 
 export interface Repositories {
   settings: SettingsRepository;
@@ -28,6 +30,8 @@ export interface Repositories {
   expenses: ExpenseRepository;
   monthlyIncomes: MonthlyIncomeRepository;
   extraIncomes: ExtraIncomeRepository;
+  investments: InvestmentRepository;
+  goals: GoalRepository;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
@@ -39,6 +43,8 @@ export function createRepositories(db: DrizzleDb): Repositories {
     expenses: new ExpenseRepository(db),
     monthlyIncomes: new MonthlyIncomeRepository(db),
     extraIncomes: new ExtraIncomeRepository(db),
+    investments: new InvestmentRepository(db),
+    goals: new GoalRepository(db),
   };
 }
 
@@ -69,3 +75,11 @@ export type {
   UpdateExtraIncomeData,
   ExtraIncomeFilter,
 } from "./extra-income-repository";
+export type {
+  CreateInvestmentData,
+  UpdateInvestmentData,
+} from "./investment-repository";
+export type {
+  CreateGoalData,
+  UpdateGoalData,
+} from "./goal-repository";

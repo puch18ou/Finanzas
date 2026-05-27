@@ -2,34 +2,24 @@
 
 /**
  * ============================================================================
- *  src/app/dashboard/page.tsx — Dashboard principal
+ *  src/app/dashboard/page.tsx — Dashboard principal (Lote 7)
  * ============================================================================
  *
- *  Vista resumen del mes seleccionado. Compone:
- *
- *    [Selector de periodo propio (no afecta a Ajustes)]
- *    [4 KPIs grandes: Ingresos, Gastos, Ahorro, Patrimonio neto]
- *    [Grafico de gasto por categoria (configurable)]
- *    [Presupuesto vs real]
- *    [Ultimos gastos]
- *
- *  El periodo seleccionado vive en localStorage para que persista entre
- *  visitas a la pagina.
- *
- *  CALCULO DE PATRIMONIO NETO
- *  --------------------------
- *  Patrimonio = (saldos cuentas + valor inversiones - deudas pendientes)
- *               todo convertido a moneda vista.
- *  La hipoteca aparece como deuda si tieneHipoteca=true.
+ *  Cambios vs Lote 6:
+ *    - El KPI "Patrimonio neto" ahora suma:
+ *        cuentas activas + valor cartera de inversiones
+ *    - Nuevo KPI quinto: "Valor cartera" (si hay inversiones)
+ *    - Layout adaptativo: 4 columnas si no hay inversiones, 5 si las hay
  * ============================================================================
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Wallet,
   TrendingDown,
   PiggyBank,
   Coins,
+  PieChart as PieIcon,
 } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
@@ -37,6 +27,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useMonthlyIncomes } from "@/hooks/useMonthlyIncomes";
 import { useExtraIncomes } from "@/hooks/useExtraIncomes";
+import { useInvestments } from "@/hooks/useInvestments";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -53,16 +44,16 @@ import {
   sumExpensesByCategory,
   filterExpensesByPeriod,
 } from "@/lib/domain/aggregation";
+import { summarizePortfolio } from "@/lib/domain/investments";
 
 export default function DashboardPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
   const { accounts } = useAccounts();
+  const { investments } = useInvestments();
 
   const today = new Date();
-  // Periodo del Dashboard: persistente en localStorage. La primera vez
-  // toma el del Ajustes; despues se recuerda lo que el usuario eligio.
   const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
     "dashboard:anio",
     settings?.anioActual ?? today.getFullYear(),
@@ -72,7 +63,6 @@ export default function DashboardPage() {
     settings?.mesActual ?? today.getMonth() + 1,
   );
 
-  // Necesitamos TODOS los gastos del mes (sin paginar) y los ingresos del año
   const { expenses } = useExpenses({ anio: periodAnio, mes: periodMes });
   const { rows: monthlyIncomes } = useMonthlyIncomes(
     periodAnio,
@@ -80,7 +70,6 @@ export default function DashboardPage() {
   );
   const { extras } = useExtraIncomes({ anio: periodAnio });
 
-  // Look-ups
   const categoryById = useMemo(() => {
     const m: Record<string, { nombre: string; color: string | null }> = {};
     for (const c of categories) m[c.id] = { nombre: c.nombre, color: c.color };
@@ -90,7 +79,6 @@ export default function DashboardPage() {
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
-  // Resumen del mes (en moneda vista)
   const summary = useMemo(() => {
     if (!settings) return null;
     return summarizeMonth({
@@ -104,22 +92,30 @@ export default function DashboardPage() {
     });
   }, [settings, periodMes, periodAnio, expenses, monthlyIncomes, extras, rates, viewCurrency]);
 
-  // Patrimonio neto (suma de cuentas activas, en moneda vista)
-  // Las inversiones, hipoteca y otras deudas las anadiremos en Lote 7+
-  const patrimonioNeto = useMemo(() => {
+  // Valor de cuentas activas en moneda vista
+  const valorCuentas = useMemo(() => {
     let total = 0;
     for (const a of accounts) {
       if (!a.activa) continue;
       try {
         total += convert(a.saldo, a.moneda, viewCurrency, rates);
       } catch {
-        // ignorar cuenta con moneda invalida
+        // ignorar
       }
     }
     return total;
   }, [accounts, rates, viewCurrency]);
 
-  // Datos del grafico de categorias (convertidos a vista, con nombre)
+  // Resumen de la cartera de inversiones en moneda vista
+  const portfolio = useMemo(
+    () => summarizePortfolio(investments, rates, viewCurrency),
+    [investments, rates, viewCurrency],
+  );
+
+  // Patrimonio neto = cuentas + inversiones
+  const patrimonioNeto = valorCuentas + portfolio.valorActualVista;
+
+  // Categoría datos para gráfico
   const categoryChartData = useMemo(() => {
     const filtered = filterExpensesByPeriod(expenses, periodMes, periodAnio);
     const byCat = sumExpensesByCategory(filtered, rates, viewCurrency);
@@ -136,7 +132,6 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [expenses, periodMes, periodAnio, rates, viewCurrency, categoryById]);
 
-  // Presupuesto vs real (en moneda vista)
   const budgetRows = useMemo(() => {
     const filtered = filterExpensesByPeriod(expenses, periodMes, periodAnio);
     const byCat = sumExpensesByCategory(filtered, rates, viewCurrency);
@@ -164,7 +159,6 @@ export default function DashboardPage() {
     });
   }, [categories, expenses, periodMes, periodAnio, rates, viewCurrency]);
 
-  // Categoria-id → nombre para el componente RecentExpenses
   const categoryNamesMap = useMemo(() => {
     const m: Record<string, string> = {};
     for (const c of categories) m[c.id] = c.nombre;
@@ -177,6 +171,12 @@ export default function DashboardPage() {
 
   const objetivoAhorro = settings.objetivoAhorroPct;
   const cumpleObjetivo = summary.tasaAhorro >= objetivoAhorro;
+  const hayInversiones = investments.length > 0;
+
+  // El grid de KPIs cambia segun haya o no inversiones
+  const kpiCols = hayInversiones
+    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
+    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
 
   return (
     <div className="space-y-6">
@@ -198,7 +198,7 @@ export default function DashboardPage() {
       </header>
 
       {/* KPI grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-4 ${kpiCols}`}>
         <KpiCard
           label="Ingresos"
           value={formatAmount(summary.ingresos, viewCurrency)}
@@ -227,11 +227,25 @@ export default function DashboardPage() {
           label="Patrimonio neto"
           value={formatAmount(patrimonioNeto, viewCurrency)}
           icon={Coins}
-          hint="Saldo total de cuentas activas"
+          hint={
+            hayInversiones
+              ? `Cuentas + cartera`
+              : "Saldo total de cuentas activas"
+          }
         />
+        {hayInversiones && (
+          <KpiCard
+            label="Valor cartera"
+            value={formatAmount(portfolio.valorActualVista, viewCurrency)}
+            icon={PieIcon}
+            intent={portfolio.plAbsolutoVista >= 0 ? "positive" : "negative"}
+            hint={`${portfolio.plAbsolutoVista >= 0 ? "+" : ""}${(
+              portfolio.plPorcentaje * 100
+            ).toFixed(2)}%`}
+          />
+        )}
       </div>
 
-      {/* Gráficos + presupuesto + últimos */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryChart
           data={categoryChartData}
