@@ -44,6 +44,7 @@ import { getRawDb } from "./client";
 // Importacion del SQL como texto crudo. El `?raw` lo soporta Next 16 con
 // Turbopack y Webpack. Cuando anadamos mas migraciones, se anade aqui.
 import init0000 from "../../../drizzle/0000_init.sql?raw";
+import migration0001 from "../../../drizzle/0001_add_mostrar_fab.sql?raw";
 
 /**
  * Lista ordenada de migraciones disponibles.
@@ -51,6 +52,7 @@ import init0000 from "../../../drizzle/0000_init.sql?raw";
  */
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
+  { name: "0001_add_mostrar_fab", sql: migration0001 },
 ];
 
 /**
@@ -110,10 +112,10 @@ async function applyMigration(migration: {
     await db.execute(stmt);
   }
 
-  await db.execute("INSERT INTO __migrations (name, applied_at) VALUES (?, ?)", [
-    migration.name,
-    Date.now(),
-  ]);
+  await db.execute(
+    "INSERT INTO __migrations (name, applied_at) VALUES (?, ?)",
+    [migration.name, Date.now()],
+  );
 }
 
 /**

@@ -104,7 +104,11 @@ export function MonthlyIncomesTab({ anio, monedaLocal }: Props) {
   );
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Cargando ingresos mensuales...</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Cargando ingresos mensuales...
+      </p>
+    );
   }
 
   const handleBlur = async (
@@ -171,7 +175,9 @@ export function MonthlyIncomesTab({ anio, monedaLocal }: Props) {
 
               return (
                 <TableRow key={r.mes}>
-                  <TableCell className="font-medium">{MESES_ES[r.mes - 1]}</TableCell>
+                  <TableCell className="font-medium">
+                    {MESES_ES[r.mes - 1]}
+                  </TableCell>
                   <TableCell className="text-right p-1">
                     <Input
                       type="number"
@@ -181,7 +187,10 @@ export function MonthlyIncomesTab({ anio, monedaLocal }: Props) {
                       onChange={(ev) =>
                         setEditing((prev) => ({
                           ...prev,
-                          [r.mes]: { ...prev[r.mes]!, salario: ev.target.value },
+                          [r.mes]: {
+                            ...prev[r.mes]!,
+                            salario: ev.target.value,
+                          },
                         }))
                       }
                       onBlur={() => handleBlur(r.mes, "salario")}
@@ -224,7 +233,7 @@ export function MonthlyIncomesTab({ anio, monedaLocal }: Props) {
                     />
                   </TableCell>
                   <TableCell className="text-right font-medium tabular-nums">
-                    {total > 0 ? formatAmount(total, r.moneda) : "—"}
+                    {formatAmount(total, r.moneda)}
                   </TableCell>
                   <TableCell className="p-1">
                     <Select
@@ -245,11 +254,15 @@ export function MonthlyIncomesTab({ anio, monedaLocal }: Props) {
                     </Select>
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {r.moneda === viewCurrency
-                      ? "—"
-                      : inView !== null
-                      ? formatAmount(inView, viewCurrency)
-                      : <span className="text-destructive">err</span>}
+                    {r.moneda === viewCurrency ? (
+                      "—"
+                    ) : total === 0 ? (
+                      formatAmount(0, viewCurrency)
+                    ) : inView !== null ? (
+                      formatAmount(inView, viewCurrency)
+                    ) : (
+                      <span className="text-destructive">err</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );

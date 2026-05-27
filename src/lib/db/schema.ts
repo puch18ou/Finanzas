@@ -126,6 +126,10 @@ export const settings = sqliteTable(
       () => currencies.code,
     ),
 
+    mostrarFab: integer("mostrar_fab", { mode: "boolean" })
+      .notNull()
+      .default(true),
+
     tema: text("tema", { enum: ["light", "dark", "system"] })
       .notNull()
       .default("system"),
@@ -137,10 +141,7 @@ export const settings = sqliteTable(
   (t) => [
     // CHECK constraints: garantizan invariantes a nivel BD.
     check("settings_singleton", sql`${t.id} = 'singleton'`),
-    check(
-      "settings_mes_valido",
-      sql`${t.mesActual} BETWEEN 1 AND 12`,
-    ),
+    check("settings_mes_valido", sql`${t.mesActual} BETWEEN 1 AND 12`),
   ],
 );
 
@@ -307,10 +308,7 @@ export const expenses = sqliteTable(
       .where(sql`${t.deletedAt} IS NULL`),
 
     check("expenses_importe_no_neg", sql`${t.importe} >= 0`),
-    check(
-      "expenses_mes_valido",
-      sql`${t.mes} BETWEEN 1 AND 12`,
-    ),
+    check("expenses_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
   ],
 );
 
@@ -347,14 +345,8 @@ export const monthlyIncomes = sqliteTable(
   },
   (t) => [
     // El UNIQUE impide tener dos filas para el mismo (anio, mes).
-    uniqueIndex("ux_monthly_incomes_anio_mes").on(
-      t.anio,
-      t.mes,
-    ),
-    check(
-      "monthly_incomes_mes_valido",
-      sql`${t.mes} BETWEEN 1 AND 12`,
-    ),
+    uniqueIndex("ux_monthly_incomes_anio_mes").on(t.anio, t.mes),
+    check("monthly_incomes_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
   ],
 );
 
@@ -396,10 +388,7 @@ export const extraIncomes = sqliteTable(
     index("idx_extra_incomes_anio_mes")
       .on(t.anio, t.mes)
       .where(sql`${t.deletedAt} IS NULL`),
-    check(
-      "extra_incomes_mes_valido",
-      sql`${t.mes} BETWEEN 1 AND 12`,
-    ),
+    check("extra_incomes_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
   ],
 );
 
@@ -475,9 +464,13 @@ export const goals = sqliteTable(
       .notNull()
       .references(() => currencies.code),
 
-    fechaObjetivo: integer("fecha_objetivo", { mode: "timestamp_ms" }).notNull(),
+    fechaObjetivo: integer("fecha_objetivo", {
+      mode: "timestamp_ms",
+    }).notNull(),
 
-    cuentaVinculadaId: text("cuenta_vinculada_id").references(() => accounts.id),
+    cuentaVinculadaId: text("cuenta_vinculada_id").references(
+      () => accounts.id,
+    ),
 
     notas: text("notas"),
     completada: integer("completada", { mode: "boolean" })

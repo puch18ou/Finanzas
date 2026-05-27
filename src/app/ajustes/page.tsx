@@ -94,12 +94,14 @@ export default function AjustesPage() {
   const [monedaHipoteca, setMonedaHipoteca] = useState("");
   const [patrimonioInicial, setPatrimonioInicial] = useState<number>(0);
   const [patrimonioInicialMoneda, setPatrimonioInicialMoneda] = useState("");
+  const [mostrarFab, setMostrarFab] = useState(true);
   const [tema, setTema] = useState<"light" | "dark" | "system">("system");
 
   // Mensaje de feedback al guardar
-  const [feedback, setFeedback] = useState<
-    { kind: "success" | "error"; text: string } | null
-  >(null);
+  const [feedback, setFeedback] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Cuando llegan los settings de la BD, sincronizamos el formulario.
   useEffect(() => {
@@ -113,13 +115,12 @@ export default function AjustesPage() {
     setMonedaHipoteca(settings.monedaHipoteca ?? "");
     setPatrimonioInicial(settings.patrimonioInicial);
     setPatrimonioInicialMoneda(settings.patrimonioInicialMoneda ?? "");
+    setMostrarFab(settings.mostrarFab);
     setTema(settings.tema);
   }, [settings]);
 
   if (isLoading || !settings) {
-    return (
-      <p className="text-sm text-muted-foreground">Cargando ajustes...</p>
-    );
+    return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
   }
 
   async function handleSubmit() {
@@ -131,7 +132,10 @@ export default function AjustesPage() {
       return;
     }
     if (anioActual < 2000 || anioActual > 2100) {
-      setFeedback({ kind: "error", text: "El anio debe ser razonable (2000-2100)" });
+      setFeedback({
+        kind: "error",
+        text: "El anio debe ser razonable (2000-2100)",
+      });
       return;
     }
     if (objetivoAhorroPct < 0 || objetivoAhorroPct > 1) {
@@ -143,6 +147,11 @@ export default function AjustesPage() {
     }
 
     try {
+      // Normaliza strings vacios a null, para que las foreign keys no
+      // intenten apuntar a un codigo de moneda "" que no existe.
+      const emptyToNull = (v: string | null | undefined) =>
+        v === "" || v == null ? null : v;
+
       await update({
         monedaLocal,
         monedaVista,
@@ -150,9 +159,10 @@ export default function AjustesPage() {
         mesActual,
         objetivoAhorroPct,
         tieneHipoteca,
-        monedaHipoteca: tieneHipoteca ? monedaHipoteca : null,
+        monedaHipoteca: tieneHipoteca ? emptyToNull(monedaHipoteca) : null,
         patrimonioInicial,
-        patrimonioInicialMoneda: patrimonioInicialMoneda || null,
+        patrimonioInicialMoneda: emptyToNull(patrimonioInicialMoneda),
+        mostrarFab,
         tema,
       });
       setFeedback({ kind: "success", text: "Ajustes guardados" });
@@ -178,9 +188,9 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Monedas</CardTitle>
           <CardDescription>
-            La moneda local es en la que registras los movimientos del dia
-            a dia. La de visualizacion es en la que se muestran los totales
-            del dashboard.
+            La moneda local es en la que registras los movimientos del dia a
+            dia. La de visualizacion es en la que se muestran los totales del
+            dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
@@ -222,8 +232,8 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Periodo activo</CardTitle>
           <CardDescription>
-            El dashboard y la pagina de evolucion filtran por este periodo.
-            Lo puedes cambiar para revisar otros meses.
+            El dashboard y la pagina de evolucion filtran por este periodo. Lo
+            puedes cambiar para revisar otros meses.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
@@ -263,8 +273,8 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Objetivo de ahorro</CardTitle>
           <CardDescription>
-            Porcentaje de tus ingresos que aspiras a ahorrar cada mes.
-            La pagina de evolucion marca un mes con un check verde si lo cumples.
+            Porcentaje de tus ingresos que aspiras a ahorrar cada mes. La pagina
+            de evolucion marca un mes con un check verde si lo cumples.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -290,8 +300,8 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Hipoteca</CardTitle>
           <CardDescription>
-            Si tienes hipoteca activa, su cuota mensual se suma a los gastos
-            del dashboard automaticamente.
+            Si tienes hipoteca activa, su cuota mensual se suma a los gastos del
+            dashboard automaticamente.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -333,8 +343,8 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Patrimonio inicial</CardTitle>
           <CardDescription>
-            Valor de partida de tu patrimonio al inicio del seguimiento.
-            Se usa para calcular el ahorro acumulado y la proyeccion.
+            Valor de partida de tu patrimonio al inicio del seguimiento. Se usa
+            para calcular el ahorro acumulado y la proyeccion.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-[1fr_120px] gap-4">
@@ -374,14 +384,27 @@ export default function AjustesPage() {
         <CardHeader>
           <CardTitle>Apariencia</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <Label htmlFor="mostrar-fab" className="flex flex-col gap-1">
+              <span>Boton flotante de gasto rapido</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                Muestra el boton + en la esquina inferior derecha. Aunque lo
+                ocultes, el atajo Ctrl+Shift+G sigue funcionando.
+              </span>
+            </Label>
+            <Switch
+              id="mostrar-fab"
+              checked={mostrarFab}
+              onCheckedChange={setMostrarFab}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="tema">Tema</Label>
             <Select
               value={tema}
-              onValueChange={(v) =>
-                setTema(v as "light" | "dark" | "system")
-              }
+              onValueChange={(v) => setTema(v as "light" | "dark" | "system")}
             >
               <SelectTrigger id="tema" className="max-w-[200px]">
                 <SelectValue />
@@ -393,8 +416,8 @@ export default function AjustesPage() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              El cambio de tema se aplica al recargar (la integracion en
-              tiempo real llega en lotes futuros).
+              El cambio de tema se aplica al recargar (la integracion en tiempo
+              real llega en lotes futuros).
             </p>
           </div>
         </CardContent>

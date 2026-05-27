@@ -3,17 +3,16 @@
 /**
  * src/components/layout/QuickAddFab.tsx
  *
- * Boton flotante en la esquina inferior derecha. Visible en todas las
- * paginas. Al pulsarlo abre el modal de anadido rapido.
+ * Boton flotante en la esquina inferior derecha.
  *
- * Tambien muestra un tooltip con el atajo de teclado al pasar el raton.
- *
- * Z-index alto (z-50) para superponerse al contenido pero no al modal
- * (que es z-50 tambien pero se renderiza despues en el DOM).
+ * - Se puede deshabilitar desde Ajustes (settings.mostrarFab).
+ * - Cuando esta visible es semi-transparente para no estorbar la lectura
+ *   de la pagina. Al pasar el raton se vuelve opaco.
  */
 
 import { Plus } from "lucide-react";
 import { useQuickAdd } from "@/contexts/QuickAddProvider";
+import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -24,6 +23,13 @@ import {
 
 export function QuickAddFab() {
   const { open } = useQuickAdd();
+  const { settings } = useSettings();
+
+  // Si el usuario lo desactivo en Ajustes, no renderizamos nada.
+  // El atajo Ctrl+Shift+G sigue funcionando (vive en QuickAddProvider).
+  if (settings && !settings.mostrarFab) {
+    return null;
+  }
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -32,7 +38,11 @@ export function QuickAddFab() {
           <Button
             onClick={open}
             size="icon"
-            className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full shadow-lg"
+            className="
+              fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full shadow-lg
+              opacity-40 hover:opacity-100 focus-visible:opacity-100
+              transition-opacity duration-200
+            "
             aria-label="Anadir gasto rapido"
           >
             <Plus className="!h-6 !w-6" />
