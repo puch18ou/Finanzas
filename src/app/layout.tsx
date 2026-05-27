@@ -5,6 +5,7 @@ import {
   DatabaseReady,
 } from "@/contexts/DatabaseProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,14 +16,14 @@ export const metadata: Metadata = {
 /*
  * Orden de los providers (de fuera hacia dentro):
  *
- *   QueryProvider          - TanStack Query, debe envolver todo lo que use queries
- *     DatabaseProvider     - Conexion BD, expone status via context
+ *   QueryProvider          - TanStack Query
+ *     DatabaseProvider     - Conexion BD
  *       DatabaseReady      - Bloquea hijos hasta que BD este lista
  *         AppShell         - Sidebar + topbar
- *           {children}     - Cada pagina especifica
+ *           {children}     - Cada pagina
  *
- * AppShell usa hooks (usePathname) que requieren estar dentro del cliente,
- * por eso ya esta marcado "use client" en su propio fichero.
+ * Toaster (Sonner) va al final, fuera del DatabaseReady, para que pueda
+ * mostrar errores INCLUSO si la BD no ha cargado.
  */
 
 export default function RootLayout({
@@ -39,6 +40,7 @@ export default function RootLayout({
               <AppShell>{children}</AppShell>
             </DatabaseReady>
           </DatabaseProvider>
+          <Toaster richColors closeButton />
         </QueryProvider>
       </body>
     </html>
