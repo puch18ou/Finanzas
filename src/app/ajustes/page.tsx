@@ -5,11 +5,7 @@
  *  src/app/ajustes/page.tsx — Pantalla de Ajustes
  * ============================================================================
  *
- *  Configuracion global de la app. Persistente en la fila singleton de
- *  la tabla `settings`.
- *
- *  Lote 8: anade toggle `integrarCuotaHipoteca` para sumar la cuota de
- *  hipoteca activa a los gastos del Dashboard.
+ *  Lote 9a: anade la BackupCard (export/import JSON).
  * ============================================================================
  */
 
@@ -34,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BackupCard } from "@/components/papelera/BackupCard";
 
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
@@ -131,13 +128,11 @@ export default function AjustesPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
         <p className="text-sm text-muted-foreground">
-          Configuracion global de la app. Los cambios se aplican al
-          guardar.
+          Configuracion global de la app. Los cambios se aplican al guardar.
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* === Monedas === */}
         <Card>
           <CardHeader>
             <CardTitle>Monedas</CardTitle>
@@ -180,14 +175,12 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        {/* === Periodo activo === */}
         <Card>
           <CardHeader>
             <CardTitle>Periodo activo</CardTitle>
             <CardDescription>
               Mes y anio por defecto al abrir pantallas de gastos e
-              ingresos. Cada pantalla tiene su propio selector ademas de
-              este.
+              ingresos.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
@@ -230,13 +223,11 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        {/* === Objetivo de ahorro === */}
         <Card>
           <CardHeader>
             <CardTitle>Objetivo de ahorro</CardTitle>
             <CardDescription>
-              Porcentaje de ingresos que quieres ahorrar cada mes. Se usa
-              para marcar verde/rojo en Evolucion y Dashboard.
+              Porcentaje de ingresos que quieres ahorrar cada mes.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -259,14 +250,12 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        {/* === Hipoteca === */}
         <Card>
           <CardHeader>
             <CardTitle>Hipoteca</CardTitle>
             <CardDescription>
               Si tienes hipoteca, los calculos del Dashboard pueden integrar
-              la cuota. La configuracion completa (importe, plazo, TIN...) se
-              hace en la seccion Hipoteca.
+              la cuota.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -303,13 +292,11 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        {/* === Patrimonio inicial === */}
         <Card>
           <CardHeader>
             <CardTitle>Patrimonio inicial</CardTitle>
             <CardDescription>
-              Valor base para la pagina de Proyeccion. Si lo dejas en 0, se
-              usaran solo las cuentas e inversiones actuales.
+              Valor base para la pagina de Proyeccion.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -348,7 +335,6 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        {/* === Apariencia === */}
         <Card>
           <CardHeader>
             <CardTitle>Apariencia y comportamiento</CardTitle>
@@ -373,10 +359,8 @@ export default function AjustesPage() {
               <Label htmlFor="integrar-hipoteca" className="flex flex-col gap-1">
                 <span>Integrar cuota de hipoteca en Dashboard</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Si esta activo, la cuota mensual de la hipoteca (cuando
-                  esta marcada como activa) se suma a los gastos del mes en
-                  el Dashboard. Solo afecta a la vista, no crea un gasto
-                  real.
+                  Si esta activo, la cuota mensual de la hipoteca activa se
+                  suma a los gastos del mes en el Dashboard.
                 </span>
               </Label>
               <Switch
@@ -404,8 +388,7 @@ export default function AjustesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                El cambio de tema se aplica al recargar (la integracion en
-                tiempo real llega en lotes futuros).
+                El cambio de tema se aplica al instante (Lote 9b).
               </p>
             </div>
           </CardContent>
@@ -429,6 +412,9 @@ export default function AjustesPage() {
           <Button type="submit">Guardar ajustes</Button>
         </div>
       </form>
+
+      {/* La BackupCard va FUERA del form porque sus botones no son submit */}
+      <BackupCard />
     </div>
   );
 }

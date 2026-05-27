@@ -39,6 +39,7 @@ import {
   Tags,
   Coins,
   Settings,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -104,7 +105,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Sistema",
-    items: [{ title: "Ajustes", url: "/ajustes", icon: Settings }],
+    items: [
+      { title: "Ajustes", url: "/ajustes", icon: Settings },
+      { title: "Papelera", url: "/papelera", icon: Trash2 },
+    ],
   },
 ];
 
@@ -120,9 +124,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Finanzas</span>
-            <span className="text-xs text-muted-foreground">
-              v0.1 · local
-            </span>
+            <span className="text-xs text-muted-foreground">v0.1 · local</span>
           </div>
         </div>
       </SidebarHeader>

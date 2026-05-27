@@ -1,6 +1,15 @@
 /**
  * ============================================================================
- *  src/lib/repositories/index.ts — Container de repositorios
+ *  src/lib/repositories/index.ts — Container de repositorios + servicios
+ * ============================================================================
+ *
+ *  Anade a los repos los servicios cross-tabla:
+ *    - trash: TrashService (papelera unificada)
+ *    - backup: BackupService (export/import JSON)
+ *
+ *  Estos servicios no son repos puros (operan sobre varias tablas), pero
+ *  los exponemos por el mismo container para que esten al alcance via
+ *  useRepos() desde cualquier componente.
  * ============================================================================
  */
 
@@ -16,6 +25,8 @@ import { InvestmentRepository } from "./investment-repository";
 import { GoalRepository } from "./goal-repository";
 import { MortgageRepository } from "./mortgage-repository";
 import { OtherDebtRepository } from "./other-debt-repository";
+import { TrashService } from "@/lib/services/trash-service";
+import { BackupService } from "@/lib/services/backup-service";
 
 export interface Repositories {
   settings: SettingsRepository;
@@ -29,6 +40,9 @@ export interface Repositories {
   goals: GoalRepository;
   mortgage: MortgageRepository;
   otherDebts: OtherDebtRepository;
+  // Servicios cross-tabla
+  trash: TrashService;
+  backup: BackupService;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
@@ -44,6 +58,8 @@ export function createRepositories(db: DrizzleDb): Repositories {
     goals: new GoalRepository(db),
     mortgage: new MortgageRepository(db),
     otherDebts: new OtherDebtRepository(db),
+    trash: new TrashService(db),
+    backup: new BackupService(db),
   };
 }
 
@@ -86,3 +102,9 @@ export type {
   CreateOtherDebtData,
   UpdateOtherDebtData,
 } from "./other-debt-repository";
+export type {
+  TrashItem,
+  TrashItemType,
+  TrashCounts,
+} from "@/lib/services/trash-service";
+export type { BackupFile } from "@/lib/services/backup-service";
