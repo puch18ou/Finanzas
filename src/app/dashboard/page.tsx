@@ -2,14 +2,18 @@
 
 /**
  * ============================================================================
- *  src/app/dashboard/page.tsx — Dashboard principal (Lote 7)
+ *  src/app/dashboard/page.tsx — Dashboard principal (Lote 8)
  * ============================================================================
  *
- *  Cambios vs Lote 6:
- *    - El KPI "Patrimonio neto" ahora suma:
- *        cuentas activas + valor cartera de inversiones
- *    - Nuevo KPI quinto: "Valor cartera" (si hay inversiones)
- *    - Layout adaptativo: 4 columnas si no hay inversiones, 5 si las hay
+ *  Cambios vs Lote 7:
+ *    - Si `settings.integrarCuotaHipoteca` esta activo Y hay hipoteca
+ *      activa, la cuota mensual (calculada en vivo) se suma a los gastos
+ *      del KPI "Gastos" y al calculo de Ahorro.
+ *    - Patrimonio neto descuenta:
+ *        + Capital prestado de la hipoteca activa (= precioVivienda
+ *          - entrada + gastosAsociados)
+ *        + Capital pendiente de Otras deudas
+ *      todo convertido a moneda vista.
  * ============================================================================
  */
 
@@ -28,6 +32,8 @@ import { useExpenses } from "@/hooks/useExpenses";
 import { useMonthlyIncomes } from "@/hooks/useMonthlyIncomes";
 import { useExtraIncomes } from "@/hooks/useExtraIncomes";
 import { useInvestments } from "@/hooks/useInvestments";
+import { useMortgage } from "@/hooks/useMortgage";
+import { useOtherDebts } from "@/hooks/useOtherDebts";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -45,6 +51,7 @@ import {
   filterExpensesByPeriod,
 } from "@/lib/domain/aggregation";
 import { summarizePortfolio } from "@/lib/domain/investments";
+import { summarizeMortgage } from "@/lib/domain/mortgage";
 
 export default function DashboardPage() {
   const { settings } = useSettings();
@@ -52,6 +59,8 @@ export default function DashboardPage() {
   const { categories } = useCategories();
   const { accounts } = useAccounts();
   const { investments } = useInvestments();
+  const { mortgage } = useMortgage();
+  const { debts } = useOtherDebts();
 
   const today = new Date();
   const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
@@ -79,7 +88,7 @@ export default function DashboardPage() {
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
-  const summary = useMemo(() => {
+  const baseSummary = useMemo(() => {
     if (!settings) return null;
     return summarizeMonth({
       mes: periodMes,
@@ -92,7 +101,39 @@ export default function DashboardPage() {
     });
   }, [settings, periodMes, periodAnio, expenses, monthlyIncomes, extras, rates, viewCurrency]);
 
-  // Valor de cuentas activas en moneda vista
+  // Resumen de la hipoteca (capitalPrestado, cuotaMensual, etc.)
+  const mortgageSummary = useMemo(() => {
+    if (!mortgage) return null;
+    return summarizeMortgage({
+      precioVivienda: mortgage.precioVivienda,
+      entrada: mortgage.entrada,
+      gastosAsociados: mortgage.gastosAsociados,
+      plazoAnios: mortgage.plazoAnios,
+      tin: mortgage.tin,
+    });
+  }, [mortgage]);
+
+  // Cuota mensual hipoteca en moneda vista (si aplica)
+  const cuotaHipotecaVista = useMemo(() => {
+    if (!settings?.integrarCuotaHipoteca) return 0;
+    if (!mortgage || !mortgage.activa || !mortgageSummary) return 0;
+    try {
+      return convert(mortgageSummary.cuotaMensual, mortgage.moneda, viewCurrency, rates);
+    } catch {
+      return 0;
+    }
+  }, [settings, mortgage, mortgageSummary, viewCurrency, rates]);
+
+  // Resumen final con cuota integrada
+  const summary = useMemo(() => {
+    if (!baseSummary) return null;
+    if (cuotaHipotecaVista === 0) return baseSummary;
+    const gastos = baseSummary.gastos + cuotaHipotecaVista;
+    const ahorro = baseSummary.ingresos - gastos;
+    const tasaAhorro = baseSummary.ingresos > 0 ? ahorro / baseSummary.ingresos : 0;
+    return { ...baseSummary, gastos, ahorro, tasaAhorro };
+  }, [baseSummary, cuotaHipotecaVista]);
+
   const valorCuentas = useMemo(() => {
     let total = 0;
     for (const a of accounts) {
@@ -106,16 +147,38 @@ export default function DashboardPage() {
     return total;
   }, [accounts, rates, viewCurrency]);
 
-  // Resumen de la cartera de inversiones en moneda vista
   const portfolio = useMemo(
     () => summarizePortfolio(investments, rates, viewCurrency),
     [investments, rates, viewCurrency],
   );
 
-  // Patrimonio neto = cuentas + inversiones
-  const patrimonioNeto = valorCuentas + portfolio.valorActualVista;
+  // Deuda total = capital prestado de hipoteca activa + capital pendiente de otras deudas
+  const deudaTotalVista = useMemo(() => {
+    let total = 0;
+    if (mortgage && mortgage.activa && mortgageSummary) {
+      try {
+        total += convert(
+          mortgageSummary.capitalPrestado,
+          mortgage.moneda,
+          viewCurrency,
+          rates,
+        );
+      } catch {
+        // ignorar
+      }
+    }
+    for (const d of debts) {
+      try {
+        total += convert(d.capitalPendiente, d.moneda, viewCurrency, rates);
+      } catch {
+        // ignorar
+      }
+    }
+    return total;
+  }, [mortgage, mortgageSummary, debts, rates, viewCurrency]);
 
-  // Categoría datos para gráfico
+  const patrimonioNeto = valorCuentas + portfolio.valorActualVista - deudaTotalVista;
+
   const categoryChartData = useMemo(() => {
     const filtered = filterExpensesByPeriod(expenses, periodMes, periodAnio);
     const byCat = sumExpensesByCategory(filtered, rates, viewCurrency);
@@ -173,7 +236,6 @@ export default function DashboardPage() {
   const cumpleObjetivo = summary.tasaAhorro >= objetivoAhorro;
   const hayInversiones = investments.length > 0;
 
-  // El grid de KPIs cambia segun haya o no inversiones
   const kpiCols = hayInversiones
     ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
     : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
@@ -185,6 +247,11 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Resumen financiero del mes seleccionado.
+            {cuotaHipotecaVista > 0 && (
+              <span className="ml-1 italic">
+                · Incluye cuota hipoteca de {formatAmount(cuotaHipotecaVista, viewCurrency)}
+              </span>
+            )}
           </p>
         </div>
         <PeriodSelector
@@ -197,7 +264,6 @@ export default function DashboardPage() {
         />
       </header>
 
-      {/* KPI grid */}
       <div className={`grid gap-4 ${kpiCols}`}>
         <KpiCard
           label="Ingresos"
@@ -209,6 +275,7 @@ export default function DashboardPage() {
           label="Gastos"
           value={formatAmount(summary.gastos, viewCurrency)}
           icon={TrendingDown}
+          hint={cuotaHipotecaVista > 0 ? "Incluye cuota hipoteca" : undefined}
         />
         <KpiCard
           label="Ahorro"
@@ -228,7 +295,9 @@ export default function DashboardPage() {
           value={formatAmount(patrimonioNeto, viewCurrency)}
           icon={Coins}
           hint={
-            hayInversiones
+            deudaTotalVista > 0
+              ? `Descontada deuda: ${formatAmount(deudaTotalVista, viewCurrency)}`
+              : hayInversiones
               ? `Cuentas + cartera`
               : "Saldo total de cuentas activas"
           }

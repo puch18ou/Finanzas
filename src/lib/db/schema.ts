@@ -130,6 +130,12 @@ export const settings = sqliteTable(
       .notNull()
       .default(true),
 
+    integrarCuotaHipoteca: integer("integrar_cuota_hipoteca", {
+      mode: "boolean",
+    })
+      .notNull()
+      .default(false),
+
     tema: text("tema", { enum: ["light", "dark", "system"] })
       .notNull()
       .default("system"),

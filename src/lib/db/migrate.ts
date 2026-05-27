@@ -1,138 +1,188 @@
 /**
  * ============================================================================
- *  src/lib/db/migrate.ts — Aplicador de migraciones al arrancar
+ *  src/lib/db/migrate.ts — Aplicador de migraciones SQL al arrancar
  * ============================================================================
  *
- *  POR QUE NO USAMOS DRIZZLE-KIT MIGRATE EN RUNTIME
- *  -------------------------------------------------
- *  La CLI `drizzle-kit migrate` necesita acceso al filesystem y a Node.js,
- *  pero nuestra app corre dentro de un webview (no es Node). Asi que
- *  implementamos nuestro propio runner minimo: lee los SQL bundleados con
- *  la app y los aplica uno a uno, llevando registro en una tabla
- *  __migrations.
+ *  Firma: runMigrations() → Promise<string[]>
+ *  Devuelve la lista de nombres de las migraciones aplicadas EN ESTA llamada.
  *
- *  COMO SE BUNDLEAN LOS SQL
- *  ------------------------
- *  Los ficheros de /drizzle/*.sql se importan como STRING en tiempo de
- *  build gracias a Next/Webpack. Cada SQL se convierte en un import:
+ *  COMPATIBILIDAD CON BD EXISTENTES
+ *  ---------------------------------
+ *  Si la app se arranca contra una BD que ya fue migrada con un sistema
+ *  anterior (Lote 2 inicial), las tablas YA existen pero la tabla
+ *  `_migrations` puede estar vacia. En ese caso detectamos que las tablas
+ *  ya existen y damos 0000_init por aplicada sin re-ejecutar el SQL.
  *
- *      import init0 from '../../../drizzle/0000_init.sql?raw';
- *
- *  El sufijo `?raw` es una convencion de Vite/Webpack para cargar un
- *  fichero como texto crudo en lugar de ejecutarlo. Next 16 lo soporta
- *  via Turbopack.
- *
- *  ORDEN
- *  -----
- *  Las migraciones llevan prefijo numerico (0000_, 0001_, ...). Se aplican
- *  en orden y solo se aplica una migracion si su nombre NO esta ya en la
- *  tabla __migrations.
- *
- *  STATEMENT-BREAKPOINT
- *  --------------------
- *  Drizzle marca el limite entre statements con el comentario
- *      --> statement-breakpoint
- *  Esto es necesario porque algunos drivers SQLite no aceptan multiples
- *  statements en un solo `execute`. El plugin de Tauri tampoco. Asi que
- *  partimos el SQL por ese delimitador y ejecutamos cada statement por
- *  separado.
+ *  Tambien aplicamos cada migracion con tolerancia a errores "ya existe":
+ *  si una sentencia intermedia falla porque la tabla/columna ya existe,
+ *  la saltamos en lugar de abortar.
  * ============================================================================
  */
 
-import { getRawDb } from "./client";
+import { sql } from "drizzle-orm";
+import { getDb } from "./client";
 
-// Importacion del SQL como texto crudo. El `?raw` lo soporta Next 16 con
-// Turbopack y Webpack. Cuando anadamos mas migraciones, se anade aqui.
 import init0000 from "../../../drizzle/0000_init.sql?raw";
 import migration0001 from "../../../drizzle/0001_add_mostrar_fab.sql?raw";
+import migration0002 from "../../../drizzle/0002_integrar_cuota_hipoteca.sql?raw";
 
-/**
- * Lista ordenada de migraciones disponibles.
- * Cuando generes una nueva con `npm run db:generate`, la agregas aqui.
- */
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
   { name: "0001_add_mostrar_fab", sql: migration0001 },
+  { name: "0002_integrar_cuota_hipoteca", sql: migration0002 },
 ];
 
 /**
- * Crea la tabla __migrations si no existe. Lleva el log de migraciones
- * ya aplicadas para que cada una solo se ejecute una vez.
+ * Lista los errores de SQLite que consideramos "ya existe" — los ignoramos
+ * porque significan que la operacion ya se hizo antes.
  */
-async function ensureMigrationsTable(): Promise<void> {
-  const db = await getRawDb();
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS __migrations (
+function isAlreadyExistsError(err: unknown): boolean {
+  const msg =
+    err instanceof Error
+      ? err.message.toLowerCase()
+      : String(err).toLowerCase();
+  return (
+    msg.includes("already exists") ||
+    msg.includes("duplicate column") ||
+    msg.includes("ya existe")
+  );
+}
+
+export async function runMigrations(): Promise<string[]> {
+  const db = await getDb();
+
+  // Tabla de control: garantizamos que existe
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS _migrations (
       name TEXT PRIMARY KEY NOT NULL,
       applied_at INTEGER NOT NULL
-    )
+    );
   `);
-}
 
-/**
- * Devuelve el conjunto de migraciones ya aplicadas (sus nombres).
- */
-async function getAppliedMigrations(): Promise<Set<string>> {
-  const db = await getRawDb();
-  const rows = await db.select<{ name: string }[]>(
-    "SELECT name FROM __migrations",
-  );
-  return new Set(rows.map((r) => r.name));
-}
+  // Detectamos si la BD ya tiene tablas de aplicacion ANTES de empezar.
+  // Si `currencies` (la primera tabla de 0000_init) ya existe, asumimos
+  // que 0000 fue aplicada por un sistema anterior.
+  const existingTables = await db.all<{ name: string }>(sql`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'currencies'
+  `);
+  const baseSchemaExists = existingTables.length > 0;
 
-/**
- * Divide un SQL multi-statement (con --> statement-breakpoint) en
- * statements individuales, eliminando los delimitadores y trimming.
- */
-function splitStatements(sql: string): string[] {
-  return sql
-    .split(/-->\s*statement-breakpoint/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
+  // Migraciones ya registradas
+  const applied = await db.all<{ name: string }>(sql`
+    SELECT name FROM _migrations
+  `);
+  const appliedSet = new Set(applied.map((r) => r.name));
 
-/**
- * Aplica una migracion entera: ejecuta cada statement y luego inserta
- * la marca en __migrations. NO usa transaccion porque el plugin SQL de
- * Tauri no expone API de transacciones explicitas en JS de momento; si
- * algun statement falla, el usuario lo vera en consola y resolveremos.
- *
- * En produccion (cuando la app sea estable) las migraciones nunca fallan
- * porque vienen validadas con drizzle-kit. En desarrollo, fallar mientras
- * trabajamos en el esquema es esperable.
- */
-async function applyMigration(migration: {
-  name: string;
-  sql: string;
-}): Promise<void> {
-  const db = await getRawDb();
-  const statements = splitStatements(migration.sql);
-
-  for (const stmt of statements) {
-    await db.execute(stmt);
+  // Si las tablas ya existen pero 0000_init no esta registrada, la
+  // damos por aplicada (migracion legacy desde Lote 2 original).
+  if (baseSchemaExists && !appliedSet.has("0000_init")) {
+    await db.run(sql` INSERT INTO _migrations
+      (name, applied_at) VALUES ('0000_init', ${Date.now()})
+    `);
+    appliedSet.add("0000_init");
+    console.log(
+      "[migrate] 0000_init marcada como aplicada (BD pre-existente detectada)",
+    );
   }
 
-  await db.execute(
-    "INSERT INTO __migrations (name, applied_at) VALUES (?, ?)",
-    [migration.name, Date.now()],
-  );
+  const newlyApplied: string[] = [];
+
+  for (const migration of MIGRATIONS) {
+    if (appliedSet.has(migration.name)) continue;
+
+    const statements = splitSqlStatements(migration.sql);
+    let anyApplied = false;
+
+    for (const stmt of statements) {
+      const trimmed = stmt.trim();
+      if (!trimmed) continue;
+
+      try {
+        await db.run(sql.raw(trimmed));
+        anyApplied = true;
+      } catch (err) {
+        if (isAlreadyExistsError(err)) {
+          // Ya existe (columna, tabla, indice...). Lo saltamos.
+          console.warn(
+            `[migrate] ${migration.name}: salto sentencia ya aplicada: ${trimmed.slice(0, 80)}...`,
+          );
+          continue;
+        }
+        // Error real: re-lanzamos
+        throw err;
+      }
+    }
+
+    // Aunque todas las sentencias fueran "ya existe", igual marcamos la
+    // migracion como aplicada para no reintentar la proxima vez.
+    void anyApplied;
+
+    await db.run(sql`
+      INSERT INTO _migrations (name, applied_at) VALUES (${migration.name}, ${Date.now()})
+    `);
+
+    console.log(`[migrate] Aplicada migracion: ${migration.name}`);
+    newlyApplied.push(migration.name);
+  }
+
+  return newlyApplied;
 }
 
 /**
- * Punto de entrada: aplica todas las migraciones pendientes en orden.
- * Idempotente: si ya estan todas aplicadas, no hace nada.
- *
- * Devuelve la lista de migraciones que se aplicaron en esta llamada
- * (vacia si no habia ninguna pendiente).
+ * Divide un script SQL en sentencias individuales, respetando strings y
+ * comentarios.
  */
-export async function runMigrations(): Promise<string[]> {
-  await ensureMigrationsTable();
-  const applied = await getAppliedMigrations();
+function splitSqlStatements(sql: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inString = false;
+  let inLineComment = false;
+  let inBlockComment = false;
 
-  const pending = MIGRATIONS.filter((m) => !applied.has(m.name));
-  for (const migration of pending) {
-    await applyMigration(migration);
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (inLineComment) {
+      if (ch === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inString) {
+      current += ch;
+      if (ch === "'") inString = false;
+      continue;
+    }
+
+    if (ch === "-" && next === "-") {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      inString = true;
+      current += ch;
+      continue;
+    }
+    if (ch === ";") {
+      result.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
   }
 
-  return pending.map((m) => m.name);
+  if (current.trim()) result.push(current.trim());
+  return result;
 }

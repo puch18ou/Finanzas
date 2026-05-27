@@ -2,22 +2,6 @@
  * ============================================================================
  *  src/lib/schemas/forms.ts — Esquemas Zod para los formularios CRUD
  * ============================================================================
- *
- *  CONCEPTO ZOD (refresher Pydantic-style)
- *  ---------------------------------------
- *  Zod es a TypeScript lo que Pydantic es a Python. Defines un "schema":
- *
- *      const ExpenseSchema = z.object({
- *        importe: z.number().positive(),
- *        moneda: z.enum(['EUR','USD','SGD']),
- *      });
- *
- *  Y obtienes tres cosas:
- *
- *    1. Validacion en runtime
- *    2. Tipo TypeScript inferido via z.infer
- *    3. Mensajes de error custom
- * ============================================================================
  */
 
 import { z } from "zod";
@@ -173,10 +157,6 @@ export const CATEGORIAS_INGRESO_EXTRA = [
 //  INVERSION
 // ============================================================================
 
-/**
- * Tipos de inversion soportados. El usuario tambien puede escribir tipos
- * custom (campo libre con sugerencias).
- */
 export const TIPOS_INVERSION = [
   "Acciones",
   "ETF",
@@ -188,17 +168,6 @@ export const TIPOS_INVERSION = [
   "Otro",
 ] as const;
 
-/**
- * Esquema del formulario de inversion. Campos:
- *  - tipo, ticker (opcional), nombre
- *  - participaciones, precioCompra, precioActual, moneda
- *  - cuentaId (broker = cuenta de tipo Broker, opcional)
- *  - fechaCompra (opcional), notas (opcional)
- *
- * NOTA: el schema de BD tiene `precioCompra` (no `precioCompraMedio`)
- * y NO tiene campo `broker` separado; usamos `cuentaId` apuntando a la
- * cuenta del broker.
- */
 export const investmentFormSchema = z.object({
   tipo: z.string().min(1, "Selecciona un tipo").max(40),
   ticker: z.string().max(20).nullable().optional(),
@@ -239,3 +208,105 @@ export const goalFormSchema = z.object({
 });
 
 export type GoalFormData = z.infer<typeof goalFormSchema>;
+
+// ============================================================================
+//  HIPOTECA
+// ============================================================================
+
+export const TIPOS_HIPOTECA = ["Fija", "Variable", "Mixta"] as const;
+
+/**
+ * Schema del formulario de hipoteca alineado con la tabla `mortgage`:
+ *  - precioVivienda, entrada, gastosAsociados (los tres definen el capital)
+ *  - plazoAnios, tin, tipo
+ *  - tipo Variable/Mixta: diferencial + tipoReferencia
+ *  - tipo Mixta: aniosTipoFijo
+ *  - fechaInicio: OBLIGATORIO (schema lo tiene NOT NULL)
+ */
+export const mortgageFormSchema = z.object({
+  activa: z.boolean(),
+  precioVivienda: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativo"),
+  entrada: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativa"),
+  gastosAsociados: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No pueden ser negativos"),
+  plazoAnios: z
+    .number({ message: "Debe ser un numero" })
+    .int()
+    .positive("Plazo debe ser positivo")
+    .max(50, "Maximo 50 anios"),
+  tin: z
+    .number({ message: "Debe ser un numero" })
+    .min(0, "No puede ser negativo")
+    .max(0.3, "TIN demasiado alto (max 30%)"),
+  tipo: z.enum(TIPOS_HIPOTECA, { message: "Selecciona un tipo" }),
+  diferencial: z
+    .number({ message: "Debe ser un numero" })
+    .min(0)
+    .max(0.1)
+    .default(0),
+  tipoReferencia: z
+    .number({ message: "Debe ser un numero" })
+    .min(0)
+    .max(0.3)
+    .default(0),
+  aniosTipoFijo: z
+    .number({ message: "Debe ser un numero" })
+    .int()
+    .min(0)
+    .max(50)
+    .default(0),
+  moneda: z.string().min(2).max(4),
+  fechaInicio: z.date({ message: "Fecha de inicio obligatoria" }),
+  notas: z.string().max(500).nullable().optional(),
+});
+
+export type MortgageFormData = z.infer<typeof mortgageFormSchema>;
+
+// ============================================================================
+//  OTRAS DEUDAS
+// ============================================================================
+
+export const TIPOS_DEUDA = [
+  "Prestamo personal",
+  "Prestamo coche",
+  "Prestamo estudios",
+  "Tarjeta credito",
+  "Familiar",
+  "Otro",
+] as const;
+
+/**
+ * Schema del formulario de otras deudas alineado con la tabla `otherDebts`:
+ *  - concepto, tipo
+ *  - importeInicial, capitalPendiente
+ *  - tin, plazoRestanteMeses
+ *  - moneda, fechaInicio (opcional)
+ */
+export const otherDebtFormSchema = z.object({
+  concepto: z.string().min(1, "El concepto es obligatorio").max(80),
+  tipo: z.string().min(1, "Selecciona un tipo").max(40),
+  importeInicial: z
+    .number({ message: "Debe ser un numero" })
+    .positive("Debe ser positivo"),
+  capitalPendiente: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativo"),
+  tin: z
+    .number({ message: "Debe ser un numero" })
+    .min(0, "No puede ser negativo")
+    .max(0.5, "TIN demasiado alto (max 50%)"),
+  plazoRestanteMeses: z
+    .number({ message: "Debe ser un numero" })
+    .int()
+    .nonnegative("No puede ser negativo"),
+  moneda: z.string().min(2).max(4),
+  fechaInicio: z.date().nullable().optional(),
+  notas: z.string().max(500).nullable().optional(),
+});
+
+export type OtherDebtFormData = z.infer<typeof otherDebtFormSchema>;

@@ -2,13 +2,6 @@
  * ============================================================================
  *  src/lib/repositories/index.ts — Container de repositorios
  * ============================================================================
- *
- *  Crea las instancias de los repositorios compartiendo el mismo cliente
- *  Drizzle. Se invoca una sola vez en DatabaseProvider.
- *
- *  Ver comentarios en src/contexts/DatabaseProvider.tsx para entender
- *  por que no usamos singletons de modulo.
- * ============================================================================
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -21,6 +14,8 @@ import { MonthlyIncomeRepository } from "./monthly-income-repository";
 import { ExtraIncomeRepository } from "./extra-income-repository";
 import { InvestmentRepository } from "./investment-repository";
 import { GoalRepository } from "./goal-repository";
+import { MortgageRepository } from "./mortgage-repository";
+import { OtherDebtRepository } from "./other-debt-repository";
 
 export interface Repositories {
   settings: SettingsRepository;
@@ -32,6 +27,8 @@ export interface Repositories {
   extraIncomes: ExtraIncomeRepository;
   investments: InvestmentRepository;
   goals: GoalRepository;
+  mortgage: MortgageRepository;
+  otherDebts: OtherDebtRepository;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
@@ -45,10 +42,11 @@ export function createRepositories(db: DrizzleDb): Repositories {
     extraIncomes: new ExtraIncomeRepository(db),
     investments: new InvestmentRepository(db),
     goals: new GoalRepository(db),
+    mortgage: new MortgageRepository(db),
+    otherDebts: new OtherDebtRepository(db),
   };
 }
 
-// Re-exports utiles
 export type { ISettingsRepository, SettingsPatch } from "./settings-repository";
 export type {
   CreateCategoryData,
@@ -83,3 +81,8 @@ export type {
   CreateGoalData,
   UpdateGoalData,
 } from "./goal-repository";
+export type { MortgageData } from "./mortgage-repository";
+export type {
+  CreateOtherDebtData,
+  UpdateOtherDebtData,
+} from "./other-debt-repository";

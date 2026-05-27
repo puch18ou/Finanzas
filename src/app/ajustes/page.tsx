@@ -2,50 +2,20 @@
 
 /**
  * ============================================================================
- *  src/app/ajustes/page.tsx — Pagina de Ajustes
+ *  src/app/ajustes/page.tsx — Pantalla de Ajustes
  * ============================================================================
  *
- *  Permite editar todos los campos de la fila singleton de `settings`:
+ *  Configuracion global de la app. Persistente en la fila singleton de
+ *  la tabla `settings`.
  *
- *    Monedas:
- *      - Moneda local (en la que registras gastos del dia a dia)
- *      - Moneda de visualizacion (en la que se muestran los totales)
- *
- *    Periodo activo:
- *      - Anio actual
- *      - Mes actual
- *
- *    Ahorro:
- *      - % objetivo de ahorro
- *
- *    Hipoteca:
- *      - Sí/No tiene hipoteca
- *      - Moneda de la hipoteca (solo si activa)
- *
- *    Patrimonio inicial:
- *      - Importe + moneda
- *
- *    Apariencia:
- *      - Tema (light/dark/system)
- *
- *  PATRON DE FORMULARIO
- *  --------------------
- *  Usamos useState local con los valores del formulario. Al cargar la
- *  pagina, hidratamos el estado desde `settings`. Al pulsar "Guardar"
- *  llamamos a `update()` (mutation de TanStack Query).
- *
- *  Decidimos NO usar react-hook-form aqui porque el formulario es
- *  relativamente simple. En formularios mas complejos (Gastos, Hipoteca)
- *  si usaremos react-hook-form + zod.
- *
- *  La validacion basica (mes 1-12, anio razonable) se hace en el click
- *  del boton. Si todo OK, se envia.
+ *  Lote 8: anade toggle `integrarCuotaHipoteca` para sumar la cuota de
+ *  hipoteca activa a los gastos del Dashboard.
  * ============================================================================
  */
 
 import { useEffect, useState } from "react";
+import { Check, AlertCircle } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -53,8 +23,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -62,8 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
+
+type Feedback = { kind: "success" | "error"; text: string } | null;
 
 const MESES = [
   "Enero",
@@ -81,29 +53,24 @@ const MESES = [
 ];
 
 export default function AjustesPage() {
-  const { settings, isLoading, update, isUpdating } = useSettings();
-  const { data: currencies } = useCurrencies();
+  const { settings, update, isLoading } = useSettings();
+  const { data: currencies = [] } = useCurrencies();
 
-  // Estado local del formulario, hidratado desde settings.
-  const [monedaLocal, setMonedaLocal] = useState("");
-  const [monedaVista, setMonedaVista] = useState("");
-  const [anioActual, setAnioActual] = useState<number>(0);
-  const [mesActual, setMesActual] = useState<number>(1);
-  const [objetivoAhorroPct, setObjetivoAhorroPct] = useState<number>(0);
+  const [monedaLocal, setMonedaLocal] = useState("EUR");
+  const [monedaVista, setMonedaVista] = useState("EUR");
+  const [anioActual, setAnioActual] = useState<number>(new Date().getFullYear());
+  const [mesActual, setMesActual] = useState<number>(new Date().getMonth() + 1);
+  const [objetivoAhorroPct, setObjetivoAhorroPct] = useState<number>(0.2);
   const [tieneHipoteca, setTieneHipoteca] = useState(false);
   const [monedaHipoteca, setMonedaHipoteca] = useState("");
   const [patrimonioInicial, setPatrimonioInicial] = useState<number>(0);
   const [patrimonioInicialMoneda, setPatrimonioInicialMoneda] = useState("");
   const [mostrarFab, setMostrarFab] = useState(true);
+  const [integrarCuotaHipoteca, setIntegrarCuotaHipoteca] = useState(false);
   const [tema, setTema] = useState<"light" | "dark" | "system">("system");
 
-  // Mensaje de feedback al guardar
-  const [feedback, setFeedback] = useState<{
-    kind: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
-  // Cuando llegan los settings de la BD, sincronizamos el formulario.
   useEffect(() => {
     if (!settings) return;
     setMonedaLocal(settings.monedaLocal);
@@ -116,39 +83,15 @@ export default function AjustesPage() {
     setPatrimonioInicial(settings.patrimonioInicial);
     setPatrimonioInicialMoneda(settings.patrimonioInicialMoneda ?? "");
     setMostrarFab(settings.mostrarFab);
+    setIntegrarCuotaHipoteca(settings.integrarCuotaHipoteca);
     setTema(settings.tema);
   }, [settings]);
 
-  if (isLoading || !settings) {
-    return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
-  }
-
-  async function handleSubmit() {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setFeedback(null);
 
-    // Validaciones basicas
-    if (mesActual < 1 || mesActual > 12) {
-      setFeedback({ kind: "error", text: "El mes debe estar entre 1 y 12" });
-      return;
-    }
-    if (anioActual < 2000 || anioActual > 2100) {
-      setFeedback({
-        kind: "error",
-        text: "El anio debe ser razonable (2000-2100)",
-      });
-      return;
-    }
-    if (objetivoAhorroPct < 0 || objetivoAhorroPct > 1) {
-      setFeedback({
-        kind: "error",
-        text: "El objetivo de ahorro debe estar entre 0 y 100%",
-      });
-      return;
-    }
-
     try {
-      // Normaliza strings vacios a null, para que las foreign keys no
-      // intenten apuntar a un codigo de moneda "" que no existe.
       const emptyToNull = (v: string | null | undefined) =>
         v === "" || v == null ? null : v;
 
@@ -163,6 +106,7 @@ export default function AjustesPage() {
         patrimonioInicial,
         patrimonioInicialMoneda: emptyToNull(patrimonioInicialMoneda),
         mostrarFab,
+        integrarCuotaHipoteca,
         tema,
       });
       setFeedback({ kind: "success", text: "Ajustes guardados" });
@@ -172,162 +116,45 @@ export default function AjustesPage() {
         text: e instanceof Error ? e.message : "Error desconocido",
       });
     }
+  };
+
+  if (isLoading || !settings) {
+    return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
   }
 
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = currentYear + 1; y >= currentYear - 5; y--) years.push(y);
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
         <p className="text-sm text-muted-foreground">
-          Configuracion global de la aplicacion. Los cambios se guardan al
-          pulsar el boton de abajo.
+          Configuracion global de la app. Los cambios se aplican al
+          guardar.
         </p>
       </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Monedas</CardTitle>
-          <CardDescription>
-            La moneda local es en la que registras los movimientos del dia a
-            dia. La de visualizacion es en la que se muestran los totales del
-            dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="moneda-local">Moneda local</Label>
-            <Select value={monedaLocal} onValueChange={setMonedaLocal}>
-              <SelectTrigger id="moneda-local">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies?.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code} — {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="moneda-vista">Moneda de visualizacion</Label>
-            <Select value={monedaVista} onValueChange={setMonedaVista}>
-              <SelectTrigger id="moneda-vista">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies?.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code} — {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Periodo activo</CardTitle>
-          <CardDescription>
-            El dashboard y la pagina de evolucion filtran por este periodo. Lo
-            puedes cambiar para revisar otros meses.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="anio">Anio</Label>
-            <Input
-              id="anio"
-              type="number"
-              min={2000}
-              max={2100}
-              value={anioActual}
-              onChange={(e) => setAnioActual(Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mes">Mes</Label>
-            <Select
-              value={String(mesActual)}
-              onValueChange={(v) => setMesActual(Number(v))}
-            >
-              <SelectTrigger id="mes">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MESES.map((nombre, idx) => (
-                  <SelectItem key={idx} value={String(idx + 1)}>
-                    {nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Objetivo de ahorro</CardTitle>
-          <CardDescription>
-            Porcentaje de tus ingresos que aspiras a ahorrar cada mes. La pagina
-            de evolucion marca un mes con un check verde si lo cumples.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="ahorro">Porcentaje (%)</Label>
-            <Input
-              id="ahorro"
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(objetivoAhorroPct * 100)}
-              onChange={(e) =>
-                setObjetivoAhorroPct(Number(e.target.value) / 100)
-              }
-              className="max-w-[120px]"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Hipoteca</CardTitle>
-          <CardDescription>
-            Si tienes hipoteca activa, su cuota mensual se suma a los gastos del
-            dashboard automaticamente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="tiene-hipoteca" className="flex flex-col gap-1">
-              <span>¿Tienes hipoteca?</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                Si la desactivas, la hoja Hipoteca queda solo como simulador
-              </span>
-            </Label>
-            <Switch
-              id="tiene-hipoteca"
-              checked={tieneHipoteca}
-              onCheckedChange={setTieneHipoteca}
-            />
-          </div>
-
-          {tieneHipoteca && (
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* === Monedas === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Monedas</CardTitle>
+            <CardDescription>
+              La moneda local es la que usas para los ingresos del trabajo.
+              La moneda vista es la que se muestra en los totales.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="moneda-hipoteca">Moneda de la hipoteca</Label>
-              <Select value={monedaHipoteca} onValueChange={setMonedaHipoteca}>
-                <SelectTrigger id="moneda-hipoteca">
-                  <SelectValue placeholder="Selecciona una moneda" />
+              <Label htmlFor="moneda-local">Moneda local</Label>
+              <Select value={monedaLocal} onValueChange={setMonedaLocal}>
+                <SelectTrigger id="moneda-local">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {currencies?.map((c) => (
+                  {currencies.map((c) => (
                     <SelectItem key={c.code} value={c.code}>
                       {c.code} — {c.nombre}
                     </SelectItem>
@@ -335,114 +162,273 @@ export default function AjustesPage() {
                 </SelectContent>
               </Select>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label htmlFor="moneda-vista">Moneda vista</Label>
+              <Select value={monedaVista} onValueChange={setMonedaVista}>
+                <SelectTrigger id="moneda-vista">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.code} — {c.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Patrimonio inicial</CardTitle>
-          <CardDescription>
-            Valor de partida de tu patrimonio al inicio del seguimiento. Se usa
-            para calcular el ahorro acumulado y la proyeccion.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-[1fr_120px] gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="patrimonio">Importe</Label>
-            <Input
-              id="patrimonio"
-              type="number"
-              min={0}
-              step="0.01"
-              value={patrimonioInicial}
-              onChange={(e) => setPatrimonioInicial(Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="patrimonio-moneda">Moneda</Label>
-            <Select
-              value={patrimonioInicialMoneda}
-              onValueChange={setPatrimonioInicialMoneda}
-            >
-              <SelectTrigger id="patrimonio-moneda">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies?.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+        {/* === Periodo activo === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Periodo activo</CardTitle>
+            <CardDescription>
+              Mes y anio por defecto al abrir pantallas de gastos e
+              ingresos. Cada pantalla tiene su propio selector ademas de
+              este.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="anio">Anio</Label>
+              <Select
+                value={String(anioActual)}
+                onValueChange={(v) => setAnioActual(Number(v))}
+              >
+                <SelectTrigger id="anio">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mes">Mes</Label>
+              <Select
+                value={String(mesActual)}
+                onValueChange={(v) => setMesActual(Number(v))}
+              >
+                <SelectTrigger id="mes">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MESES.map((m, idx) => (
+                    <SelectItem key={idx} value={String(idx + 1)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Apariencia</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="mostrar-fab" className="flex flex-col gap-1">
-              <span>Boton flotante de gasto rapido</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                Muestra el boton + en la esquina inferior derecha. Aunque lo
-                ocultes, el atajo Ctrl+Shift+G sigue funcionando.
-              </span>
-            </Label>
-            <Switch
-              id="mostrar-fab"
-              checked={mostrarFab}
-              onCheckedChange={setMostrarFab}
-            />
-          </div>
+        {/* === Objetivo de ahorro === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Objetivo de ahorro</CardTitle>
+            <CardDescription>
+              Porcentaje de ingresos que quieres ahorrar cada mes. Se usa
+              para marcar verde/rojo en Evolucion y Dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="ahorro">Objetivo (%)</Label>
+              <Input
+                id="ahorro"
+                type="number"
+                step="1"
+                min={0}
+                max={100}
+                value={Number((objetivoAhorroPct * 100).toFixed(0))}
+                onChange={(e) => {
+                  const pct = Number(e.target.value);
+                  setObjetivoAhorroPct(isNaN(pct) ? 0 : pct / 100);
+                }}
+                className="max-w-[200px]"
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-2">
-            <Label htmlFor="tema">Tema</Label>
-            <Select
-              value={tema}
-              onValueChange={(v) => setTema(v as "light" | "dark" | "system")}
-            >
-              <SelectTrigger id="tema" className="max-w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Claro</SelectItem>
-                <SelectItem value="dark">Oscuro</SelectItem>
-                <SelectItem value="system">Seguir al sistema</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              El cambio de tema se aplica al recargar (la integracion en tiempo
-              real llega en lotes futuros).
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        {/* === Hipoteca === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Hipoteca</CardTitle>
+            <CardDescription>
+              Si tienes hipoteca, los calculos del Dashboard pueden integrar
+              la cuota. La configuracion completa (importe, plazo, TIN...) se
+              hace en la seccion Hipoteca.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <Label htmlFor="tiene-hipoteca" className="flex flex-col gap-1">
+                <span>Tengo hipoteca</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Habilita la seccion Hipoteca y los campos asociados.
+                </span>
+              </Label>
+              <Switch
+                id="tiene-hipoteca"
+                checked={tieneHipoteca}
+                onCheckedChange={setTieneHipoteca}
+              />
+            </div>
+            {tieneHipoteca && (
+              <div className="space-y-2">
+                <Label htmlFor="moneda-hipo">Moneda hipoteca</Label>
+                <Select value={monedaHipoteca} onValueChange={setMonedaHipoteca}>
+                  <SelectTrigger id="moneda-hipo" className="max-w-[200px]">
+                    <SelectValue placeholder="Selecciona moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <Separator />
+        {/* === Patrimonio inicial === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Patrimonio inicial</CardTitle>
+            <CardDescription>
+              Valor base para la pagina de Proyeccion. Si lo dejas en 0, se
+              usaran solo las cuentas e inversiones actuales.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="pat-inicial">Importe</Label>
+              <Input
+                id="pat-inicial"
+                type="number"
+                step="100"
+                min={0}
+                value={patrimonioInicial}
+                onChange={(e) => setPatrimonioInicial(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pat-moneda">Moneda</Label>
+              <Select
+                value={patrimonioInicialMoneda || "__none__"}
+                onValueChange={(v) =>
+                  setPatrimonioInicialMoneda(v === "__none__" ? "" : v)
+                }
+              >
+                <SelectTrigger id="pat-moneda">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin especificar</SelectItem>
+                  {currencies.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
+        {/* === Apariencia === */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Apariencia y comportamiento</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <Label htmlFor="mostrar-fab" className="flex flex-col gap-1">
+                <span>Boton flotante de gasto rapido</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Muestra el boton + en la esquina inferior derecha. Aunque
+                  lo ocultes, el atajo Ctrl+Shift+G sigue funcionando.
+                </span>
+              </Label>
+              <Switch
+                id="mostrar-fab"
+                checked={mostrarFab}
+                onCheckedChange={setMostrarFab}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <Label htmlFor="integrar-hipoteca" className="flex flex-col gap-1">
+                <span>Integrar cuota de hipoteca en Dashboard</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Si esta activo, la cuota mensual de la hipoteca (cuando
+                  esta marcada como activa) se suma a los gastos del mes en
+                  el Dashboard. Solo afecta a la vista, no crea un gasto
+                  real.
+                </span>
+              </Label>
+              <Switch
+                id="integrar-hipoteca"
+                checked={integrarCuotaHipoteca}
+                onCheckedChange={setIntegrarCuotaHipoteca}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tema">Tema</Label>
+              <Select
+                value={tema}
+                onValueChange={(v) =>
+                  setTema(v as "light" | "dark" | "system")
+                }
+              >
+                <SelectTrigger id="tema" className="max-w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Claro</SelectItem>
+                  <SelectItem value="dark">Oscuro</SelectItem>
+                  <SelectItem value="system">Seguir al sistema</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                El cambio de tema se aplica al recargar (la integracion en
+                tiempo real llega en lotes futuros).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-end gap-3">
           {feedback && (
-            <span
-              className={
-                feedback.kind === "success"
-                  ? "text-primary"
-                  : "text-destructive"
-              }
+            <p
+              className={`text-sm ${
+                feedback.kind === "success" ? "text-primary" : "text-destructive"
+              } flex items-center gap-1`}
             >
+              {feedback.kind === "success" ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
               {feedback.text}
-            </span>
+            </p>
           )}
+          <Button type="submit">Guardar ajustes</Button>
         </div>
-        <Button onClick={handleSubmit} disabled={isUpdating}>
-          {isUpdating ? "Guardando..." : "Guardar cambios"}
-        </Button>
-      </div>
+      </form>
     </div>
   );
 }
