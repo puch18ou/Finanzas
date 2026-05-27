@@ -5,6 +5,8 @@ import {
   DatabaseReady,
 } from "@/contexts/DatabaseProvider";
 import { QuickAddProvider } from "@/contexts/QuickAddProvider";
+import { ThemeProvider } from "@/contexts/ThemeProvider";
+import { ShortcutsProvider } from "@/contexts/ShortcutsProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -21,11 +23,17 @@ export const metadata: Metadata = {
  *     DatabaseProvider     - Conexion BD
  *       DatabaseReady      - Bloquea hijos hasta que BD este lista
  *         QuickAddProvider - Estado del modal global de anadido rapido
- *           AppShell       - Sidebar + topbar + FAB
- *             {children}   - Cada pagina
+ *           ThemeProvider  - Aplica clase 'dark' al <html> segun settings.tema
+ *             ShortcutsProvider - Atajos globales: Ctrl+K, Ctrl+/
+ *               AppShell   - Sidebar + topbar + FAB
+ *                 {children}
  *
  *  QuickAddProvider va DENTRO de DatabaseReady porque internamente usa
  *  el modal QuickExpenseDialog que necesita los repositorios y settings.
+ *
+ *  ThemeProvider y ShortcutsProvider tambien van dentro de DatabaseReady:
+ *  el primero porque lee settings.tema, el segundo porque la CommandPalette
+ *  usa useBackup() / useSettings() / useQuickAdd().
  */
 
 export default function RootLayout({
@@ -40,7 +48,11 @@ export default function RootLayout({
           <DatabaseProvider>
             <DatabaseReady>
               <QuickAddProvider>
-                <AppShell>{children}</AppShell>
+                <ThemeProvider>
+                  <ShortcutsProvider>
+                    <AppShell>{children}</AppShell>
+                  </ShortcutsProvider>
+                </ThemeProvider>
               </QuickAddProvider>
             </DatabaseReady>
           </DatabaseProvider>

@@ -15,9 +15,12 @@
  *    Patrimonio → Cuentas, Inversiones, Metas
  *    Deuda      → Hipoteca, Otras deudas
  *    Catalogos  → Categorias, Monedas
- *    Sistema    → Ajustes
+ *    Sistema    → Ajustes, Papelera
  *
  *  El item activo se detecta con usePathname() de Next y se resalta.
+ *
+ *  AL PIE: SidebarFooterHints muestra dos botones discretos con los
+ *  atajos Ctrl+K (paleta) y Ctrl+/ (ayuda atajos).
  *
  *  ICONOS: lucide-react. Cada item lleva su icono (16-18px).
  * ============================================================================
@@ -53,6 +56,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { SidebarFooterHints } from "@/components/layout/SidebarFooterHints";
 
 type NavItem = {
   title: string;
@@ -159,6 +163,8 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
+
+      <SidebarFooterHints />
     </Sidebar>
   );
 }

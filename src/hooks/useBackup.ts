@@ -4,11 +4,19 @@
  * src/hooks/useBackup.ts
  *
  * Hook para export/import del backup JSON.
+ *
+ * NOTA TYPESCRIPT
+ * ---------------
+ * `repos` esta tipado EXPLICITAMENTE como Repositories. Es necesario
+ * porque llamamos a `repos.backup.validateBackup(obj)`, que es una
+ * assertion function (firma con `asserts obj is BackupFile`). TS exige
+ * que el caller de una assertion tenga tipo explicito, no inferido.
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import type { Repositories } from "@/lib/repositories";
 import {
   downloadJson,
   readJsonFile,
@@ -16,7 +24,7 @@ import {
 } from "@/lib/services/backup-service";
 
 export function useBackup() {
-  const repos = useRepos();
+  const repos: Repositories = useRepos();
   const qc = useQueryClient();
 
   const exportMutation = useMutation({

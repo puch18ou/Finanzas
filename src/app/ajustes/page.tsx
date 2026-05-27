@@ -2,10 +2,33 @@
 
 /**
  * ============================================================================
- *  src/app/ajustes/page.tsx — Pantalla de Ajustes
+ *  src/app/ajustes/page.tsx — Pantalla de Ajustes (fix monedaLocal/tema)
  * ============================================================================
  *
- *  Lote 9a: anade la BackupCard (export/import JSON).
+ *  BUG DETECTADO (Lote 9b)
+ *  -----------------------
+ *  El <Select> de shadcn/Radix dispara onValueChange("") cuando se monta
+ *  con un value que no coincide con ninguno de sus SelectItem actualmente
+ *  disponibles. Esto sucedia con:
+ *
+ *    - monedaLocal: cuando settings.monedaLocal era "SGD" pero la lista
+ *      `currencies` aun estaba vacia (carga asincrona).
+ *    - tema: por carrera similar entre hidratacion y mount del portal.
+ *
+ *  El sintoma: tras guardar, monedaLocal y tema se persistian como vacio,
+ *  y al recargar quedaban perdidos.
+ *
+ *  FIX
+ *  ---
+ *  1. No renderizar los Selects hasta que `settings` Y `currencies` esten
+ *     cargados. Antes mostramos un placeholder.
+ *
+ *  2. Ademas, el handleSubmit ignora silenciosamente cualquier "" que
+ *     llegue de algun otro Select y mantiene el valor previo. Cinturon y
+ *     tirantes.
+ *
+ *  3. El onValueChange ignora "" — solo aplica cambios reales. Asi
+ *     evitamos que se ensucie el state si Radix dispara con "".
  * ============================================================================
  */
 
@@ -35,23 +58,27 @@ import { BackupCard } from "@/components/papelera/BackupCard";
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
 const MESES = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+/**
+ * Helper: ignora cambios a string vacio. Util para envolver setStateXxx
+ * en los onValueChange de Select. Si Radix dispara con "" por una carrera
+ * de mount, el state local NO se contamina.
+ */
+function safeSet<T extends string>(
+  setter: (v: T) => void,
+): (v: string) => void {
+  return (v: string) => {
+    if (v === "") return;
+    setter(v as T);
+  };
+}
+
 export default function AjustesPage() {
-  const { settings, update, isLoading } = useSettings();
-  const { data: currencies = [] } = useCurrencies();
+  const { settings, update, isLoading: settingsLoading } = useSettings();
+  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies();
 
   const [monedaLocal, setMonedaLocal] = useState("EUR");
   const [monedaVista, setMonedaVista] = useState("EUR");
@@ -88,6 +115,21 @@ export default function AjustesPage() {
     e.preventDefault();
     setFeedback(null);
 
+    if (!monedaLocal || !monedaVista) {
+      setFeedback({
+        kind: "error",
+        text: "Selecciona moneda local y moneda vista antes de guardar.",
+      });
+      return;
+    }
+    if (tieneHipoteca && !monedaHipoteca) {
+      setFeedback({
+        kind: "error",
+        text: 'Has activado "Tengo hipoteca" pero falta seleccionar su moneda.',
+      });
+      return;
+    }
+
     try {
       const emptyToNull = (v: string | null | undefined) =>
         v === "" || v == null ? null : v;
@@ -115,7 +157,11 @@ export default function AjustesPage() {
     }
   };
 
-  if (isLoading || !settings) {
+  // No renderizamos hasta tener settings Y currencies cargadas. Esto
+  // previene que los Select de monedas se monten con value="SGD" cuando
+  // sus options aun no existen, lo que causaria que Radix dispare
+  // onValueChange("") y ensucie el state.
+  if (settingsLoading || currenciesLoading || !settings || currencies.length === 0) {
     return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
   }
 
@@ -144,7 +190,7 @@ export default function AjustesPage() {
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="moneda-local">Moneda local</Label>
-              <Select value={monedaLocal} onValueChange={setMonedaLocal}>
+              <Select value={monedaLocal} onValueChange={safeSet(setMonedaLocal)}>
                 <SelectTrigger id="moneda-local">
                   <SelectValue />
                 </SelectTrigger>
@@ -159,7 +205,7 @@ export default function AjustesPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="moneda-vista">Moneda vista</Label>
-              <Select value={monedaVista} onValueChange={setMonedaVista}>
+              <Select value={monedaVista} onValueChange={safeSet(setMonedaVista)}>
                 <SelectTrigger id="moneda-vista">
                   <SelectValue />
                 </SelectTrigger>
@@ -188,7 +234,7 @@ export default function AjustesPage() {
               <Label htmlFor="anio">Anio</Label>
               <Select
                 value={String(anioActual)}
-                onValueChange={(v) => setAnioActual(Number(v))}
+                onValueChange={(v) => v && setAnioActual(Number(v))}
               >
                 <SelectTrigger id="anio">
                   <SelectValue />
@@ -206,7 +252,7 @@ export default function AjustesPage() {
               <Label htmlFor="mes">Mes</Label>
               <Select
                 value={String(mesActual)}
-                onValueChange={(v) => setMesActual(Number(v))}
+                onValueChange={(v) => v && setMesActual(Number(v))}
               >
                 <SelectTrigger id="mes">
                   <SelectValue />
@@ -275,7 +321,7 @@ export default function AjustesPage() {
             {tieneHipoteca && (
               <div className="space-y-2">
                 <Label htmlFor="moneda-hipo">Moneda hipoteca</Label>
-                <Select value={monedaHipoteca} onValueChange={setMonedaHipoteca}>
+                <Select value={monedaHipoteca} onValueChange={safeSet(setMonedaHipoteca)}>
                   <SelectTrigger id="moneda-hipo" className="max-w-[200px]">
                     <SelectValue placeholder="Selecciona moneda" />
                   </SelectTrigger>
@@ -315,9 +361,10 @@ export default function AjustesPage() {
               <Label htmlFor="pat-moneda">Moneda</Label>
               <Select
                 value={patrimonioInicialMoneda || "__none__"}
-                onValueChange={(v) =>
-                  setPatrimonioInicialMoneda(v === "__none__" ? "" : v)
-                }
+                onValueChange={(v) => {
+                  if (v === "") return;
+                  setPatrimonioInicialMoneda(v === "__none__" ? "" : v);
+                }}
               >
                 <SelectTrigger id="pat-moneda">
                   <SelectValue />
@@ -374,9 +421,7 @@ export default function AjustesPage() {
               <Label htmlFor="tema">Tema</Label>
               <Select
                 value={tema}
-                onValueChange={(v) =>
-                  setTema(v as "light" | "dark" | "system")
-                }
+                onValueChange={safeSet<"light" | "dark" | "system">(setTema)}
               >
                 <SelectTrigger id="tema" className="max-w-[200px]">
                   <SelectValue />
@@ -388,7 +433,7 @@ export default function AjustesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                El cambio de tema se aplica al instante (Lote 9b).
+                El cambio de tema se aplica al instante.
               </p>
             </div>
           </CardContent>
@@ -413,7 +458,6 @@ export default function AjustesPage() {
         </div>
       </form>
 
-      {/* La BackupCard va FUERA del form porque sus botones no son submit */}
       <BackupCard />
     </div>
   );

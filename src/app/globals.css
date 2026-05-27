@@ -179,3 +179,50 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* ============================================================================
+   Scrollbar consistente con el tema
+   ----------------------------------------------------------------------------
+   Aplica un estilo de scrollbar fino que respeta las CSS variables de
+   shadcn (--background, --border, --muted-foreground). Asi se ve coherente
+   tanto en modo claro como oscuro.
+   
+   Webkit (Chromium, Tauri): usa ::-webkit-scrollbar*
+   Firefox: usa scrollbar-color (no aplica en Tauri pero por si acaso)
+   
+   Lo aplicamos a TODOS los scrollbars de la app para que sea uniforme.
+   Si solo quisieras tocar el sidebar, ponias el selector
+   `[data-sidebar="content"]` en vez de `*`.
+============================================================================ */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Webkit (Chromium / Tauri) */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted-foreground);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
