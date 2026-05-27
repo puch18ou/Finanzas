@@ -636,6 +636,88 @@ export const syncLog = sqliteTable(
 );
 
 // ============================================================================
+// 13. MOVEMENTS — gastos, ingresos, transferencias, ajustes unificados
+// ============================================================================
+//
+//  Tabla central de Fase 2. Modela todos los cambios de saldo como una
+//  unica entidad con campo `tipo` que discrimina el comportamiento.
+//
+//  Tipos: gasto, ingreso, transferencia, ajuste, intereses, cuota
+//  El importe siempre es POSITIVO. El signo lo determina el tipo y
+//  qué cuenta es origen/destino.
+//
+//  CHECK: al menos una cuenta presente, excepto ingreso (compatibilidad
+//  con extraIncomes que no tenian cuenta).
+// ============================================================================
+export const movements = sqliteTable(
+  "movements",
+  {
+    id: text("id").primaryKey(),
+
+    tipo: text("tipo", {
+      enum: [
+        "gasto",
+        "ingreso",
+        "transferencia",
+        "ajuste",
+        "intereses",
+        "cuota",
+      ],
+    }).notNull(),
+
+    fecha: integer("fecha", { mode: "timestamp_ms" }).notNull(),
+    concepto: text("concepto").notNull(),
+
+    importe: real("importe").notNull(),
+    moneda: text("moneda")
+      .notNull()
+      .references(() => currencies.code),
+
+    cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
+    cuentaDestinoId: text("cuenta_destino_id").references(() => accounts.id),
+
+    categoriaId: text("categoria_id").references(() => categories.id),
+    categoriaTexto: text("categoria_texto"),
+
+    mes: integer("mes").notNull(),
+    anio: integer("anio").notNull(),
+
+    notas: text("notas"),
+
+    esAutomatico: integer("es_automatico", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    origenAutomatico: text("origen_automatico", {
+      enum: ["mortgage", "debt", "interest"],
+    }),
+    origenAutomaticoId: text("origen_automatico_id"),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("idx_movements_anio_mes")
+      .on(t.anio, t.mes)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("idx_movements_tipo")
+      .on(t.tipo)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("idx_movements_cuenta_origen")
+      .on(t.cuentaOrigenId)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("idx_movements_cuenta_destino")
+      .on(t.cuentaDestinoId)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("idx_movements_fecha")
+      .on(t.fecha)
+      .where(sql`${t.deletedAt} IS NULL`),
+
+    check("movements_mes_valido", sql`${t.mes} BETWEEN 1 AND 12`),
+  ],
+);
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -684,3 +766,6 @@ export type NewOtherDebt = typeof otherDebts.$inferInsert;
 
 export type SyncLog = typeof syncLog.$inferSelect;
 export type NewSyncLog = typeof syncLog.$inferInsert;
+
+export type Movement = typeof movements.$inferSelect;
+export type NewMovement = typeof movements.$inferInsert;

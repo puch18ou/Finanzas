@@ -29,6 +29,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeftRight,
   LayoutDashboard,
   TrendingUp,
   Telescope,
@@ -81,6 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Movimientos",
     items: [
+      { title: "Movimientos", url: "/movimientos", icon: ArrowLeftRight },
       { title: "Gastos", url: "/gastos", icon: Receipt },
       { title: "Ingresos", url: "/ingresos", icon: Wallet },
     ],

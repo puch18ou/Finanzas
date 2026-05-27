@@ -1,16 +1,7 @@
 /**
- * ============================================================================
- *  src/lib/repositories/index.ts — Container de repositorios + servicios
- * ============================================================================
+ * src/lib/repositories/index.ts — Container de repositorios + servicios
  *
- *  Anade a los repos los servicios cross-tabla:
- *    - trash: TrashService (papelera unificada)
- *    - backup: BackupService (export/import JSON)
- *
- *  Estos servicios no son repos puros (operan sobre varias tablas), pero
- *  los exponemos por el mismo container para que esten al alcance via
- *  useRepos() desde cualquier componente.
- * ============================================================================
+ * Añade `movements` al container existente.
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -25,6 +16,7 @@ import { InvestmentRepository } from "./investment-repository";
 import { GoalRepository } from "./goal-repository";
 import { MortgageRepository } from "./mortgage-repository";
 import { OtherDebtRepository } from "./other-debt-repository";
+import { MovementRepository } from "./movement-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
 
@@ -40,7 +32,7 @@ export interface Repositories {
   goals: GoalRepository;
   mortgage: MortgageRepository;
   otherDebts: OtherDebtRepository;
-  // Servicios cross-tabla
+  movements: MovementRepository;
   trash: TrashService;
   backup: BackupService;
 }
@@ -58,6 +50,7 @@ export function createRepositories(db: DrizzleDb): Repositories {
     goals: new GoalRepository(db),
     mortgage: new MortgageRepository(db),
     otherDebts: new OtherDebtRepository(db),
+    movements: new MovementRepository(db),
     trash: new TrashService(db),
     backup: new BackupService(db),
   };
@@ -102,6 +95,12 @@ export type {
   CreateOtherDebtData,
   UpdateOtherDebtData,
 } from "./other-debt-repository";
+export type {
+  CreateMovementData,
+  UpdateMovementData,
+  MovementFilter,
+  MovementType,
+} from "./movement-repository";
 export type {
   TrashItem,
   TrashItemType,

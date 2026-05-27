@@ -135,7 +135,9 @@ export const extraIncomeFormSchema = z.object({
   concepto: z.string().min(1, "El concepto es obligatorio").max(200),
   categoria: z.string().min(1, "Selecciona o escribe una categoria").max(40),
   tipo: z.string().min(1).max(40).default("Ingreso extra"),
-  importe: z.number({ message: "Debe ser un numero" }).positive("Debe ser positivo"),
+  importe: z
+    .number({ message: "Debe ser un numero" })
+    .positive("Debe ser positivo"),
   moneda: z.string().min(2).max(4),
   notas: z.string().max(500).nullable().optional(),
 });
@@ -310,3 +312,75 @@ export const otherDebtFormSchema = z.object({
 });
 
 export type OtherDebtFormData = z.infer<typeof otherDebtFormSchema>;
+
+const baseMovementShape = {
+  fecha: z.date({ message: "Fecha obligatoria" }),
+  concepto: z.string().min(1, "El concepto es obligatorio").max(200),
+  importe: z
+    .number({ message: "Debe ser un numero" })
+    .positive("El importe debe ser positivo"),
+  moneda: z.string().min(2).max(4),
+  notas: z.string().max(500).nullable().optional(),
+};
+
+/**
+ * GASTO: requiere cuentaOrigen y categoriaId.
+ */
+export const gastoFormSchema = z.object({
+  ...baseMovementShape,
+  cuentaOrigenId: z.string().min(1, "Selecciona una cuenta"),
+  categoriaId: z.string().min(1, "Selecciona una categoria"),
+});
+export type GastoFormData = z.infer<typeof gastoFormSchema>;
+
+/**
+ * INGRESO: cuentaDestino opcional (puede ser ingreso sin asignar a cuenta).
+ * categoriaTexto libre con sugerencias.
+ */
+export const ingresoFormSchema = z.object({
+  ...baseMovementShape,
+  cuentaDestinoId: z.string().nullable().optional(),
+  categoriaTexto: z.string().min(1, "Indica o elige una categoria").max(40),
+});
+export type IngresoFormData = z.infer<typeof ingresoFormSchema>;
+
+/**
+ * TRANSFERENCIA: requiere ambas cuentas, distintas.
+ */
+export const transferenciaFormSchema = z
+  .object({
+    ...baseMovementShape,
+    cuentaOrigenId: z.string().min(1, "Selecciona cuenta origen"),
+    cuentaDestinoId: z.string().min(1, "Selecciona cuenta destino"),
+  })
+  .refine((d) => d.cuentaOrigenId !== d.cuentaDestinoId, {
+    message: "Las cuentas origen y destino deben ser distintas",
+    path: ["cuentaDestinoId"],
+  });
+export type TransferenciaFormData = z.infer<typeof transferenciaFormSchema>;
+
+/**
+ * AJUSTE: requiere cuenta destino o origen. Lo modelamos como:
+ *   - "ajuste positivo" (la cuenta tenia mas dinero del calculado) → cuentaDestino
+ *   - "ajuste negativo" (tenia menos del calculado) → cuentaOrigen
+ *
+ * En 10a, el formulario de ajuste manual aun no es protagonista. Lo
+ * implementamos en 10b junto con la conciliacion. Pero dejamos el schema
+ * preparado para que el repo lo entienda.
+ */
+export const ajusteFormSchema = z
+  .object({
+    ...baseMovementShape,
+    cuentaOrigenId: z.string().nullable().optional(),
+    cuentaDestinoId: z.string().nullable().optional(),
+  })
+  .refine(
+    (d) =>
+      (d.cuentaOrigenId && !d.cuentaDestinoId) ||
+      (!d.cuentaOrigenId && d.cuentaDestinoId),
+    {
+      message: "El ajuste debe indicar UNA cuenta (origen o destino)",
+      path: ["cuentaDestinoId"],
+    },
+  );
+export type AjusteFormData = z.infer<typeof ajusteFormSchema>;
