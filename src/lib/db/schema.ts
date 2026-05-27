@@ -603,6 +603,96 @@ export const movements = sqliteTable(
 );
 
 // ============================================================================
+//  BLOQUE recurringRules
+// ============================================================================
+//
+//  Reglas para movements que se generan automaticamente cada mes:
+//    - Salario y otros ingresos fijos
+//    - Cuota mensual de hipoteca/deudas (vinculadas en Lote 11c)
+//    - Intereses de cuenta remunerada (vinculados en Lote 11c)
+//    - Cualquier otra cosa periodica (alquiler, suscripciones, etc.)
+//
+//  El servicio RecurringService usa esta tabla para generar movements al
+//  arrancar la app si detecta meses pendientes.
+//
+//  CAMPOS CLAVE
+//  ------------
+//    diaDelMes: 1-31. Si el mes no tiene ese dia (e.g. 31 en febrero),
+//               se hace clamp al ultimo dia del mes en el servicio.
+//    fechaInicio: primer mes a partir del cual la regla aplica.
+//    fechaFin: ultimo mes en el que aplica (inclusive). NULL = indefinido.
+//    activa: toggle on/off sin tener que borrar la regla.
+//    origenAutomatico: identifica reglas creadas por el sistema:
+//      - 'mortgage': vinculada a una hipoteca (cuota mensual)
+//      - 'debt': vinculada a un prestamo personal/coche
+//      - 'interest': vinculada a una cuenta remunerada
+//      - NULL: regla manual creada por el usuario
+//    origenAutomaticoId: id de la entidad que la origina (mortgage.id,
+//      otherDebts.id, accounts.id). NULL si es manual.
+//
+//  TIPOS DE MOVIMIENTO PERMITIDOS
+//  ------------------------------
+//  El campo tipoMovimiento se usara cuando el servicio genere el movement.
+//  Para reglas manuales, solo permitimos los tipos basicos:
+//    'gasto' | 'ingreso' | 'transferencia'
+//  Para reglas vinculadas (en Lote 11c) tambien se usaran:
+//    'cuota' (hipoteca/deuda) | 'intereses' (cuenta remunerada)
+// ============================================================================
+
+export const recurringRules = sqliteTable(
+  "recurring_rules",
+  {
+    id: text("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+
+    tipoMovimiento: text("tipo_movimiento", {
+      enum: ["gasto", "ingreso", "transferencia", "cuota", "intereses"],
+    }).notNull(),
+
+    importe: real("importe").notNull(),
+    moneda: text("moneda")
+      .notNull()
+      .references(() => currencies.code),
+
+    cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
+    cuentaDestinoId: text("cuenta_destino_id").references(() => accounts.id),
+
+    categoriaId: text("categoria_id").references(() => categories.id),
+    categoriaTexto: text("categoria_texto"),
+
+    diaDelMes: integer("dia_del_mes").notNull(),
+    fechaInicio: integer("fecha_inicio", { mode: "timestamp_ms" }).notNull(),
+    fechaFin: integer("fecha_fin", { mode: "timestamp_ms" }),
+
+    activa: integer("activa", { mode: "boolean" }).notNull().default(true),
+
+    origenAutomatico: text("origen_automatico", {
+      enum: ["mortgage", "debt", "interest"],
+    }),
+    origenAutomaticoId: text("origen_automatico_id"),
+
+    notas: text("notas"),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("idx_recurring_rules_active")
+      .on(t.activa, t.deletedAt)
+      .where(sql`${t.deletedAt} IS NULL`),
+
+    // Indice util para la query "que reglas tiene este origen" (al borrar
+    // una hipoteca/deuda en Lote 11c borraremos sus reglas vinculadas).
+    index("idx_recurring_rules_origen")
+      .on(t.origenAutomatico, t.origenAutomaticoId)
+      .where(sql`${t.origenAutomaticoId} IS NOT NULL`),
+
+    check("recurring_rules_dia_valido", sql`${t.diaDelMes} BETWEEN 1 AND 31`),
+  ],
+);
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -648,3 +738,6 @@ export type NewSyncLog = typeof syncLog.$inferInsert;
 
 export type Movement = typeof movements.$inferSelect;
 export type NewMovement = typeof movements.$inferInsert;
+
+export type RecurringRule = typeof recurringRules.$inferSelect;
+export type NewRecurringRule = typeof recurringRules.$inferInsert;

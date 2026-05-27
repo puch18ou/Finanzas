@@ -1,5 +1,5 @@
 /**
- * src/lib/db/migrate.ts — añade migracion 0004.
+ * src/lib/db/migrate.ts — añade migracion 0005_create_recurring_rules.
  */
 
 import { getDb, getRawDb } from "./client";
@@ -9,6 +9,7 @@ import migration0001 from "../../../drizzle/0001_add_mostrar_fab.sql?raw";
 import migration0002 from "../../../drizzle/0002_integrar_cuota_hipoteca.sql?raw";
 import migration0003 from "../../../drizzle/0003_create_movements.sql?raw";
 import migration0004 from "../../../drizzle/0004_drop_legacy_movement_tables.sql?raw";
+import migration0005 from "../../../drizzle/0005_create_recurring_rules.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -16,6 +17,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0002_integrar_cuota_hipoteca", sql: migration0002 },
   { name: "0003_create_movements", sql: migration0003 },
   { name: "0004_drop_legacy_movement_tables", sql: migration0004 },
+  { name: "0005_create_recurring_rules", sql: migration0005 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

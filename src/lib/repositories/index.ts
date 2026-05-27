@@ -1,9 +1,7 @@
 /**
  * src/lib/repositories/index.ts
  *
- * Lote 10a-3: eliminado MonthlyIncomeRepository del container.
- * La tabla monthly_incomes sigue existiendo en BD pero ningun
- * componente la lee. El Lote 11 la eliminara fisicamente.
+ * Lote 11a: añade RecurringRuleRepository al container.
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -16,6 +14,7 @@ import { GoalRepository } from "./goal-repository";
 import { MortgageRepository } from "./mortgage-repository";
 import { OtherDebtRepository } from "./other-debt-repository";
 import { MovementRepository } from "./movement-repository";
+import { RecurringRuleRepository } from "./recurring-rule-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
 
@@ -29,6 +28,7 @@ export interface Repositories {
   mortgage: MortgageRepository;
   otherDebts: OtherDebtRepository;
   movements: MovementRepository;
+  recurringRules: RecurringRuleRepository;
   trash: TrashService;
   backup: BackupService;
 }
@@ -44,6 +44,7 @@ export function createRepositories(db: DrizzleDb): Repositories {
     mortgage: new MortgageRepository(db),
     otherDebts: new OtherDebtRepository(db),
     movements: new MovementRepository(db),
+    recurringRules: new RecurringRuleRepository(db),
     trash: new TrashService(db),
     backup: new BackupService(db),
   };
@@ -81,6 +82,12 @@ export type {
   MovementFilter,
   MovementType,
 } from "./movement-repository";
+export type {
+  CreateRecurringRuleData,
+  UpdateRecurringRuleData,
+  RecurringRuleType,
+  RecurringRuleOrigen,
+} from "./recurring-rule-repository";
 export type {
   TrashItem,
   TrashItemType,
