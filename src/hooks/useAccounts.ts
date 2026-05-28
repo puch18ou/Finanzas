@@ -21,6 +21,7 @@ import type {
   UpdateAccountData,
 } from "@/lib/repositories";
 import { computeAccountBalances } from "@/lib/domain/accounts";
+import { buildRatesMap } from "@/lib/domain/currency";
 import { MOVEMENTS_KEY } from "./useMovements";
 
 export const ACCOUNTS_KEY = ["accounts"] as const;
@@ -104,18 +105,27 @@ export function useAccountBalances() {
     queryFn: () => repos.movements.list({}),
   });
 
+  const currenciesQuery = useQuery({
+    queryKey: ["currencies", "active"],
+    queryFn: () => repos.currencies.listActive(),
+  });
+
   const balances = useMemo(
     () =>
       computeAccountBalances(
         accountsQuery.data ?? [],
         movementsQuery.data ?? [],
+        buildRatesMap(currenciesQuery.data ?? []),
       ),
-    [accountsQuery.data, movementsQuery.data],
+    [accountsQuery.data, movementsQuery.data, currenciesQuery.data],
   );
 
   return {
     accounts: accountsQuery.data ?? [],
     balances,
-    isLoading: accountsQuery.isLoading || movementsQuery.isLoading,
+    isLoading:
+      accountsQuery.isLoading ||
+      movementsQuery.isLoading ||
+      currenciesQuery.isLoading,
   };
 }

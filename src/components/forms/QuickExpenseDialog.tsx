@@ -80,7 +80,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
     defaultValues: {
       fecha: todayStr,
       concepto: "",
-      cuentaOrigenId: "",
+      cuentaOrigenId: settings?.cuentaPorDefectoId ?? "",
       categoriaId: "",
       importe: 0,
       moneda: settings?.monedaLocal ?? "EUR",
@@ -92,7 +92,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
       reset({
         fecha: todayStr,
         concepto: "",
-        cuentaOrigenId: "",
+        cuentaOrigenId: settings?.cuentaPorDefectoId ?? "",
         categoriaId: "",
         importe: 0,
         moneda: settings?.monedaLocal ?? "EUR",

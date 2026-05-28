@@ -141,6 +141,9 @@ export const settings = sqliteTable(
       .default("system"),
     idioma: text("idioma").notNull().default("es"),
 
+    // Lote 10b-3: cuenta por defecto para precargar nuevos movimientos.
+    cuentaPorDefectoId: text("cuenta_por_defecto_id"),
+
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },

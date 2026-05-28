@@ -29,8 +29,8 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import type { Settings } from "@/lib/db/schema";
 import type { SettingsPatch } from "@/lib/repositories";
 
 const SETTINGS_KEY = ["settings"] as const;
@@ -45,12 +45,38 @@ export function useSettings() {
   });
 
   const mutation = useMutation({
-    mutationFn: (patch: SettingsPatch) => repos.settings.update(patch),
-    onSuccess: (updated: Settings) => {
+    mutationFn: async (patch: SettingsPatch) => {
+      const updated = await repos.settings.update(patch);
+
+      // Lote 10b-3: al fijar/cambiar la cuenta por defecto, asignamos esa
+      // cuenta a los movimientos que aun no tienen cuenta (idempotente).
+      let backfilled = 0;
+      if (
+        typeof patch.cuentaPorDefectoId === "string" &&
+        patch.cuentaPorDefectoId
+      ) {
+        backfilled = await repos.movements.backfillMissingAccount(
+          patch.cuentaPorDefectoId,
+        );
+      }
+      return { updated, backfilled };
+    },
+    onSuccess: ({ updated, backfilled }) => {
       // Actualizamos la cache directamente en lugar de invalidar, para
       // evitar un re-fetch innecesario. El componente vera el nuevo valor
       // en el siguiente render.
       queryClient.setQueryData(SETTINGS_KEY, updated);
+
+      if (backfilled > 0) {
+        // Cambiaron movimientos → refrescar listas y saldos calculados.
+        queryClient.invalidateQueries({ queryKey: ["movements"] });
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        toast.success(
+          `${backfilled} movimiento${backfilled === 1 ? "" : "s"} sin cuenta ${
+            backfilled === 1 ? "asignado" : "asignados"
+          } a la cuenta por defecto`,
+        );
+      }
     },
   });
 

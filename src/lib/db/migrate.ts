@@ -13,6 +13,7 @@ import migration0005 from "../../../drizzle/0005_create_recurring_rules.sql?raw"
 import migration0006 from "../../../drizzle/0006_migrate_monthly_incomes_to_movements.sql?raw";
 import migration0007 from "../../../drizzle/0007_add_cuenta_pago.sql?raw";
 import migration0008 from "../../../drizzle/0008_account_saldo_inicial.sql?raw";
+import migration0009 from "../../../drizzle/0009_add_cuenta_por_defecto.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -24,6 +25,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0006_migrate_monthly_incomes_to_movements", sql: migration0006 },
   { name: "0007_add_cuenta_pago", sql: migration0007 },
   { name: "0008_account_saldo_inicial", sql: migration0008 },
+  { name: "0009_add_cuenta_por_defecto", sql: migration0009 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

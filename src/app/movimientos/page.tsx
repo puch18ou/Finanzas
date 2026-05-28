@@ -272,7 +272,7 @@ export default function MovimientosPage() {
         categories={categories}
         accounts={accounts}
         monedaLocal={settings.monedaLocal}
-        defaultAccountId={null /* en 10c se rellenara con la cuenta por defecto */}
+        defaultAccountId={settings.cuentaPorDefectoId ?? null}
         loading={isMutating}
         onSubmit={handleSubmit}
       />

@@ -35,6 +35,7 @@
 import { useEffect, useState } from "react";
 import { Check, AlertCircle } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useAccounts } from "@/hooks/useAccounts";
 import {
   Card,
   CardContent,
@@ -90,6 +91,9 @@ export default function AjustesPage() {
   const { settings, update, isLoading: settingsLoading } = useSettings();
   const { data: currencies = [], isLoading: currenciesLoading } =
     useCurrencies();
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+
+  const cuentasActivas = accounts.filter((a) => a.activa);
 
   const [monedaLocal, setMonedaLocal] = useState("EUR");
   const [monedaVista, setMonedaVista] = useState("EUR");
@@ -105,6 +109,7 @@ export default function AjustesPage() {
   const [mostrarFab, setMostrarFab] = useState(true);
   const [integrarCuotaHipoteca, setIntegrarCuotaHipoteca] = useState(false);
   const [tema, setTema] = useState<"light" | "dark" | "system">("system");
+  const [cuentaPorDefectoId, setCuentaPorDefectoId] = useState("");
 
   const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -122,6 +127,7 @@ export default function AjustesPage() {
     setMostrarFab(settings.mostrarFab);
     setIntegrarCuotaHipoteca(settings.integrarCuotaHipoteca);
     setTema(settings.tema);
+    setCuentaPorDefectoId(settings.cuentaPorDefectoId ?? "");
   }, [settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,6 +166,7 @@ export default function AjustesPage() {
         mostrarFab,
         integrarCuotaHipoteca,
         tema,
+        cuentaPorDefectoId: emptyToNull(cuentaPorDefectoId),
       });
       setFeedback({ kind: "success", text: "Ajustes guardados" });
     } catch (e) {
@@ -177,6 +184,7 @@ export default function AjustesPage() {
   if (
     settingsLoading ||
     currenciesLoading ||
+    accountsLoading ||
     !settings ||
     currencies.length === 0
   ) {
@@ -288,6 +296,45 @@ export default function AjustesPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Movimientos</CardTitle>
+            <CardDescription>
+              Cuenta que se precarga al crear un movimiento nuevo (formulario
+              y gasto rapido). Puedes cambiarla en cada movimiento.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="cuenta-defecto">Cuenta por defecto</Label>
+              <Select
+                value={cuentaPorDefectoId || "__none__"}
+                onValueChange={(v) => {
+                  if (v === "") return;
+                  setCuentaPorDefectoId(v === "__none__" ? "" : v);
+                }}
+              >
+                <SelectTrigger id="cuenta-defecto" className="max-w-[280px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin cuenta por defecto</SelectItem>
+                  {cuentasActivas.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.alias} ({a.moneda})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {cuentasActivas.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No hay cuentas activas. Crea una en la seccion Cuentas.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -20,7 +20,7 @@
  * ============================================================================
  */
 
-import { and, desc, eq, isNull, isNotNull, sql, or } from "drizzle-orm";
+import { and, desc, eq, isNull, isNotNull, sql, or, inArray } from "drizzle-orm";
 import {
   movements,
   type Movement,
@@ -196,6 +196,55 @@ export class MovementRepository extends BaseRepository {
    *
    * Esto sera la base del saldo calculado en 10b.
    */
+  /**
+   * Lote 10b-3: asigna `accountId` a los movimientos que NO tienen cuenta,
+   * segun su tipo:
+   *   - gasto/cuota   → cuentaOrigenId (si esta NULL)
+   *   - ingreso/intereses → cuentaDestinoId (si esta NULL)
+   * Transferencias y ajustes se omiten (requieren cuentas explicitas).
+   *
+   * Idempotente: solo toca filas con la cuenta correspondiente a NULL, asi
+   * que volver a ejecutarlo no reasigna nada. Devuelve cuantas filas se
+   * modificaron.
+   */
+  async backfillMissingAccount(accountId: string): Promise<number> {
+    const origenCond = and(
+      isNull(movements.deletedAt),
+      isNull(movements.cuentaOrigenId),
+      inArray(movements.tipo, ["gasto", "cuota"]),
+    );
+    const destinoCond = and(
+      isNull(movements.deletedAt),
+      isNull(movements.cuentaDestinoId),
+      inArray(movements.tipo, ["ingreso", "intereses"]),
+    );
+
+    const origenOrphans = await this.db
+      .select({ id: movements.id })
+      .from(movements)
+      .where(origenCond);
+    const destinoOrphans = await this.db
+      .select({ id: movements.id })
+      .from(movements)
+      .where(destinoCond);
+
+    const ts = now();
+    if (origenOrphans.length > 0) {
+      await this.db
+        .update(movements)
+        .set({ cuentaOrigenId: accountId, updatedAt: ts })
+        .where(origenCond);
+    }
+    if (destinoOrphans.length > 0) {
+      await this.db
+        .update(movements)
+        .set({ cuentaDestinoId: accountId, updatedAt: ts })
+        .where(destinoCond);
+    }
+
+    return origenOrphans.length + destinoOrphans.length;
+  }
+
   async impactoNetoCuenta(cuentaId: string): Promise<number> {
     const result = await this.db
       .select({

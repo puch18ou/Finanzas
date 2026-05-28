@@ -24,6 +24,8 @@ import {
   movements,
 } from "@/lib/db/schema";
 import { computeNetImpactByAccount } from "@/lib/domain/accounts";
+import { buildRatesMap } from "@/lib/domain/currency";
+import type { Currency } from "@/lib/db/schema";
 
 const BACKUP_VERSION = 3;
 const APP_ID = "finanzas";
@@ -209,6 +211,7 @@ export class BackupService {
     const accountRows = this.normalizeAccountRows(
       backup.data.accounts as Array<Record<string, unknown>>,
       movRows,
+      backup.data.currencies as Array<Record<string, unknown>>,
       backup.version,
     );
 
@@ -247,17 +250,27 @@ export class BackupService {
   private normalizeAccountRows(
     accountRows: Array<Record<string, unknown>>,
     movRows: Array<Record<string, unknown>>,
+    currencyRows: Array<Record<string, unknown>>,
     version: number,
   ): Array<Record<string, unknown>> {
     if (version >= 3) return accountRows;
 
+    const rates = buildRatesMap(currencyRows as unknown as Currency[]);
+    const accountsForImpact = accountRows.map((r) => ({
+      id: r.id as string,
+      moneda: (r.moneda as string) ?? "EUR",
+    }));
+
     const netImpact = computeNetImpactByAccount(
+      accountsForImpact,
       movRows.map((m) => ({
         importe: Number(m.importe) || 0,
+        moneda: (m.moneda as string) ?? "EUR",
         cuentaOrigenId: (m.cuentaOrigenId as string | null) ?? null,
         cuentaDestinoId: (m.cuentaDestinoId as string | null) ?? null,
         deletedAt: (m.deletedAt as Date | string | null) ?? null,
       })),
+      rates,
     );
 
     return accountRows.map((row) => {
