@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils/cn";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
 const NONE_VALUE = "__none__";
 
@@ -140,7 +140,10 @@ export function GoalFormDialog({
 
   const internalSubmit = handleSubmit(async (data) => {
     try {
-      await onSubmit(data);
+      await onSubmit({
+        ...data,
+        fechaObjetivo: normalizeDateToUTCNoon(data.fechaObjetivo),
+      });
       onOpenChange(false);
     } catch {
       // toast ya mostrado

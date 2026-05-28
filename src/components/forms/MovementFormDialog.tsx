@@ -56,7 +56,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils/cn";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
 type FormTipo = "gasto" | "ingreso" | "transferencia";
 
@@ -229,11 +229,12 @@ export function MovementFormDialog({
   );
 
   const handleGastoSubmit = gastoForm.handleSubmit(async (data) => {
+    const fecha = normalizeDateToUTCNoon(data.fecha);
     await onSubmit({
       tipo: "gasto",
-      fecha: data.fecha,
-      mes: data.fecha.getMonth() + 1,
-      anio: data.fecha.getFullYear(),
+      fecha,
+      mes: fecha.getUTCMonth() + 1,
+      anio: fecha.getUTCFullYear(),
       concepto: data.concepto,
       importe: data.importe,
       moneda: data.moneda,
@@ -250,11 +251,12 @@ export function MovementFormDialog({
   });
 
   const handleIngresoSubmit = ingresoForm.handleSubmit(async (data) => {
+    const fecha = normalizeDateToUTCNoon(data.fecha);
     await onSubmit({
       tipo: "ingreso",
-      fecha: data.fecha,
-      mes: data.fecha.getMonth() + 1,
-      anio: data.fecha.getFullYear(),
+      fecha,
+      mes: fecha.getUTCMonth() + 1,
+      anio: fecha.getUTCFullYear(),
       concepto: data.concepto,
       importe: data.importe,
       moneda: data.moneda,
@@ -272,11 +274,12 @@ export function MovementFormDialog({
 
   const handleTransferenciaSubmit = transferenciaForm.handleSubmit(
     async (data) => {
+      const fecha = normalizeDateToUTCNoon(data.fecha);
       await onSubmit({
         tipo: "transferencia",
-        fecha: data.fecha,
-        mes: data.fecha.getMonth() + 1,
-        anio: data.fecha.getFullYear(),
+        fecha,
+        mes: fecha.getUTCMonth() + 1,
+        anio: fecha.getUTCFullYear(),
         concepto: data.concepto,
         importe: data.importe,
         moneda: data.moneda,

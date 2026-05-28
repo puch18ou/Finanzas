@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils/cn";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
 const NONE_VALUE = "__none__";
 
@@ -137,7 +137,12 @@ export function InvestmentFormDialog({
 
   const internalSubmit = handleSubmit(async (data) => {
     try {
-      await onSubmit(data);
+      await onSubmit({
+        ...data,
+        fechaCompra: data.fechaCompra
+          ? normalizeDateToUTCNoon(data.fechaCompra)
+          : null,
+      });
       onOpenChange(false);
     } catch {
       // toast ya mostrado

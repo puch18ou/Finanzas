@@ -8,7 +8,7 @@
  *           plazoRestanteMeses, moneda, fechaInicio?, notas? }
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar as CalendarIcon } from "lucide-react";
@@ -17,7 +17,7 @@ import {
   type OtherDebtFormData,
   TIPOS_DEUDA,
 } from "@/lib/schemas/forms";
-import type { OtherDebt, Currency } from "@/lib/db/schema";
+import type { OtherDebt, Currency, Account } from "@/lib/db/schema";
 import {
   Dialog,
   DialogContent,
@@ -44,13 +44,14 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils/cn";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: OtherDebt | null;
   currencies: Currency[];
+  accounts: Account[];
   monedaLocal: string;
   onSubmit: (data: OtherDebtFormData) => Promise<void>;
   loading?: boolean;
@@ -61,12 +62,18 @@ export function OtherDebtFormDialog({
   onOpenChange,
   initial,
   currencies,
+  accounts,
   monedaLocal,
   onSubmit,
   loading = false,
 }: Props) {
   const isEdit = !!initial;
   const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const cuentasActivas = useMemo(
+    () => accounts.filter((a) => a.activa),
+    [accounts],
+  );
 
   const {
     register,
@@ -86,6 +93,7 @@ export function OtherDebtFormDialog({
       tin: 0.05,
       plazoRestanteMeses: 60,
       moneda: monedaLocal,
+      cuentaPagoId: null,
       fechaInicio: null,
       notas: "",
     },
@@ -105,6 +113,7 @@ export function OtherDebtFormDialog({
           tin: initial.tin,
           plazoRestanteMeses: initial.plazoRestanteMeses,
           moneda: initial.moneda,
+          cuentaPagoId: initial.cuentaPagoId ?? null,
           fechaInicio:
             initial.fechaInicio instanceof Date
               ? initial.fechaInicio
@@ -122,6 +131,7 @@ export function OtherDebtFormDialog({
           tin: 0.05,
           plazoRestanteMeses: 60,
           moneda: monedaLocal,
+          cuentaPagoId: null,
           fechaInicio: null,
           notas: "",
         });
@@ -131,7 +141,12 @@ export function OtherDebtFormDialog({
 
   const internalSubmit = handleSubmit(async (data) => {
     try {
-      await onSubmit(data);
+      await onSubmit({
+        ...data,
+        fechaInicio: data.fechaInicio
+          ? normalizeDateToUTCNoon(data.fechaInicio)
+          : null,
+      });
       onOpenChange(false);
     } catch {
       // toast ya mostrado
@@ -273,6 +288,37 @@ export function OtherDebtFormDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
+              <Label htmlFor="d-cuenta-pago">Cuenta de pago</Label>
+              <Controller
+                control={control}
+                name="cuentaPagoId"
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? "__none__"}
+                    onValueChange={(v) =>
+                      field.onChange(v === "__none__" ? null : v)
+                    }
+                    disabled={loading}
+                  >
+                    <SelectTrigger id="d-cuenta-pago">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin asignar</SelectItem>
+                      {cuentasActivas.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.alias}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                La cuota mensual saldra de esta cuenta como movimiento automatico.
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="d-fecha">Fecha inicio (opcional)</Label>
               <Controller
                 control={control}
@@ -308,15 +354,16 @@ export function OtherDebtFormDialog({
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="d-notas">Notas (opcional)</Label>
-              <Textarea
-                id="d-notas"
-                rows={1}
-                {...register("notas")}
-                disabled={loading}
-              />
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="d-notas">Notas (opcional)</Label>
+            <Textarea
+              id="d-notas"
+              rows={1}
+              {...register("notas")}
+              disabled={loading}
+            />
           </div>
 
           <DialogFooter>

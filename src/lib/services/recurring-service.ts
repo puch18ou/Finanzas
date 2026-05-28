@@ -256,4 +256,55 @@ export class RecurringService {
 
     return existing.length;
   }
+
+  /**
+   * Soft-delete de los movements generados por una regla cuyo periodo
+   * (mes/anio) quede FUERA del rango vigente [fechaInicio, fechaFin].
+   *
+   * Util al editar una regla: si se mueve fechaInicio hacia adelante
+   * (p.ej. abril -> junio) o se acorta fechaFin, los movements ya
+   * generados que caigan fuera del nuevo rango quedarian huerfanos.
+   * Esto los limpia, conservando los que siguen dentro del rango
+   * (historico real). No toca movements manuales (no llevan
+   * origenAutomaticoId).
+   */
+  async softDeleteMovementsOutsideRange(rule: RecurringRule): Promise<number> {
+    const startDate =
+      rule.fechaInicio instanceof Date
+        ? rule.fechaInicio
+        : new Date(rule.fechaInicio);
+    const endDate = rule.fechaFin
+      ? rule.fechaFin instanceof Date
+        ? rule.fechaFin
+        : new Date(rule.fechaFin)
+      : null;
+
+    const existing = await this.db
+      .select({
+        id: movements.id,
+        mes: movements.mes,
+        anio: movements.anio,
+      })
+      .from(movements)
+      .where(
+        and(
+          eq(movements.origenAutomaticoId, rule.id),
+          isNull(movements.deletedAt),
+        ),
+      );
+
+    const outOfRangeIds = existing
+      .filter((m) => !isPeriodInRange(m.anio, m.mes, startDate, endDate))
+      .map((m) => m.id);
+
+    if (outOfRangeIds.length === 0) return 0;
+
+    const now = new Date();
+    await this.db
+      .update(movements)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(inArray(movements.id, outOfRangeIds));
+
+    return outOfRangeIds.length;
+  }
 }

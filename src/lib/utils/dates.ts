@@ -33,6 +33,26 @@ export function toDateOnly(input: Date | number): Date {
 }
 
 /**
+ * Normaliza una fecha LOCAL a "mediodia UTC del mismo dia visible".
+ *
+ * Si el usuario ve "1 mayo 2026" en un <Calendar>:
+ *   - El Date local puede ser "1 mayo 00:00 SGT" (en Singapur, UTC+8)
+ *   - Eso en UTC seria "30 abril 16:00 UTC"  <-- problematico: cualquier
+ *     lectura con getUTCMonth() interpreta abril.
+ *
+ * Esta funcion lo convierte a "1 mayo 12:00 UTC", que es el mismo dia
+ * sin importar la zona horaria del usuario (robusto para offsets +-12h).
+ *
+ * Usar SIEMPRE al enviar al backend una fecha proveniente de un calendario;
+ * en el form sigue mostrandose el dia que selecciono el usuario.
+ */
+export function normalizeDateToUTCNoon(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0),
+  );
+}
+
+/**
  * Extrae { mes, anio } de una fecha. Mes 1-indexado (enero = 1).
  * Usa la zona LOCAL del usuario (no UTC).
  */

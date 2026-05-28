@@ -29,6 +29,7 @@ export function useRecurringRules() {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["recurringRules"] });
+    qc.invalidateQueries({ queryKey: ["movements"] });
     qc.invalidateQueries({ queryKey: ["trash"] });
   };
 
@@ -47,8 +48,13 @@ export function useRecurringRules() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (args: { id: string; patch: UpdateRecurringRuleData }) =>
-      repos.recurringRules.update(args.id, args.patch),
+    mutationFn: async (args: { id: string; patch: UpdateRecurringRuleData }) => {
+      const updated = await repos.recurringRules.update(args.id, args.patch);
+      // Si el rango [fechaInicio, fechaFin] se ha estrechado, limpiamos los
+      // movements ya generados que ahora queden fuera (huerfanos).
+      await repos.recurringService.softDeleteMovementsOutsideRange(updated);
+      return updated;
+    },
     onSuccess: () => {
       invalidate();
       toast.success("Regla actualizada");

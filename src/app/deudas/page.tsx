@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useOtherDebts } from "@/hooks/useOtherDebts";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useAccounts } from "@/hooks/useAccounts";
 import { OtherDebtFormDialog } from "@/components/forms/OtherDebtFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ import { cn } from "@/lib/utils/cn";
 export default function DeudasPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
+  const { accounts } = useAccounts();
   const { debts, isLoading, create, update, remove, isMutating } = useOtherDebts();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -288,6 +290,7 @@ export default function DeudasPage() {
         onOpenChange={setFormOpen}
         initial={editing}
         currencies={currencies}
+        accounts={accounts}
         monedaLocal={settings.monedaLocal}
         loading={isMutating}
         onSubmit={async (data) => {
@@ -299,6 +302,7 @@ export default function DeudasPage() {
             tin: data.tin,
             plazoRestanteMeses: data.plazoRestanteMeses,
             moneda: data.moneda,
+            cuentaPagoId: data.cuentaPagoId ?? null,
             fechaInicio: data.fechaInicio ?? null,
             notas: data.notas ?? null,
           };

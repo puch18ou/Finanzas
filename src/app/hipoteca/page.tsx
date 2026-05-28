@@ -70,7 +70,7 @@ import {
   type AnnualSummaryRow,
 } from "@/lib/domain/mortgage";
 import { formatAmount } from "@/lib/domain/currency";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 export default function HipotecaPage() {
@@ -190,7 +190,7 @@ export default function HipotecaPage() {
       aniosTipoFijo: data.aniosTipoFijo,
       moneda: data.moneda,
       cuentaPagoId: data.cuentaPagoId ?? null,
-      fechaInicio: data.fechaInicio,
+      fechaInicio: normalizeDateToUTCNoon(data.fechaInicio),
       notas: data.notas ?? null,
     });
   });

@@ -50,7 +50,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 type Props = {
@@ -70,22 +70,6 @@ const TIPO_LABELS: Record<TipoReglaManual, string> = {
   ingreso: "Ingreso",
   transferencia: "Transferencia",
 };
-
-/**
- * Normaliza una fecha LOCAL a "mediodia UTC del mismo dia visible".
- *
- * Si el usuario ve "1 mayo 2026" en el calendario:
- *   - El Date local puede ser "1 mayo 00:00 SGT" (en Singapur)
- *   - Esto en UTC seria "30 abril 16:00 UTC"  <-- problematico
- *
- * Esta funcion lo convierte a "1 mayo 12:00 UTC", que es el mismo dia
- * sin importar la zona horaria del usuario.
- */
-function normalizeDateToUTCNoon(d: Date): Date {
-  return new Date(
-    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0),
-  );
-}
 
 export function RecurringRuleFormDialog({
   open,
