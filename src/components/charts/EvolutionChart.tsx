@@ -5,12 +5,13 @@
  *  src/components/charts/EvolutionChart.tsx
  * ============================================================================
  *
- *  Grafico de evolucion mensual. Cuatro modos configurables:
+ *  Grafico de evolucion mensual. Cinco modos configurables:
  *
  *    - 'lines'        Lineas de ingresos/gastos + linea de ahorro
  *    - 'grouped-bars' Barras agrupadas
  *    - 'stacked-bars' Barras apiladas
  *    - 'area'         Areas suaves para ingresos y gastos
+ *    - 'combo'        Barras de ingresos/gastos + linea de ahorro encima
  *
  *  Preferencia persistida en localStorage 'chart:evolutionType'.
  * ============================================================================
@@ -21,6 +22,7 @@ import {
   Line,
   BarChart,
   Bar,
+  ComposedChart,
   AreaChart,
   Area,
   XAxis,
@@ -35,6 +37,7 @@ import {
   ChartColumnBig,
   ChartArea,
   ChartColumnStacked,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import {
@@ -57,7 +60,12 @@ import { Button } from "@/components/ui/button";
 import { formatAmount } from "@/lib/domain/currency";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 
-type EvolutionType = "lines" | "grouped-bars" | "stacked-bars" | "area";
+type EvolutionType =
+  | "lines"
+  | "grouped-bars"
+  | "stacked-bars"
+  | "area"
+  | "combo";
 
 export type EvolutionRow = {
   mes: number;
@@ -209,6 +217,20 @@ function renderChart(
           <Area type="monotone" dataKey="gastos" stroke={colors.gastos} fill="url(#gradGastos)" name="Gastos" />
         </AreaChart>
       );
+
+    case "combo":
+      return (
+        <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+          <XAxis dataKey="mesLabel" fontSize={11} stroke="var(--color-muted-foreground)" />
+          <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
+          <RTooltip {...tooltipProps} />
+          <Legend wrapperStyle={{ fontSize: "12px" }} />
+          <Bar dataKey="ingresos" fill={colors.ingresos} radius={[4, 4, 0, 0]} name="Ingresos" />
+          <Bar dataKey="gastos" fill={colors.gastos} radius={[4, 4, 0, 0]} name="Gastos" />
+          <Line type="monotone" dataKey="ahorro" stroke={colors.ahorro} strokeWidth={2} dot={{ r: 3 }} name="Ahorro" />
+        </ComposedChart>
+      );
   }
 }
 
@@ -226,6 +248,8 @@ function EvolutionTypeSelector({
       ? ChartArea
       : value === "stacked-bars"
       ? ChartColumnStacked
+      : value === "combo"
+      ? ChartNoAxesCombined
       : ChartColumnBig;
 
   return (
@@ -253,6 +277,9 @@ function EvolutionTypeSelector({
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="area">
             <ChartArea className="mr-2 h-4 w-4" /> Areas
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="combo">
+            <ChartNoAxesCombined className="mr-2 h-4 w-4" /> Combo barras + linea
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

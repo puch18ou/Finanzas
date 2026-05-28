@@ -32,16 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { buildRatesMap, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { cn } from "@/lib/utils/cn";
@@ -92,15 +83,6 @@ export default function EvolucionPage() {
     const ahorro = ingresos - gastos;
     const tasa = ingresos > 0 ? ahorro / ingresos : 0;
     return { ingresos, gastos, ahorro, tasa };
-  }, [monthlyData]);
-
-  const chartData = useMemo(() => {
-    return monthlyData.map((r) => ({
-      mes: MESES_LABEL[r.mes - 1],
-      Ingresos: Math.round(r.ingresos * 100) / 100,
-      Gastos: Math.round(r.gastos * 100) / 100,
-      Ahorro: Math.round(r.ahorro * 100) / 100,
-    }));
   }, [monthlyData]);
 
   const currentYear = new Date().getFullYear();
@@ -156,34 +138,12 @@ export default function EvolucionPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Mes a mes</CardTitle>
-          <CardDescription>Ingresos vs gastos en {viewCurrency}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip
-                  formatter={(v: unknown) => formatAmount(Number(v) || 0, viewCurrency)}
-                  contentStyle={{
-                    backgroundColor: "var(--color-card)",
-                    border: "1px solid var(--color-border)",
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="Ingresos" fill="var(--color-primary)" />
-                <Bar dataKey="Gastos" fill="var(--color-destructive)" />
-                <Bar dataKey="Ahorro" fill="var(--color-chart-3, #888)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <EvolutionChart
+        data={monthlyData}
+        viewCurrency={viewCurrency}
+        title="Mes a mes"
+        description={`Ingresos vs gastos en ${viewCurrency}`}
+      />
 
       <Card>
         <CardHeader>
