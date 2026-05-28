@@ -1,11 +1,14 @@
 /**
  * src/lib/services/backup-service.ts
  *
- * Lote 10a-3: el backup ya no exporta monthly_incomes. Se mantiene
- * la version 2 del formato. Los backups v2 anteriores que tenian
- * monthlyIncomes simplemente ignoraran ese campo al importar.
+ * Lote 10b: formato v3. El campo `saldo` de las cuentas pasa a
+ * `saldoInicial` (saldo de partida). Al importar un backup v1/v2 (que
+ * tenia `saldo` = saldo actual manual), recalculamos saldoInicial
+ * restandole el impacto neto de los movimientos, igual que la migracion
+ * 0008, para que el saldo mostrado no cambie.
  *
- * Los v1 (con expenses + extraIncomes) siguen siendo importables.
+ * Lote 10a-3: el backup ya no exporta monthly_incomes. Los v1 (con
+ * expenses + extraIncomes) siguen siendo importables.
  */
 
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -20,8 +23,9 @@ import {
   otherDebts,
   movements,
 } from "@/lib/db/schema";
+import { computeNetImpactByAccount } from "@/lib/domain/accounts";
 
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 const APP_ID = "finanzas";
 
 export type BackupFile = {
@@ -140,30 +144,13 @@ export class BackupService {
     const convert = (rows: unknown[]): unknown[] =>
       rows.map((row) => this.convertDates(row));
 
-    // Vaciar en orden inverso de dependencias
-    await this.db.delete(movements);
-    await this.db.delete(investments);
-    await this.db.delete(goals);
-    await this.db.delete(otherDebts);
-    await this.db.delete(mortgage);
-    await this.db.delete(accounts);
-    await this.db.delete(categories);
-    await this.db.delete(settings);
-    await this.db.delete(currencies);
-
-    // Reinsertar padres primero
-    await this.insertBatch(currencies, convert(backup.data.currencies));
-    await this.insertBatch(settings, convert(backup.data.settings));
-    await this.insertBatch(categories, convert(backup.data.categories));
-    await this.insertBatch(accounts, convert(backup.data.accounts));
-    await this.insertBatch(investments, convert(backup.data.investments));
-    await this.insertBatch(goals, convert(backup.data.goals));
-    await this.insertBatch(mortgage, convert(backup.data.mortgage));
-    await this.insertBatch(otherDebts, convert(backup.data.otherDebts));
-
-    // Movements: v2 directo; v1 convierte expenses + extraIncomes
+    // 1. Determinar el conjunto final de movements (v2/v3 directo; v1 los
+    //    construye desde expenses + extraIncomes). Los necesitamos ANTES de
+    //    insertar cuentas para poder recalcular saldoInicial en backups
+    //    antiguos.
+    let movRows: Array<Record<string, unknown>>;
     if (backup.version >= 2 && backup.data.movements) {
-      await this.insertBatch(movements, convert(backup.data.movements));
+      movRows = backup.data.movements as Array<Record<string, unknown>>;
     } else {
       const exps = (backup.data.expenses ?? []) as Array<Record<string, unknown>>;
       const extras = (backup.data.extraIncomes ?? []) as Array<Record<string, unknown>>;
@@ -212,9 +199,74 @@ export class BackupService {
         deletedAt: e.deletedAt ?? null,
       }));
 
-      await this.insertBatch(movements, convert([...movFromExp, ...movFromExtra]));
+      movRows = [...movFromExp, ...movFromExtra];
     }
+
+    // 2. Cuentas: en backups < v3 el campo era `saldo` (saldo actual). Lo
+    //    convertimos a `saldoInicial` restando el impacto neto de los
+    //    movimientos, para que el saldo calculado coincida con el que
+    //    mostraba el backup.
+    const accountRows = this.normalizeAccountRows(
+      backup.data.accounts as Array<Record<string, unknown>>,
+      movRows,
+      backup.version,
+    );
+
+    // Vaciar en orden inverso de dependencias
+    await this.db.delete(movements);
+    await this.db.delete(investments);
+    await this.db.delete(goals);
+    await this.db.delete(otherDebts);
+    await this.db.delete(mortgage);
+    await this.db.delete(accounts);
+    await this.db.delete(categories);
+    await this.db.delete(settings);
+    await this.db.delete(currencies);
+
+    // Reinsertar padres primero
+    await this.insertBatch(currencies, convert(backup.data.currencies));
+    await this.insertBatch(settings, convert(backup.data.settings));
+    await this.insertBatch(categories, convert(backup.data.categories));
+    await this.insertBatch(accounts, convert(accountRows));
+    await this.insertBatch(investments, convert(backup.data.investments));
+    await this.insertBatch(goals, convert(backup.data.goals));
+    await this.insertBatch(mortgage, convert(backup.data.mortgage));
+    await this.insertBatch(otherDebts, convert(backup.data.otherDebts));
+
+    await this.insertBatch(movements, convert(movRows));
     // monthlyIncomes en backups antiguos: IGNORADO (tabla deprecated en uso)
+  }
+
+  /**
+   * Adapta las filas de cuentas del backup al esquema actual (saldoInicial).
+   * - v3+: ya traen saldoInicial, se dejan tal cual.
+   * - v1/v2: traen `saldo` (saldo actual manual). Calculamos
+   *   saldoInicial = saldo - impactoNeto(movimientos) para preservar el
+   *   saldo mostrado, y eliminamos la clave `saldo` obsoleta.
+   */
+  private normalizeAccountRows(
+    accountRows: Array<Record<string, unknown>>,
+    movRows: Array<Record<string, unknown>>,
+    version: number,
+  ): Array<Record<string, unknown>> {
+    if (version >= 3) return accountRows;
+
+    const netImpact = computeNetImpactByAccount(
+      movRows.map((m) => ({
+        importe: Number(m.importe) || 0,
+        cuentaOrigenId: (m.cuentaOrigenId as string | null) ?? null,
+        cuentaDestinoId: (m.cuentaDestinoId as string | null) ?? null,
+        deletedAt: (m.deletedAt as Date | string | null) ?? null,
+      })),
+    );
+
+    return accountRows.map((row) => {
+      if ("saldoInicial" in row) return row;
+      const { saldo, ...rest } = row;
+      const oldSaldo = typeof saldo === "number" ? saldo : 0;
+      const id = rest.id as string;
+      return { ...rest, saldoInicial: oldSaldo - (netImpact.get(id) ?? 0) };
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

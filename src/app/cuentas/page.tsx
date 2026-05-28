@@ -10,11 +10,14 @@
  */
 
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Landmark } from "lucide-react";
-import { useAccounts } from "@/hooks/useAccounts";
+import { Pencil, Trash2, Plus, Landmark, Scale } from "lucide-react";
+import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
+import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { AccountFormDialog } from "@/components/forms/AccountFormDialog";
+import { ReconcileAccountDialog } from "@/components/forms/ReconcileAccountDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
+import { normalizeDateToUTCNoon } from "@/lib/utils/dates";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -40,10 +43,13 @@ export default function CuentasPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { accounts, isLoading, create, update, remove, isMutating } = useAccounts();
+  const { balances } = useAccountBalances();
+  const { create: createMovement, isMutating: isReconciling } = useMovements();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [toDelete, setToDelete] = useState<Account | null>(null);
+  const [toReconcile, setToReconcile] = useState<Account | null>(null);
 
   if (!settings || isLoading) {
     return <p className="text-sm text-muted-foreground">Cargando cuentas...</p>;
@@ -52,12 +58,45 @@ export default function CuentasPage() {
   const rates = buildRatesMap(currencies);
   const viewCurrency = settings.monedaVista;
 
+  const saldoDe = (a: Account) => balances.get(a.id) ?? 0;
+
+  // Conciliacion: crea un movimiento de ajuste por la diferencia entre el
+  // saldo real introducido y el calculado.
+  const handleReconcile = async (saldoReal: number) => {
+    if (!toReconcile) return;
+    const actual = saldoDe(toReconcile);
+    const diff = Math.round((saldoReal - actual) * 100) / 100;
+    if (diff === 0) {
+      setToReconcile(null);
+      return;
+    }
+    const fecha = normalizeDateToUTCNoon(new Date());
+    await createMovement({
+      tipo: "ajuste",
+      fecha,
+      concepto: "Conciliacion de saldo",
+      importe: Math.abs(diff),
+      moneda: toReconcile.moneda,
+      cuentaOrigenId: diff < 0 ? toReconcile.id : null,
+      cuentaDestinoId: diff > 0 ? toReconcile.id : null,
+      categoriaId: null,
+      categoriaTexto: "Ajuste",
+      mes: fecha.getUTCMonth() + 1,
+      anio: fecha.getUTCFullYear(),
+      notas: `Ajuste por conciliacion (saldo real ${saldoReal} ${toReconcile.moneda})`,
+      esAutomatico: false,
+      origenAutomatico: null,
+      origenAutomaticoId: null,
+    });
+    setToReconcile(null);
+  };
+
   // Total en moneda vista, solo de cuentas ACTIVAS.
   const totalEnVista = accounts
     .filter((a) => a.activa)
     .reduce((acc, a) => {
       try {
-        return acc + convert(a.saldo, a.moneda, viewCurrency, rates);
+        return acc + convert(saldoDe(a), a.moneda, viewCurrency, rates);
       } catch {
         return acc;
       }
@@ -110,14 +149,15 @@ export default function CuentasPage() {
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead className="text-right">Equivalente</TableHead>
-                  <TableHead className="w-[100px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[140px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {accounts.map((a) => {
+                  const saldo = saldoDe(a);
                   let equivalente: number | null = null;
                   try {
-                    equivalente = convert(a.saldo, a.moneda, viewCurrency, rates);
+                    equivalente = convert(saldo, a.moneda, viewCurrency, rates);
                   } catch {
                     equivalente = null;
                   }
@@ -133,7 +173,7 @@ export default function CuentasPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatAmount(a.saldo, a.moneda)}
+                        {formatAmount(saldo, a.moneda)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {equivalente !== null
@@ -144,6 +184,15 @@ export default function CuentasPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setToReconcile(a)}
+                            aria-label="Conciliar"
+                            title="Conciliar saldo"
+                          >
+                            <Scale className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -200,6 +249,15 @@ export default function CuentasPage() {
             await create(data);
           }
         }}
+      />
+
+      <ReconcileAccountDialog
+        open={!!toReconcile}
+        onOpenChange={(v) => !v && setToReconcile(null)}
+        account={toReconcile}
+        saldoActual={toReconcile ? saldoDe(toReconcile) : 0}
+        loading={isReconciling}
+        onConfirm={handleReconcile}
       />
 
       <DeleteConfirmation

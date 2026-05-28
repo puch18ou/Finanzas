@@ -12,6 +12,7 @@
  * ============================================================================
  */
 
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
@@ -19,6 +20,8 @@ import type {
   CreateAccountData,
   UpdateAccountData,
 } from "@/lib/repositories";
+import { computeAccountBalances } from "@/lib/domain/accounts";
+import { MOVEMENTS_KEY } from "./useMovements";
 
 export const ACCOUNTS_KEY = ["accounts"] as const;
 
@@ -77,5 +80,42 @@ export function useAccounts() {
       createMutation.isPending ||
       updateMutation.isPending ||
       deleteMutation.isPending,
+  };
+}
+
+/**
+ * Lote 10b: saldo CALCULADO de cada cuenta.
+ *
+ * Carga todas las cuentas (no borradas) y todos los movimientos activos,
+ * y devuelve un Map cuentaId -> saldo (saldoInicial + impacto neto). Se
+ * apoya en las mismas query keys que useAccounts/useMovements para
+ * compartir cache y refrescarse cuando algo cambia.
+ */
+export function useAccountBalances() {
+  const repos = useRepos();
+
+  const accountsQuery = useQuery({
+    queryKey: ACCOUNTS_KEY,
+    queryFn: () => repos.accounts.listAll(),
+  });
+
+  const movementsQuery = useQuery({
+    queryKey: MOVEMENTS_KEY({}),
+    queryFn: () => repos.movements.list({}),
+  });
+
+  const balances = useMemo(
+    () =>
+      computeAccountBalances(
+        accountsQuery.data ?? [],
+        movementsQuery.data ?? [],
+      ),
+    [accountsQuery.data, movementsQuery.data],
+  );
+
+  return {
+    accounts: accountsQuery.data ?? [],
+    balances,
+    isLoading: accountsQuery.isLoading || movementsQuery.isLoading,
   };
 }

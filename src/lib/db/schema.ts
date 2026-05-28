@@ -225,7 +225,9 @@ export const accounts = sqliteTable(
     tipo: text("tipo").notNull(),
     alias: text("alias").notNull(),
 
-    saldo: real("saldo").notNull().default(0),
+    // Lote 10b: saldo de PARTIDA. El saldo actual se calcula como
+    // saldoInicial + impacto neto de los movimientos (ver domain/accounts).
+    saldoInicial: real("saldo_inicial").notNull().default(0),
     moneda: text("moneda")
       .notNull()
       .references(() => currencies.code),

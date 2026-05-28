@@ -22,7 +22,7 @@ import {
   Link2,
 } from "lucide-react";
 import { useGoals } from "@/hooks/useGoals";
-import { useAccounts } from "@/hooks/useAccounts";
+import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { GoalFormDialog } from "@/components/forms/GoalFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
@@ -50,6 +50,7 @@ export default function MetasPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { accounts } = useAccounts();
+  const { balances } = useAccountBalances();
   const {
     goals,
     isLoading,
@@ -70,7 +71,8 @@ export default function MetasPage() {
     const acc = accounts.find((a) => a.id === goal.cuentaVinculadaId);
     if (!acc) return goal;
     try {
-      const saldoEnMoneda = convert(acc.saldo, acc.moneda, goal.moneda, rates);
+      const saldoCuenta = balances.get(acc.id) ?? 0;
+      const saldoEnMoneda = convert(saldoCuenta, acc.moneda, goal.moneda, rates);
       return { ...goal, yaAhorrado: Math.max(0, saldoEnMoneda) };
     } catch {
       return goal;

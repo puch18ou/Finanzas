@@ -7,7 +7,8 @@
  *  update, softDelete, restore, reorder.
  *
  *  Diferencias notables:
- *    - El campo `saldo` puede ser negativo (tarjetas de credito).
+ *    - El campo `saldoInicial` puede ser negativo (tarjetas de credito).
+ *      El saldo actual NO se guarda: se calcula en domain/accounts.
  *    - El filtro por defecto incluye solo cuentas con activa=true y
  *      deletedAt=null. `listAll()` devuelve todas.
  * ============================================================================

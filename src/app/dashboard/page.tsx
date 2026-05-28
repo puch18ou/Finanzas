@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
-import { useAccounts } from "@/hooks/useAccounts";
+import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
 import { useMovements } from "@/hooks/useMovements";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useMortgage } from "@/hooks/useMortgage";
@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
   const { accounts } = useAccounts();
+  const { balances } = useAccountBalances();
   const { investments } = useInvestments();
   const { mortgage } = useMortgage();
   const { debts } = useOtherDebts();
@@ -133,11 +134,11 @@ export default function DashboardPage() {
     for (const a of accounts) {
       if (!a.activa) continue;
       try {
-        total += convert(a.saldo, a.moneda, viewCurrency, rates);
+        total += convert(balances.get(a.id) ?? 0, a.moneda, viewCurrency, rates);
       } catch {}
     }
     return total;
-  }, [accounts, rates, viewCurrency]);
+  }, [accounts, balances, rates, viewCurrency]);
 
   const portfolio = useMemo(
     () => summarizePortfolio(investments, rates, viewCurrency),

@@ -68,7 +68,7 @@ export const accountFormSchema = z.object({
     message: "Selecciona un tipo de cuenta",
   }),
   alias: z.string().min(1, "El alias es obligatorio").max(60),
-  saldo: z.number({ message: "Debe ser un numero" }),
+  saldoInicial: z.number({ message: "Debe ser un numero" }),
   moneda: z.string().min(2).max(4),
   activa: z.boolean(),
   notas: z.string().max(500).nullable().optional(),

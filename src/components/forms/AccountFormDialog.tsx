@@ -71,7 +71,7 @@ export function AccountFormDialog({
       entidad: "",
       tipo: "Corriente",
       alias: "",
-      saldo: 0,
+      saldoInicial: 0,
       moneda: monedaLocal,
       activa: true,
       notas: "",
@@ -85,7 +85,7 @@ export function AccountFormDialog({
           entidad: initial.entidad,
           tipo: initial.tipo as AccountFormData["tipo"],
           alias: initial.alias,
-          saldo: initial.saldo,
+          saldoInicial: initial.saldoInicial,
           moneda: initial.moneda,
           activa: initial.activa,
           notas: initial.notas ?? "",
@@ -95,7 +95,7 @@ export function AccountFormDialog({
           entidad: "",
           tipo: "Corriente",
           alias: "",
-          saldo: 0,
+          saldoInicial: 0,
           moneda: monedaLocal,
           activa: true,
           notas: "",
@@ -177,19 +177,20 @@ export function AccountFormDialog({
 
           <div className="grid grid-cols-[1fr_120px] gap-3">
             <div className="space-y-2">
-              <Label htmlFor="saldo">Saldo actual</Label>
+              <Label htmlFor="saldoInicial">Saldo inicial</Label>
               <Input
-                id="saldo"
+                id="saldoInicial"
                 type="number"
                 step="0.01"
-                {...register("saldo", { valueAsNumber: true })}
+                {...register("saldoInicial", { valueAsNumber: true })}
                 disabled={loading}
               />
-              {errors.saldo && (
-                <p className="text-xs text-destructive">{errors.saldo.message}</p>
+              {errors.saldoInicial && (
+                <p className="text-xs text-destructive">{errors.saldoInicial.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Puede ser negativo (tarjetas de credito)
+                Saldo de partida. El saldo actual se calcula sumando los
+                movimientos. Puede ser negativo (tarjetas de credito).
               </p>
             </div>
             <div className="space-y-2">
