@@ -1,23 +1,30 @@
 # Finanzas App — Arquitectura
 
-> Documento de referencia del proyecto. Versión 1.0 — 26 de mayo de 2026.
+> Documento de referencia del proyecto. Versión 2.0 — actualizado a 2026-05-29.
 >
-> Este documento describe **qué vamos a construir**, **con qué piezas** y **por qué**. Cada decisión está justificada y los conceptos nuevos vienen explicados desde cero. Sirve como guía para todas las fases del proyecto.
+> Describe **qué se ha construido**, **con qué piezas** y **por qué**. La Fase A
+> (app de escritorio local) está **implementada y completa**; además se añadió
+> **multiusuario por PIN**, no contemplado en el diseño original. Las secciones
+> de conceptos (stack, patrones) siguen vigentes; las de estructura, esquema y
+> roadmap se han puesto al día con el estado real. La Fase C (PWA + sync) sigue
+> siendo trabajo futuro.
 
 ---
 
 ## 1. Resumen ejecutivo
 
-Aplicación personal de gestión financiera que reemplaza una hoja de cálculo Excel/SGD con macros (16 hojas, fórmulas complejas, doble moneda SGD/EUR). Un solo usuario (tú). Cubre:
+Aplicación personal de gestión financiera que reemplaza una hoja de cálculo Excel/SGD con macros (16 hojas, fórmulas complejas, doble moneda SGD/EUR). **Multiusuario en el mismo equipo** (acceso por PIN, una base de datos por usuario). Cubre:
 
-- Registro y categorización de gastos e ingresos
-- Cuentas bancarias y patrimonio neto
-- Cartera de inversiones con P/L automático
+- **Movimientos unificados** (gastos, ingresos, transferencias, ajustes) con categorización
+- **Reglas recurrentes** que generan movimientos automáticamente cada mes
+- Cuentas bancarias y patrimonio neto (**saldo calculado** desde los movimientos)
+- Cartera de inversiones con P/L automático, **aportaciones puntuales y periódicas**, retiradas y archivado
 - Simulador de hipoteca con tabla de amortización
 - Otras deudas (préstamos, tarjetas) con cálculo de cuota
-- Metas de ahorro con seguimiento
+- Metas de ahorro con seguimiento, y meta de **tasa de ahorro** (% y/o €/mes)
+- **Presupuestos** por categoría (mensual y acumulado anual)
 - Dashboard con KPIs mensuales/anuales y evolución
-- Proyección de patrimonio a futuro
+- Proyección de patrimonio a futuro (con las metas superpuestas)
 - Multi-moneda (entrada en moneda local, visualización en moneda secundaria)
 
 ### Plan de desarrollo en dos grandes fases
@@ -363,117 +370,136 @@ Drizzle Kit genera un fichero SQL por cada cambio de esquema, en `/drizzle/`. Es
 
 Cualquier dato que **entre** al sistema (formulario, importación de CSV, futuro endpoint de sync) se valida con Zod antes de tocar dominio o datos. Lo que ya está dentro se asume válido (los tipos TypeScript se encargan).
 
-### 4.7. Estado global mínimo: SettingsContext
+### 4.7. Estado global y providers
 
-Solo una cosa es estado global: la configuración del usuario (moneda local, moneda vista, mes/año seleccionado, objetivo de ahorro). Vive en un `SettingsContext` de React. Toda la app lo consume mediante un hook `useSettings()`.
+Los datos (settings incluido) se gestionan con **TanStack Query**, no con estado
+global: la cache de Query *es* el estado. La configuración del usuario se lee con
+el hook `useSettings()` (respaldado por su repositorio), no por un contexto
+dedicado.
 
-Todo lo demás (lista de gastos, cartera, etc.) se gestiona con TanStack Query, no con estado global. La cache de TanStack Query *es* el estado.
+Los únicos contextos de React globales son de **infraestructura**, no de datos:
+
+- `AuthProvider` — sesión del usuario (login por PIN). Ver 4.8.
+- `DatabaseProvider` — abre la BD del usuario en sesión, aplica migraciones,
+  ejecuta el seed y expone los **repositorios** (`useRepos()`); también dispara
+  la generación de movimientos recurrentes y aportaciones periódicas al arrancar.
+- `GlobalThemeProvider` — tema claro/oscuro/sistema, global del equipo
+  (persistido en `localStorage`, compartido por todos los usuarios del PC).
+
+### 4.8. Multiusuario y autenticación (Fase A)
+
+Añadido tras el diseño original. Decisiones clave:
+
+- **Una base de datos por usuario** (`user_<id>.db`): el aislamiento de datos es
+  físico, no por columna `usuario_id`. La ruta activa se fija dinámicamente
+  (`setActiveDbPath`) según quién entra; cada usuario abre su propio fichero.
+- **Registro de usuarios aparte** en `_users.db` (`lib/auth/registry.ts`), con
+  bootstrap autorreparable. El **PIN** (4–8 dígitos) se hashea con PBKDF2-SHA256
+  vía `crypto.subtle` (`lib/auth/pin.ts`). Hay un rol `admin` (gestión de
+  usuarios: crear, resetear PIN, borrar) y autorregistro desde el login.
+- **Sesión en memoria** (`AuthProvider`); opción "mantener sesión iniciada" que
+  recuerda el id del usuario (no el PIN) en `localStorage` para entrar directo al
+  reabrir. El logout la olvida.
+- El `AuthProvider` va **por encima** del `DatabaseProvider`: primero se sabe
+  QUIÉN entra (y por tanto qué `.db` cargar) y solo entonces se abre la BD de
+  finanzas.
 
 ---
 
 ## 5. Estructura del repositorio
 
 ```
-finanzas-app/
-├── src-tauri/                  # Configuración Tauri (Rust, lo tocas casi nunca)
-│   ├── src/main.rs             # Entry point Rust (vacío salvo plugins)
-│   ├── tauri.conf.json         # Config: nombre app, icono, ventanas, permisos
+finanzas/
+├── src-tauri/                  # Proyecto Tauri (Rust, casi nunca se toca)
+│   ├── tauri.conf.json         # Config: nombre, icono, ventana (maximizada), plugins
 │   └── Cargo.toml              # Dependencias Rust
 │
 ├── src/
 │   ├── app/                    # Rutas (Next.js App Router)
-│   │   ├── layout.tsx          # Layout raíz: sidebar, providers globales
+│   │   ├── layout.tsx          # Layout raíz: providers + sidebar + AuthGate
 │   │   ├── page.tsx            # Redirige a /dashboard
-│   │   ├── dashboard/page.tsx
-│   │   ├── gastos/page.tsx
-│   │   ├── ingresos/page.tsx
-│   │   ├── cuentas/page.tsx
-│   │   ├── inversiones/page.tsx
-│   │   ├── metas/page.tsx
-│   │   ├── hipoteca/page.tsx
-│   │   ├── deudas/page.tsx
-│   │   ├── proyeccion/page.tsx
-│   │   ├── evolucion/page.tsx
-│   │   ├── categorias/page.tsx
-│   │   ├── monedas/page.tsx
-│   │   └── settings/page.tsx
+│   │   ├── dashboard/ · evolucion/ · proyeccion/ · presupuestos/
+│   │   ├── movimientos/ · recurrentes/
+│   │   ├── cuentas/ · inversiones/ · metas/
+│   │   ├── hipoteca/ · deudas/
+│   │   ├── categorias/ · monedas/
+│   │   └── ajustes/ · papelera/
 │   │
 │   ├── components/
 │   │   ├── ui/                 # shadcn/ui: button, input, dialog, table…
-│   │   ├── layout/             # Sidebar, Topbar, PageHeader…
-│   │   ├── charts/             # Wrappers Recharts: CategoryChart, EvolutionChart…
-│   │   ├── forms/              # AddExpenseForm, AddIncomeForm, MortgageForm…
-│   │   └── widgets/            # KPICard, ProgressBar, CurrencyPicker…
+│   │   ├── auth/               # LoginScreen, AuthGate, AdminConsole, ForcePinChange…
+│   │   ├── layout/             # AppSidebar, SidebarFooterHints…
+│   │   ├── charts/             # CategoryChart, EvolutionChart…
+│   │   ├── forms/              # Diálogos CRUD (Movement, Investment, Goal, Contributions…)
+│   │   ├── crud/               # PeriodSelector, DeleteConfirmation…
+│   │   ├── dashboard/ · metas/ # Componentes por sección (KPI, BudgetProgress, SavingsRateCard…)
 │   │
 │   ├── lib/
+│   │   ├── auth/               # registry.ts (_users.db), pin.ts (PBKDF2)
 │   │   ├── db/
 │   │   │   ├── schema.ts       # Esquema Drizzle (single source of truth)
-│   │   │   ├── client.ts       # Cliente DB (Fase A: Tauri SQL; Fase C: WASM)
+│   │   │   ├── client.ts       # Cliente SQLite por usuario (ruta dinámica)
+│   │   │   ├── proxy-driver.ts # Adaptador Drizzle ↔ Tauri SQL
+│   │   │   ├── migrate.ts      # Runner de migraciones (idempotente)
 │   │   │   └── seed.ts         # Carga inicial: monedas, categorías por defecto
-│   │   ├── repositories/
-│   │   │   ├── expense-repository.ts
-│   │   │   ├── income-repository.ts
-│   │   │   ├── account-repository.ts
-│   │   │   ├── investment-repository.ts
-│   │   │   ├── goal-repository.ts
-│   │   │   ├── mortgage-repository.ts
-│   │   │   ├── debt-repository.ts
-│   │   │   ├── category-repository.ts
-│   │   │   ├── currency-repository.ts
-│   │   │   └── settings-repository.ts
-│   │   ├── domain/
-│   │   │   ├── currency.ts     # convert(amount, from, to)
-│   │   │   ├── mortgage.ts     # PMT, amortization table
-│   │   │   ├── projection.ts   # patrimonio futuro
-│   │   │   ├── aggregation.ts  # sumByMonth, sumByCategory
-│   │   │   └── goals.ts        # progreso, ahorro mensual necesario
-│   │   ├── schemas/            # Zod schemas
-│   │   └── utils/              # date helpers, formatters
+│   │   ├── repositories/       # Acceso a datos por tabla (settings, categories,
+│   │   │                       #   accounts, investments, investment-contribution,
+│   │   │                       #   goals, mortgage, other-debts, movements,
+│   │   │                       #   recurring-rule, currency)
+│   │   ├── services/           # Orquestación: recurring, investment-contribution,
+│   │   │                       #   mortgage-debt-sync, trash, backup
+│   │   ├── domain/             # Lógica pura (testeada): currency, mortgage,
+│   │   │                       #   projection-goals, aggregation, goals,
+│   │   │                       #   investments, recurring, accounts
+│   │   ├── schemas/            # Esquemas Zod de formularios
+│   │   └── utils/              # fechas (UTC-noon), cn, formatters
 │   │
-│   ├── hooks/                  # Hooks personalizados
-│   │   ├── useSettings.ts
-│   │   ├── useExpenses.ts
-│   │   ├── useDashboard.ts
-│   │   └── …
-│   │
+│   ├── hooks/                  # Hooks de datos (TanStack Query) y utilidades
 │   └── contexts/
-│       └── SettingsContext.tsx
+│       ├── AuthProvider.tsx
+│       ├── DatabaseProvider.tsx
+│       └── GlobalThemeProvider.tsx
 │
-├── drizzle/                    # Migraciones SQL generadas (versionadas)
-├── public/                     # Iconos, assets estáticos
-├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-├── drizzle.config.ts
-└── next.config.js
+├── drizzle/                    # Migraciones SQL versionadas (0000_init … 0014_*)
+├── tests/                      # Tests de dominio (Vitest)
+├── package.json · tsconfig.json · drizzle.config.ts · next.config.ts
+└── README.md · ARQUITECTURA.md
 ```
 
 ---
 
 ## 6. Esquema de base de datos
 
-Ver `schema.sql` adjunto. Resumen:
+La fuente de verdad es `src/lib/db/schema.ts`. Cada **usuario** tiene su propia
+base de datos (`user_<id>.db`) con estas tablas; aparte existe `_users.db` (el
+registro de usuarios, fuera de este esquema). Resumen:
 
 | Tabla | Filas esperadas | Propósito |
 |---|---|---|
-| `settings` | 1 (singleton) | Config global del usuario |
+| `settings` | 1 (singleton) | Config del usuario (monedas, objetivo de ahorro %/€, hipoteca, patrimonio inicial…) |
 | `currencies` | ~13 | Catálogo de monedas y tipos de cambio |
-| `categories` | ~12-20 | Categorías de gasto con presupuesto |
-| `accounts` | ~5-15 | Cuentas bancarias, broker, efectivo |
-| `expenses` | crece sin tope | Movimientos de gasto |
-| `monthly_incomes` | 12 por año | Salario/bonus por mes |
-| `extra_incomes` | pocos por año | Premios, bonus puntuales |
-| `investments` | ~5-50 | Cartera (acciones, ETFs, fondos) |
+| `categories` | ~12-20 | Categorías de gasto con presupuesto mensual |
+| `accounts` | ~5-15 | Cuentas (corriente, ahorro, broker, efectivo, crédito); saldo calculado |
+| `movements` | crece sin tope | **Tabla unificada**: gasto, ingreso, transferencia, ajuste, intereses, cuota |
+| `recurring_rules` | ~pocas | Reglas que generan `movements` automáticamente (también planes de aportación periódica a inversiones) |
+| `investments` | ~5-50 | Cartera (acciones, ETF, fondos, cripto, oro…); totales cacheados |
+| `investment_contributions` | crece | Aportaciones/retiradas por inversión (de aquí se recalculan los totales) |
 | `goals` | ~3-10 | Metas de ahorro |
-| `mortgage` | 0 o 1 | Hipoteca activa (Fase futura: histórico) |
+| `mortgage` | 0 o 1 | Hipoteca activa |
 | `other_debts` | ~0-5 | Préstamos consumo, tarjetas |
-| `sync_log` | crece, se purga | (Fase C) cola de operaciones por sincronizar |
+| `sync_log` | (vacía en Fase A) | (Fase C) cola de operaciones por sincronizar |
 
-**No son tablas, son cálculos:**
-- Dashboard
-- Tabla de amortización (se computa desde `mortgage`)
-- Evolución mensual (se computa desde `expenses` + `monthly_incomes` + `extra_incomes`)
-- Proyección de patrimonio (se computa desde varios)
+> **Cambio respecto al diseño original:** lo que iban a ser tablas separadas
+> `expenses` / `monthly_incomes` / `extra_incomes` se unificó en una sola tabla
+> `movements` (el `tipo` discrimina el comportamiento; el importe siempre es
+> positivo y el signo lo deciden el tipo y las cuentas origen/destino).
+
+**No son tablas, son cálculos** (capa de dominio):
+- Saldo de cada cuenta (desde `movements`)
+- Dashboard, KPIs y evolución mensual (desde `movements`)
+- Tabla de amortización (desde `mortgage`)
+- P/L y totales de inversión (desde `investment_contributions`)
+- Proyección de patrimonio y cumplimiento de metas (desde varios)
 
 ---
 
@@ -501,90 +527,65 @@ function convert(amount: number, from: string, to: string, rates: Record<string,
 
 ---
 
-## 8. Roadmap detallado de fases
+## 8. Estado actual y roadmap
 
-### Fase 1 — Fundación (Fase A, semanas 1-2)
+### Fase A — Completa (implementada)
 
-- [ ] Setup repositorio Next.js + Tauri + Tailwind + shadcn
-- [ ] Setup Drizzle + SQLite + primera migración
-- [ ] SettingsContext + página de configuración funcional
-- [ ] Seed de monedas y categorías por defecto
-- [ ] Layout principal (sidebar, navegación)
-- [ ] CI básica (lint + typecheck)
+Todo lo previsto para la app de escritorio local está construido, y desarrollado
+en "lotes" incrementales pequeños y verificables:
 
-### Fase 2 — Datos maestros
+- **Fundación**: Next.js + Tauri + Tailwind + shadcn; Drizzle + SQLite;
+  migraciones; seed; layout con sidebar; ajustes.
+- **Datos maestros**: CRUD de Cuentas, Categorías y Monedas.
+- **Movimientos**: tabla unificada `movements` (gasto/ingreso/transferencia/
+  ajuste) con filtros por periodo y tipo, gasto rápido y cuenta por defecto.
+- **Recurrentes**: reglas que generan movimientos automáticamente al arrancar.
+- **Patrimonio**: cuentas con **saldo calculado** + conciliación; inversiones
+  con P/L, aportaciones puntuales y **periódicas** (diaria/semanal/mensual),
+  retiradas y archivado; metas con progreso + meta de **tasa de ahorro** (%/€).
+- **Deuda**: hipoteca (PMT + amortización, integrable en el dashboard) y otras
+  deudas; con sus reglas recurrentes vinculadas.
+- **Vistas calculadas**: dashboard con KPIs y gráficos, evolución, proyección
+  (con metas), y **presupuestos** (mensual + acumulado anual).
+- **Refinamiento**: export/import JSON (backup v4), tema claro/oscuro, papelera
+  (soft-delete + restaurar), tests de la capa de dominio (Vitest).
+- **Multiusuario** (no previsto en el diseño original): login por PIN, una BD
+  por usuario, consola admin, "mantener sesión". Ver 4.8.
 
-- [ ] CRUD de Cuentas
-- [ ] CRUD de Categorías
-- [ ] CRUD de Monedas (con tipo de cambio editable)
-- [ ] Importación inicial (manual a través de UI)
+### Fase C — PWA con sincronización (futuro, no iniciada)
 
-### Fase 3 — Movimientos
-
-- [ ] CRUD de Gastos con filtros (mes, año, categoría, cuenta, búsqueda por concepto)
-- [ ] Atajo de teclado para añadir gasto rápido (estilo Ctrl+Shift+G de macro)
-- [ ] CRUD de Ingresos mensuales (tabla 12 meses)
-- [ ] CRUD de Ingresos puntuales
-
-### Fase 4 — Patrimonio
-
-- [ ] CRUD de Inversiones con P/L automático
-- [ ] CRUD de Metas con barra de progreso y ahorro mensual necesario
-
-### Fase 5 — Deuda
-
-- [ ] Hipoteca: formulario simulador + cálculo de cuota
-- [ ] Tabla de amortización (vista calculada)
-- [ ] Comparativa plazos/tipos
-- [ ] CRUD de otras deudas con PMT
-
-### Fase 6 — Vistas calculadas
-
-- [ ] Dashboard completo con KPIs y gráficos
-- [ ] Página de Evolución con tabla anual y gráfico
-- [ ] Página de Proyección con simulador
-
-### Fase 7 — Refinamiento
-
-- [ ] Export/Import JSON (backup completo)
-- [ ] Modo oscuro
-- [ ] Atajos de teclado globales
-- [ ] Búsqueda global
-- [ ] Tests de la capa de dominio
-
-### Fase 8 — Salto a PWA (Fase C)
-
-- [ ] Reemplazo del cliente SQLite (Tauri → WASM con sql.js o wa-sqlite)
-- [ ] Service Worker + manifest para PWA
-- [ ] Backend de sync (Turso + endpoints)
-- [ ] Autenticación (e.g. magic links por email)
-- [ ] Implementación `SyncedExpenseRepository` y resto de repos
-- [ ] UI de estado de sincronización
-- [ ] Resolución de conflictos last-write-wins
-- [ ] Despliegue (Vercel para la web, Turso para la BD)
+- Reemplazo del cliente SQLite (Tauri → WASM, p. ej. wa-sqlite)
+- Service Worker + manifest (PWA)
+- Backend de sync (Turso + endpoints) e implementación de repos sincronizados
+- Autenticación cloud, UI de estado de sync, resolución de conflictos
+  last-write-wins (de ahí los campos `updated_at`/`deleted_at` y los UUID en
+  cliente, ya presentes desde la Fase A), despliegue.
 
 ---
 
 ## 9. Decisiones pendientes (a tomar conforme avancemos)
 
-| Tema | Pregunta | Cuándo decidir |
-|---|---|---|
-| Autenticación Fase C | ¿Magic links / Google / contraseña? | Antes de Fase 8 |
-| Actualización de tipos de cambio | ¿API automática o manual? | Antes de Fase 7 |
-| Precios de inversiones | ¿API (Yahoo, Alpha Vantage) o manual? | Antes de Fase 4 |
-| Backup en Fase A | ¿Sync con Dropbox/iCloud del fichero .db? | Antes de Fase 7 |
-| Más de una hipoteca | ¿La estructura admite refinanciaciones? | Si surge la necesidad |
-| Idioma | ¿Solo español o multi-idioma? | Antes de Fase 8 |
+| Tema | Estado |
+|---|---|
+| Precios de inversiones | **Decidido: manual** (sin API en Fase A; candidato a un lote futuro) |
+| Actualización de tipos de cambio | **Manual** por ahora (editable en Monedas) |
+| Backup en Fase A | **Manual**: export/import JSON (Ajustes) o copia de los `.db` |
+| Autenticación local | **Hecho**: PIN multiusuario + rol admin (ver 4.8) |
+| Autenticación Fase C (cloud) | Pendiente — antes de Fase C |
+| Idioma | Solo español por ahora |
+| Más de una hipoteca | La estructura lo permitiría; sin necesidad actual |
 
 ---
 
 ## 10. Anti-objetivos (lo que NO hacemos)
 
-- **No** soportamos multi-usuario en la misma instalación.
-- **No** hay sistema de permisos (siempre eres tú).
 - **No** hay reportes fiscales / declaración de impuestos.
 - **No** hay integración bancaria automática (open banking) en Fase A. Es candidato a Fase C pero no compromiso.
 - **No** hay app móvil nativa. Móvil = PWA en Fase C.
+
+> Nota: el diseño original incluía aquí "no multiusuario" y "no permisos". Se
+> revisó: ahora **sí** hay multiusuario local por PIN, con un rol `admin` para
+> gestionar usuarios (permisos mínimos). No hay roles más finos.
 
 ---
 
