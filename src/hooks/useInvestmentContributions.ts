@@ -46,8 +46,11 @@ export function useInvestmentContributions(investmentId?: string) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (id: string) =>
-      repos.investmentContributionService.deleteContribution(id),
+    mutationFn: (args: { id: string; refundAccountId?: string | null }) =>
+      repos.investmentContributionService.deleteContribution(
+        args.id,
+        args.refundAccountId,
+      ),
     onSuccess: () => {
       invalidate();
       toast.success("Aportacion eliminada");

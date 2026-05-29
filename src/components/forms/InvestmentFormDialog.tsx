@@ -88,8 +88,8 @@ export function InvestmentFormDialog({
       ticker: "",
       nombre: "",
       participaciones: 0,
-      precioCompra: 0,
-      precioActual: 0,
+      importeInvertido: 0,
+      valorActual: 0,
       moneda: monedaLocal,
       cuentaId: "",
       fechaCompra: null,
@@ -105,8 +105,8 @@ export function InvestmentFormDialog({
           ticker: initial.ticker ?? "",
           nombre: initial.nombre,
           participaciones: initial.participaciones,
-          precioCompra: initial.precioCompra,
-          precioActual: initial.precioActual,
+          importeInvertido: initial.precioCompra * initial.participaciones,
+          valorActual: initial.precioActual * initial.participaciones,
           moneda: initial.moneda,
           cuentaId: initial.cuentaId ?? "",
           fechaCompra:
@@ -123,8 +123,8 @@ export function InvestmentFormDialog({
           ticker: "",
           nombre: "",
           participaciones: 0,
-          precioCompra: 0,
-          precioActual: 0,
+          importeInvertido: 0,
+          valorActual: 0,
           moneda: monedaLocal,
           cuentaId: "",
           fechaCompra: null,
@@ -135,11 +135,18 @@ export function InvestmentFormDialog({
   }, [initial, open, monedaLocal, reset]);
 
   const internalSubmit = handleSubmit(async (data) => {
-    // Al CREAR, la cuenta de origen es obligatoria (de ahi sale el dinero).
+    // Al CREAR, la cuenta de origen y la fecha son obligatorias.
     if (!isEdit && !data.cuentaId) {
       setError("cuentaId", {
         type: "manual",
         message: "Selecciona la cuenta de origen",
+      });
+      return;
+    }
+    if (!isEdit && !data.fechaCompra) {
+      setError("fechaCompra", {
+        type: "manual",
+        message: "Selecciona la fecha de compra",
       });
       return;
     }
@@ -223,46 +230,57 @@ export function InvestmentFormDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="inv-part">Participaciones</Label>
-              <Input
-                id="inv-part"
-                type="number"
-                step="0.000001"
-                {...register("participaciones", { valueAsNumber: true })}
-                disabled={loading}
-              />
-              {errors.participaciones && (
-                <p className="text-xs text-destructive">{errors.participaciones.message}</p>
-              )}
+          {/* Participaciones y precio de compra: SOLO al crear. Al editar,
+              esos valores salen de las aportaciones (no se editan a mano). */}
+          {!isEdit && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="inv-part">Participaciones</Label>
+                <Input
+                  id="inv-part"
+                  type="number"
+                  step="0.000001"
+                  {...register("participaciones", { valueAsNumber: true })}
+                  disabled={loading}
+                />
+                {errors.participaciones && (
+                  <p className="text-xs text-destructive">{errors.participaciones.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inv-importe">Importe invertido (total)</Label>
+                <Input
+                  id="inv-importe"
+                  type="number"
+                  step="0.01"
+                  {...register("importeInvertido", { valueAsNumber: true })}
+                  disabled={loading}
+                />
+                {errors.importeInvertido && (
+                  <p className="text-xs text-destructive">{errors.importeInvertido.message}</p>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="inv-precio-c">Precio compra</Label>
-              <Input
-                id="inv-precio-c"
-                type="number"
-                step="0.0001"
-                {...register("precioCompra", { valueAsNumber: true })}
-                disabled={loading}
-              />
-              {errors.precioCompra && (
-                <p className="text-xs text-destructive">{errors.precioCompra.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="inv-precio-a">Precio actual</Label>
-              <Input
-                id="inv-precio-a"
-                type="number"
-                step="0.0001"
-                {...register("precioActual", { valueAsNumber: true })}
-                disabled={loading}
-              />
-              {errors.precioActual && (
-                <p className="text-xs text-destructive">{errors.precioActual.message}</p>
-              )}
-            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Valor actual TOTAL (lo que tienes ahora). Solo al editar; al
+                crear el valor inicial = importe invertido. */}
+            {isEdit && (
+              <div className="space-y-2">
+                <Label htmlFor="inv-valor-a">Valor actual (total)</Label>
+                <Input
+                  id="inv-valor-a"
+                  type="number"
+                  step="0.01"
+                  {...register("valorActual", { valueAsNumber: true })}
+                  disabled={loading}
+                />
+                {errors.valorActual && (
+                  <p className="text-xs text-destructive">{errors.valorActual.message}</p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="inv-moneda">Moneda</Label>
               <Controller
@@ -286,86 +304,94 @@ export function InvestmentFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="inv-cuenta">Cuenta de origen</Label>
-              <Controller
-                control={control}
-                name="cuentaId"
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={field.onChange}
-                    disabled={loading}
-                  >
-                    <SelectTrigger id="inv-cuenta">
-                      <SelectValue placeholder="Selecciona una cuenta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cuentasDisponibles.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.alias}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          {/* Cuenta de origen y fecha: SOLO al crear (es la compra inicial,
+              que descuenta de la cuenta). Al editar no se vuelve a descontar. */}
+          {!isEdit && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="inv-cuenta">Cuenta de origen</Label>
+                <Controller
+                  control={control}
+                  name="cuentaId"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                      disabled={loading}
+                    >
+                      <SelectTrigger id="inv-cuenta">
+                        <SelectValue placeholder="Selecciona una cuenta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cuentasDisponibles.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.alias}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.cuentaId && (
+                  <p className="text-xs text-destructive">
+                    {errors.cuentaId.message}
+                  </p>
                 )}
-              />
-              {errors.cuentaId && (
-                <p className="text-xs text-destructive">
-                  {errors.cuentaId.message}
-                </p>
-              )}
-              {!isEdit && cuentasDisponibles.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Al crear, se descontara el importe (participaciones x precio)
-                  de esta cuenta.
-                </p>
-              )}
-              {cuentasDisponibles.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No tienes cuentas activas. Crea una en la pagina de Cuentas.
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="inv-fecha">Fecha compra (opcional)</Label>
-              <Controller
-                control={control}
-                name="fechaCompra"
-                render={({ field }) => (
-                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="inv-fecha"
-                        type="button"
-                        variant="outline"
-                        disabled={loading}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !field.value && "text-muted-foreground",
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? formatDateLong(field.value, false) : "Sin fecha"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value ?? undefined}
-                        onSelect={(d) => {
-                          field.onChange(d ?? null);
-                          setCalendarOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                {cuentasDisponibles.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Se descontara el importe (participaciones x precio) de esta
+                    cuenta.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No tienes cuentas activas. Crea una en la pagina de Cuentas.
+                  </p>
                 )}
-              />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inv-fecha">Fecha de compra</Label>
+                <Controller
+                  control={control}
+                  name="fechaCompra"
+                  render={({ field }) => (
+                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="inv-fecha"
+                          type="button"
+                          variant="outline"
+                          disabled={loading}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !field.value && "text-muted-foreground",
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {field.value ? formatDateLong(field.value, false) : "Selecciona fecha"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ?? undefined}
+                          onSelect={(d) => {
+                            field.onChange(d ?? null);
+                            setCalendarOpen(false);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                />
+                {errors.fechaCompra && (
+                  <p className="text-xs text-destructive">
+                    {errors.fechaCompra.message}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="inv-notas">Notas (opcional)</Label>

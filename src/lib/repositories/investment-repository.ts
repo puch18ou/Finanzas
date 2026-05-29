@@ -107,4 +107,9 @@ export class InvestmentRepository extends BaseRepository {
       .set({ deletedAt: null, updatedAt: now() })
       .where(eq(investments.id, id));
   }
+
+  /** Borrado fisico (papelera). Las aportaciones hijas se borran aparte. */
+  async hardDelete(id: string): Promise<void> {
+    await this.db.delete(investments).where(eq(investments.id, id));
+  }
 }

@@ -83,4 +83,29 @@ export class InvestmentContributionRepository extends BaseRepository {
       .set({ deletedAt: ts, updatedAt: ts })
       .where(eq(investmentContributions.id, id));
   }
+
+  async restore(id: string): Promise<void> {
+    await this.db
+      .update(investmentContributions)
+      .set({ deletedAt: null, updatedAt: now() })
+      .where(eq(investmentContributions.id, id));
+  }
+
+  /** Todas las aportaciones de una inversion (activas y borradas). */
+  async listAllByInvestment(
+    investmentId: string,
+  ): Promise<InvestmentContribution[]> {
+    return this.db
+      .select()
+      .from(investmentContributions)
+      .where(eq(investmentContributions.investmentId, investmentId))
+      .orderBy(asc(investmentContributions.fecha));
+  }
+
+  /** Borrado fisico de todas las aportaciones de una inversion (papelera). */
+  async hardDeleteByInvestment(investmentId: string): Promise<void> {
+    await this.db
+      .delete(investmentContributions)
+      .where(eq(investmentContributions.investmentId, investmentId));
+  }
 }

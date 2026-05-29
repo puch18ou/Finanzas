@@ -16,6 +16,7 @@ import {
   otherDebts,
   movements,
 } from "@/lib/db/schema";
+import { InvestmentContributionService } from "./investment-contribution-service";
 
 export type TrashItemType =
   | "movements"
@@ -37,7 +38,11 @@ export type TrashItem = {
 export type TrashCounts = Record<TrashItemType, number>;
 
 export class TrashService {
-  constructor(private db: DrizzleDb) {}
+  private contributionService: InvestmentContributionService;
+
+  constructor(private db: DrizzleDb) {
+    this.contributionService = new InvestmentContributionService(db);
+  }
 
   async counts(): Promise<TrashCounts> {
     const [movCount, catCount, accCount, invCount, goalCount, mortCount, debtCount] =
@@ -164,6 +169,12 @@ export class TrashService {
   }
 
   async restore(type: TrashItemType, id: string): Promise<void> {
+    // Inversiones: reactiva tambien sus aportaciones y vuelve a aplicar sus
+    // movimientos de salida (re-descuenta de las cuentas) + recalcula.
+    if (type === "investments") {
+      await this.contributionService.restoreInvestment(id);
+      return;
+    }
     const table = this.tableFor(type);
     await this.db
       .update(table)
@@ -172,14 +183,27 @@ export class TrashService {
   }
 
   async hardDelete(type: TrashItemType, id: string): Promise<void> {
+    // Inversiones: borra antes sus aportaciones (FK).
+    if (type === "investments") {
+      await this.contributionService.hardDeleteInvestment(id);
+      return;
+    }
     const table = this.tableFor(type);
     await this.db.delete(table).where(eq(table.id, id));
   }
 
   async emptyAll(): Promise<void> {
+    // Inversiones primero, via servicio (borra sus aportaciones antes por la FK).
+    const deletedInvs = await this.db
+      .select({ id: investments.id })
+      .from(investments)
+      .where(isNotNull(investments.deletedAt));
+    for (const inv of deletedInvs) {
+      await this.contributionService.hardDeleteInvestment(inv.id);
+    }
+
     const types: TrashItemType[] = [
       "movements",
-      "investments",
       "goals",
       "otherDebts",
       "categories",

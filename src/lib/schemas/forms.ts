@@ -117,10 +117,14 @@ export const investmentFormSchema = z.object({
   participaciones: z
     .number({ message: "Debe ser un numero" })
     .positive("Debe ser mayor que 0"),
-  precioCompra: z
+  // Importe TOTAL gastado en la compra (no por unidad). El precio por unidad se
+  // deriva = importeInvertido / participaciones.
+  importeInvertido: z
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),
-  precioActual: z
+  // Valor TOTAL actual de la posicion (lo que tienes ahora, no por unidad). El
+  // precio por unidad se deriva = valorActual / participaciones.
+  valorActual: z
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),
   moneda: z.string().min(2).max(4),

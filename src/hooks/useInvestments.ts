@@ -62,10 +62,15 @@ export function useInvestments() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => repos.investments.softDelete(id),
+    // Borra la inversion devolviendo el dinero de sus aportaciones a las cuentas.
+    mutationFn: (id: string) =>
+      repos.investmentContributionService.deleteInvestment(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INVESTMENTS_KEY });
-      toast.success("Inversion movida a la papelera");
+      qc.invalidateQueries({ queryKey: ["investmentContributions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["movements"] });
+      toast.success("Inversion movida a la papelera (dinero devuelto)");
     },
     onError: (e) => {
       toast.error(`No se pudo borrar: ${e instanceof Error ? e.message : "error"}`);

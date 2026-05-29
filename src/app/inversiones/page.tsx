@@ -15,6 +15,7 @@ import {
   Pencil,
   Trash2,
   Plus,
+  Layers,
   PieChart as PieIcon,
   TrendingUp,
   TrendingDown,
@@ -25,6 +26,7 @@ import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { InvestmentFormDialog } from "@/components/forms/InvestmentFormDialog";
+import { ContributionsDialog } from "@/components/forms/ContributionsDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,14 +76,18 @@ export default function InversionesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Investment | null>(null);
   const [toDelete, setToDelete] = useState<Investment | null>(null);
+  const [contributionsFor, setContributionsFor] = useState<Investment | null>(
+    null,
+  );
 
-  // Precios en edicion local (mientras el usuario escribe).
+  // Valor actual TOTAL en edicion local (mientras el usuario escribe). El
+  // usuario edita el total; el precio por unidad se deriva al guardar.
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const m: Record<string, string> = {};
     for (const inv of investments) {
-      m[inv.id] = String(inv.precioActual);
+      m[inv.id] = String(inv.precioActual * inv.participaciones);
     }
     setPriceEdits(m);
   }, [investments]);
@@ -108,10 +114,13 @@ export default function InversionesPage() {
   const handlePriceBlur = async (inv: Investment) => {
     const raw = priceEdits[inv.id];
     if (raw === undefined) return;
-    const value = Number(raw);
-    if (isNaN(value) || value < 0) return;
-    if (value === inv.precioActual) return;
-    await updatePrice({ id: inv.id, precio: value });
+    const valorTotal = Number(raw);
+    if (isNaN(valorTotal) || valorTotal < 0) return;
+    if (valorTotal === inv.precioActual * inv.participaciones) return;
+    // El usuario edita el VALOR TOTAL; derivamos el precio por unidad.
+    const nuevoPrecio =
+      inv.participaciones > 0 ? valorTotal / inv.participaciones : 0;
+    await updatePrice({ id: inv.id, precio: nuevoPrecio });
   };
 
   return (
@@ -180,9 +189,8 @@ export default function InversionesPage() {
                   <TableHead className="w-[110px]">Tipo</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead className="text-right">Participaciones</TableHead>
-                  <TableHead className="text-right">Precio compra</TableHead>
-                  <TableHead className="text-right">Precio actual</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Coste</TableHead>
+                  <TableHead className="text-right">Valor actual</TableHead>
                   <TableHead className="text-right">P/L</TableHead>
                   <TableHead className="text-right">En {viewCurrency}</TableHead>
                   <TableHead className="w-[80px] text-right">Acciones</TableHead>
@@ -227,13 +235,18 @@ export default function InversionesPage() {
                           maximumFractionDigits: 6,
                         })}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {formatAmount(inv.precioCompra, inv.moneda)}
+                      <TableCell className="text-right tabular-nums">
+                        <div className="font-medium">
+                          {formatAmount(m.costeTotal, inv.moneda)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatAmount(inv.precioCompra, inv.moneda)}/ud
+                        </div>
                       </TableCell>
                       <TableCell className="text-right p-1">
                         <Input
                           type="number"
-                          step="0.0001"
+                          step="0.01"
                           min={0}
                           value={priceEdits[inv.id] ?? ""}
                           onChange={(e) =>
@@ -246,9 +259,6 @@ export default function InversionesPage() {
                           disabled={isMutating}
                           className="h-8 text-right tabular-nums"
                         />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">
-                        {formatAmount(m.valorActual, inv.moneda)}
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -274,6 +284,14 @@ export default function InversionesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setContributionsFor(inv)}
+                            aria-label="Aportaciones"
+                          >
+                            <Layers className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -315,15 +333,41 @@ export default function InversionesPage() {
         loading={isMutating}
         onSubmit={async (data) => {
           if (editing) {
-            await update({ id: editing.id, patch: data });
+            // Al editar solo se tocan los metadatos + el valor actual TOTAL
+            // (de el derivamos el precio por unidad). Participaciones, coste,
+            // fecha y cuenta salen de las aportaciones, no se editan aqui.
+            const precioActual =
+              editing.participaciones > 0
+                ? data.valorActual / editing.participaciones
+                : 0;
+            await update({
+              id: editing.id,
+              patch: {
+                tipo: data.tipo,
+                ticker: data.ticker ?? null,
+                nombre: data.nombre,
+                moneda: data.moneda,
+                precioActual,
+                notas: data.notas ?? null,
+              },
+            });
           } else {
+            // El usuario introduce el IMPORTE TOTAL invertido; derivamos el
+            // precio por unidad.
+            const precioUnitario =
+              data.participaciones > 0
+                ? data.importeInvertido / data.participaciones
+                : 0;
+            // Creamos la inversion "vacia" (0); la aportacion inicial fija
+            // participaciones, coste y valor actual (asi el valor actual sube
+            // exactamente por el importe invertido, sin duplicar).
             const inv = await create({
               tipo: data.tipo,
               ticker: data.ticker ?? null,
               nombre: data.nombre,
-              participaciones: data.participaciones,
-              precioCompra: data.precioCompra,
-              precioActual: data.precioActual,
+              participaciones: 0,
+              precioCompra: 0,
+              precioActual: 0,
               moneda: data.moneda,
               cuentaId: data.cuentaId ?? null,
               fechaCompra: data.fechaCompra ?? null,
@@ -335,11 +379,18 @@ export default function InversionesPage() {
               investmentId: inv.id,
               fecha: data.fechaCompra ?? new Date(),
               participaciones: data.participaciones,
-              precioUnitario: data.precioCompra,
+              precioUnitario,
               cuentaOrigenId: data.cuentaId ?? null,
             });
           }
         }}
+      />
+
+      <ContributionsDialog
+        open={!!contributionsFor}
+        onOpenChange={(v) => !v && setContributionsFor(null)}
+        investment={contributionsFor}
+        accounts={accounts}
       />
 
       <DeleteConfirmation
