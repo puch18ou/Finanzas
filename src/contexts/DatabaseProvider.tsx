@@ -79,6 +79,61 @@ export function useRepos(): Repositories {
   return status.repos;
 }
 
+type InitResult = {
+  db: DrizzleDb;
+  repos: Repositories;
+  migrationsApplied: string[];
+  seed: { currencies: number; categories: number; settingsCreated: boolean };
+};
+
+// Dedup de la inicializacion: en dev, React StrictMode monta el provider dos
+// veces y, sobre una BD recien creada, dos pasadas de migraciones/seed corren
+// a la vez y chocan (UNIQUE en _migrations, PK en currencies...). Compartimos
+// la promesa en vuelo para que la inicializacion ocurra UNA sola vez por BD.
+let _initPromise: Promise<InitResult> | null = null;
+let _initPath: string | null = null;
+
+async function initDatabaseForUser(dbFile: string): Promise<InitResult> {
+  const path = `sqlite:${dbFile}`;
+  setActiveDbPath(path);
+
+  if (_initPromise && _initPath === path) return _initPromise;
+
+  _initPath = path;
+  _initPromise = (async () => {
+    const db = await getDb();
+    const migrationsApplied = await runMigrations();
+    const seed = await runSeed();
+    const repos = createRepositories(db);
+
+    // [Lote 11b] Generar movimientos recurrentes pendientes
+    try {
+      const recurringService = new RecurringService(db);
+      const result = await recurringService.generatePendingUpToCurrentMonth();
+      if (result.generated.length > 0) {
+        console.log(
+          `[recurring] Generados ${result.generated.length} movimientos automaticos ` +
+            `(skipped: ${result.skippedExisting})`,
+        );
+        toast.info(
+          `Generados ${result.generated.length} movimientos recurrentes`,
+        );
+      }
+    } catch (err) {
+      // No bloquear el arranque por esto. Lo logueamos y seguimos.
+      console.error("[recurring] Error generando movimientos:", err);
+    }
+
+    return { db, repos, migrationsApplied, seed };
+  })();
+
+  try {
+    return await _initPromise;
+  } finally {
+    _initPromise = null;
+  }
+}
+
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   // Multiusuario: cada usuario tiene su propio fichero .db (Lote 12).
@@ -93,40 +148,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         if (!dbFile) {
           throw new Error("No hay fichero de BD para el usuario en sesion.");
         }
-        setActiveDbPath(`sqlite:${dbFile}`);
-        const db = await getDb();
-        const migrationsApplied = await runMigrations();
-        const seed = await runSeed();
-        const repos = createRepositories(db);
-
-        // [Lote 11b] Generar movimientos recurrentes pendientes
-        try {
-          const recurringService = new RecurringService(db);
-          const result =
-            await recurringService.generatePendingUpToCurrentMonth();
-          if (result.generated.length > 0) {
-            console.log(
-              `[recurring] Generados ${result.generated.length} movimientos automaticos ` +
-                `(skipped: ${result.skippedExisting})`,
-            );
-            // Opcional: toast informativo
-            toast.info(
-              `Generados ${result.generated.length} movimientos recurrentes`,
-            );
-          }
-        } catch (err) {
-          // No bloquear el arranque por esto. Lo logueamos y seguimos.
-          console.error("[recurring] Error generando movimientos:", err);
-        }
-
+        const { db, repos, migrationsApplied, seed } =
+          await initDatabaseForUser(dbFile);
         if (!cancelled) {
-          setStatus({
-            kind: "ready",
-            db,
-            repos,
-            migrationsApplied,
-            seed,
-          });
+          setStatus({ kind: "ready", db, repos, migrationsApplied, seed });
         }
       } catch (error) {
         if (!cancelled) {

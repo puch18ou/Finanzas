@@ -10,9 +10,9 @@
  *
  *  Aislamiento de datos = una BD por usuario. Aqui solo gestionamos el acceso.
  *
- *  Bootstrap (primer arranque, si no hay usuarios):
- *    - `puch18ou`  PIN 7410, rol user,  db_file = finanzas.db (BD ya existente)
- *    - `admin`     PIN 0000, rol admin, db_file = NULL, debe cambiar PIN
+ *  Bootstrap (primer arranque, si no hay usuarios): se crea un `admin`
+ *  (PIN 0000, sin finanzas, debe cambiar PIN) para poder gestionar usuarios.
+ *  El resto de usuarios se crean desde la consola admin (o autorregistro).
  * ============================================================================
  */
 
@@ -20,9 +20,6 @@ import Database from "@tauri-apps/plugin-sql";
 import { hashPin, validatePinFormat, verifyPin } from "./pin";
 
 const REGISTRY_PATH = "sqlite:_users.db";
-
-/** Fichero de datos del usuario inicial: reutiliza la BD existente. */
-const LEGACY_DB_FILE = "finanzas.db";
 
 export type UserRole = "user" | "admin";
 
@@ -98,13 +95,6 @@ async function getRegistry(): Promise<Database> {
  * solo puch18ou) se completa en el siguiente arranque sin duplicar nada.
  */
 async function bootstrap(db: Database): Promise<void> {
-  await ensureSeedUser(db, {
-    username: "puch18ou",
-    pin: "7410",
-    role: "user",
-    dbFile: LEGACY_DB_FILE,
-    mustChangePin: false,
-  });
   await ensureSeedUser(db, {
     username: "admin",
     pin: "0000",
@@ -240,10 +230,16 @@ export async function createUser(args: {
 }
 
 /**
- * Cambia el PIN de un usuario y limpia el flag must_change_pin.
- * Usado tanto por el cambio propio como por el reseteo del admin.
+ * Cambia el PIN de un usuario.
+ * - Cambio propio (forceChange=false): limpia el flag must_change_pin.
+ * - Reseteo del admin (forceChange=true): marca must_change_pin para que el
+ *   usuario lo cambie por uno suyo en el siguiente inicio de sesion.
  */
-export async function updatePin(id: string, newPin: string): Promise<void> {
+export async function updatePin(
+  id: string,
+  newPin: string,
+  opts?: { forceChange?: boolean },
+): Promise<void> {
   if (!validatePinFormat(newPin)) {
     throw new Error("El PIN debe tener entre 4 y 8 digitos.");
   }
@@ -251,9 +247,9 @@ export async function updatePin(id: string, newPin: string): Promise<void> {
   const { hash, salt } = await hashPin(newPin);
   await db.execute(
     `UPDATE users
-       SET pin_hash = $1, pin_salt = $2, must_change_pin = 0, updated_at = $3
-     WHERE id = $4`,
-    [hash, salt, Date.now(), id],
+       SET pin_hash = $1, pin_salt = $2, must_change_pin = $3, updated_at = $4
+     WHERE id = $5`,
+    [hash, salt, opts?.forceChange ? 1 : 0, Date.now(), id],
   );
 }
 

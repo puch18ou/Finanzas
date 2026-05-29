@@ -72,7 +72,7 @@ export async function runMigrations(): Promise<string[]> {
   if (baseSchemaExists && !appliedSet.has("0000_init")) {
     try {
       await db.execute(
-        `INSERT INTO _migrations (name, applied_at) VALUES ('0000_init', ${Date.now()})`,
+        `INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES ('0000_init', ${Date.now()})`,
       );
       appliedSet.add("0000_init");
       console.log(
@@ -122,7 +122,7 @@ export async function runMigrations(): Promise<string[]> {
     }
 
     await db.execute(
-      `INSERT INTO _migrations (name, applied_at) VALUES ('${migration.name}', ${Date.now()})`,
+      `INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES ('${migration.name}', ${Date.now()})`,
     );
 
     console.log(`[migrate] Aplicada migracion: ${migration.name}`);

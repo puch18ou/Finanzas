@@ -20,6 +20,7 @@
 import type { ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { LoginScreen } from "@/components/auth/LoginScreen";
+import { ForcePinChange } from "@/components/auth/ForcePinChange";
 import { AdminConsole } from "@/components/auth/AdminConsole";
 import {
   DatabaseProvider,
@@ -57,6 +58,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (user.mustChangePin) {
+    return <ForcePinChange />;
   }
 
   if (user.role === "admin") {
