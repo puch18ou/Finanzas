@@ -22,6 +22,7 @@ import { createUser } from "@/lib/auth/registry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -84,6 +85,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
       : "",
   );
   const [pin, setPin] = useState("");
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -95,7 +97,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
-    const result = await login(username.trim(), pin);
+    const result = await login(username.trim(), pin, remember);
     setSubmitting(false);
     if (result.ok) {
       rememberUser(username.trim());
@@ -141,6 +143,14 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Checkbox
+          checked={remember}
+          onCheckedChange={(v) => setRemember(v === true)}
+        />
+        Mantener sesion iniciada
+      </label>
 
       <Button type="submit" className="w-full gap-2" disabled={!canSubmit}>
         <LogIn className="h-4 w-4" />
