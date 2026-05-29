@@ -115,6 +115,12 @@ export const settings = sqliteTable(
     // 0.2 = 20% de los ingresos como objetivo de ahorro.
     objetivoAhorroPct: real("objetivo_ahorro_pct").notNull().default(0.2),
 
+    // Lote 14b: objetivo de ahorro en importe fijo (€/mes) en moneda local.
+    // 0 = sin objetivo de importe (solo se usa el %).
+    objetivoAhorroImporte: real("objetivo_ahorro_importe")
+      .notNull()
+      .default(0),
+
     tieneHipoteca: integer("tiene_hipoteca", { mode: "boolean" })
       .notNull()
       .default(false),

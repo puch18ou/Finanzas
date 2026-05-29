@@ -104,6 +104,7 @@ export default function AjustesPage() {
   );
   const [mesActual, setMesActual] = useState<number>(new Date().getMonth() + 1);
   const [objetivoAhorroPct, setObjetivoAhorroPct] = useState<number>(0.2);
+  const [objetivoAhorroImporte, setObjetivoAhorroImporte] = useState<number>(0);
   const [tieneHipoteca, setTieneHipoteca] = useState(false);
   const [monedaHipoteca, setMonedaHipoteca] = useState("");
   const [patrimonioInicial, setPatrimonioInicial] = useState<number>(0);
@@ -124,6 +125,7 @@ export default function AjustesPage() {
     setAnioActual(settings.anioActual);
     setMesActual(settings.mesActual);
     setObjetivoAhorroPct(settings.objetivoAhorroPct);
+    setObjetivoAhorroImporte(settings.objetivoAhorroImporte);
     setTieneHipoteca(settings.tieneHipoteca);
     setMonedaHipoteca(settings.monedaHipoteca ?? "");
     setPatrimonioInicial(settings.patrimonioInicial);
@@ -162,6 +164,7 @@ export default function AjustesPage() {
         anioActual,
         mesActual,
         objetivoAhorroPct,
+        objetivoAhorroImporte,
         tieneHipoteca,
         monedaHipoteca: tieneHipoteca ? emptyToNull(monedaHipoteca) : null,
         patrimonioInicial,
@@ -345,25 +348,45 @@ export default function AjustesPage() {
           <CardHeader>
             <CardTitle>Objetivo de ahorro</CardTitle>
             <CardDescription>
-              Porcentaje de ingresos que quieres ahorrar cada mes.
+              Cuanto quieres ahorrar cada mes, por porcentaje de ingresos y/o
+              por importe fijo. Deja un campo en 0 para no usarlo.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="ahorro">Objetivo (%)</Label>
-              <Input
-                id="ahorro"
-                type="number"
-                step="1"
-                min={0}
-                max={100}
-                value={Number((objetivoAhorroPct * 100).toFixed(0))}
-                onChange={(e) => {
-                  const pct = Number(e.target.value);
-                  setObjetivoAhorroPct(isNaN(pct) ? 0 : pct / 100);
-                }}
-                className="max-w-[200px]"
-              />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="ahorro">Objetivo (%)</Label>
+                <Input
+                  id="ahorro"
+                  type="number"
+                  step="1"
+                  min={0}
+                  max={100}
+                  value={Number((objetivoAhorroPct * 100).toFixed(0))}
+                  onChange={(e) => {
+                    const pct = Number(e.target.value);
+                    setObjetivoAhorroPct(isNaN(pct) ? 0 : pct / 100);
+                  }}
+                  className="max-w-[200px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ahorro-importe">
+                  Objetivo ({monedaLocal} / mes)
+                </Label>
+                <Input
+                  id="ahorro-importe"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={objetivoAhorroImporte}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setObjetivoAhorroImporte(isNaN(v) || v < 0 ? 0 : v);
+                  }}
+                  className="max-w-[200px]"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

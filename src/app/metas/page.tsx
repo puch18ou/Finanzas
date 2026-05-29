@@ -25,6 +25,7 @@ import { useGoals } from "@/hooks/useGoals";
 import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { GoalFormDialog } from "@/components/forms/GoalFormDialog";
+import { SavingsRateCard } from "@/components/metas/SavingsRateCard";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,6 +104,8 @@ export default function MetasPage() {
           Nueva meta
         </Button>
       </header>
+
+      <SavingsRateCard />
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando metas...</p>
