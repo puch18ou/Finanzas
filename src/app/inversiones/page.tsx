@@ -46,6 +46,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { TIPOS_INVERSION } from "@/lib/schemas/forms";
 import type { Investment } from "@/lib/db/schema";
 import {
   buildRatesMap,
@@ -124,6 +131,167 @@ export default function InversionesPage() {
     await updatePrice({ id: inv.id, precio: nuevoPrecio });
   };
 
+  // Tipos que tienen al menos una inversion, en el orden del catalogo.
+  const tiposPresentes = TIPOS_INVERSION.filter((t) =>
+    investments.some((inv) => inv.tipo === t),
+  );
+
+  // Tabla de posiciones reutilizable. `showParticipaciones` controla si se
+  // muestran las columnas de participaciones y precio/ud (se ocultan en las
+  // pestanas de tipos "solo dinero").
+  const renderTable = (list: Investment[], showParticipaciones: boolean) => {
+    if (!isLoading && list.length === 0) {
+      return (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No hay inversiones en esta vista.
+        </p>
+      );
+    }
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[110px]">Tipo</TableHead>
+            <TableHead>Nombre</TableHead>
+            {showParticipaciones && (
+              <TableHead className="text-right">Participaciones</TableHead>
+            )}
+            <TableHead className="text-right">Coste</TableHead>
+            <TableHead className="text-right">Valor actual</TableHead>
+            <TableHead className="text-right">P/L</TableHead>
+            <TableHead className="text-right">En {viewCurrency}</TableHead>
+            <TableHead className="w-[80px] text-right">Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((inv) => {
+            const m = calculateInvestmentMetrics(inv);
+            let valorEnVista: number | null = null;
+            try {
+              valorEnVista = convert(m.valorActual, inv.moneda, viewCurrency, rates);
+            } catch {
+              valorEnVista = null;
+            }
+            const plPositive = m.plAbsoluto >= 0;
+            const brokerAlias = inv.cuentaId
+              ? accountAliasById[inv.cuentaId]
+              : null;
+            return (
+              <TableRow key={inv.id}>
+                <TableCell>
+                  <Badge variant="secondary">{inv.tipo}</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">{inv.nombre}</div>
+                  {(inv.ticker || brokerAlias) && (
+                    <div className="text-xs font-mono text-muted-foreground">
+                      {inv.ticker}
+                      {inv.ticker && brokerAlias && " · "}
+                      {brokerAlias}
+                    </div>
+                  )}
+                </TableCell>
+                {showParticipaciones && (
+                  <TableCell className="text-right tabular-nums">
+                    {usaParticipaciones(inv.tipo)
+                      ? inv.participaciones.toLocaleString("es-ES", {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 6,
+                        })
+                      : "—"}
+                  </TableCell>
+                )}
+                <TableCell className="text-right tabular-nums">
+                  <div className="font-medium">
+                    {formatAmount(m.costeTotal, inv.moneda)}
+                  </div>
+                  {usaParticipaciones(inv.tipo) && (
+                    <div className="text-xs text-muted-foreground">
+                      {formatAmount(inv.precioCompra, inv.moneda)}/ud
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="text-right p-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={priceEdits[inv.id] ?? ""}
+                    onChange={(e) =>
+                      setPriceEdits((prev) => ({
+                        ...prev,
+                        [inv.id]: e.target.value,
+                      }))
+                    }
+                    onBlur={() => handlePriceBlur(inv)}
+                    disabled={isMutating}
+                    className="h-8 text-right tabular-nums"
+                  />
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums",
+                    plPositive ? "text-primary" : "text-destructive",
+                  )}
+                >
+                  <div>
+                    {plPositive ? "+" : ""}
+                    {formatAmount(m.plAbsoluto, inv.moneda)}
+                  </div>
+                  <div className="text-xs">
+                    {plPositive ? "+" : ""}
+                    {(m.plPorcentaje * 100).toFixed(2)}%
+                  </div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {inv.moneda === viewCurrency ? (
+                    "—"
+                  ) : valorEnVista !== null ? (
+                    formatAmount(valorEnVista, viewCurrency)
+                  ) : (
+                    <span className="text-destructive">err</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setContributionsFor(inv)}
+                      aria-label="Aportaciones"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setEditing(inv);
+                        setFormOpen(true);
+                      }}
+                      aria-label="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setToDelete(inv)}
+                      className="text-destructive hover:text-destructive"
+                      aria-label="Borrar"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -170,163 +338,45 @@ export default function InversionesPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Posiciones</CardTitle>
-          <CardDescription>
-            {investments.length} posiciones en cartera. Edita el precio
-            actual haciendo clic en la celda.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isLoading && investments.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Aun no hay inversiones. Pulsa "Anadir inversion" para empezar.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[110px]">Tipo</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead className="text-right">Participaciones</TableHead>
-                  <TableHead className="text-right">Coste</TableHead>
-                  <TableHead className="text-right">Valor actual</TableHead>
-                  <TableHead className="text-right">P/L</TableHead>
-                  <TableHead className="text-right">En {viewCurrency}</TableHead>
-                  <TableHead className="w-[80px] text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {investments.map((inv) => {
-                  const m = calculateInvestmentMetrics(inv);
-                  let valorEnVista: number | null = null;
-                  try {
-                    valorEnVista = convert(
-                      m.valorActual,
-                      inv.moneda,
-                      viewCurrency,
-                      rates,
-                    );
-                  } catch {
-                    valorEnVista = null;
-                  }
-                  const plPositive = m.plAbsoluto >= 0;
-                  const brokerAlias = inv.cuentaId
-                    ? accountAliasById[inv.cuentaId]
-                    : null;
-                  return (
-                    <TableRow key={inv.id}>
-                      <TableCell>
-                        <Badge variant="secondary">{inv.tipo}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{inv.nombre}</div>
-                        {(inv.ticker || brokerAlias) && (
-                          <div className="text-xs font-mono text-muted-foreground">
-                            {inv.ticker}
-                            {inv.ticker && brokerAlias && " · "}
-                            {brokerAlias}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {usaParticipaciones(inv.tipo)
-                          ? inv.participaciones.toLocaleString("es-ES", {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 6,
-                            })
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        <div className="font-medium">
-                          {formatAmount(m.costeTotal, inv.moneda)}
-                        </div>
-                        {usaParticipaciones(inv.tipo) && (
-                          <div className="text-xs text-muted-foreground">
-                            {formatAmount(inv.precioCompra, inv.moneda)}/ud
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right p-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={priceEdits[inv.id] ?? ""}
-                          onChange={(e) =>
-                            setPriceEdits((prev) => ({
-                              ...prev,
-                              [inv.id]: e.target.value,
-                            }))
-                          }
-                          onBlur={() => handlePriceBlur(inv)}
-                          disabled={isMutating}
-                          className="h-8 text-right tabular-nums"
-                        />
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right tabular-nums",
-                          plPositive ? "text-primary" : "text-destructive",
-                        )}
-                      >
-                        <div>
-                          {plPositive ? "+" : ""}
-                          {formatAmount(m.plAbsoluto, inv.moneda)}
-                        </div>
-                        <div className="text-xs">
-                          {plPositive ? "+" : ""}
-                          {(m.plPorcentaje * 100).toFixed(2)}%
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {inv.moneda === viewCurrency
-                          ? "—"
-                          : valorEnVista !== null
-                          ? formatAmount(valorEnVista, viewCurrency)
-                          : <span className="text-destructive">err</span>}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setContributionsFor(inv)}
-                            aria-label="Aportaciones"
-                          >
-                            <Layers className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditing(inv);
-                              setFormOpen(true);
-                            }}
-                            aria-label="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setToDelete(inv)}
-                            className="text-destructive hover:text-destructive"
-                            aria-label="Borrar"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="resumen">
+        <TabsList className="flex h-auto flex-wrap justify-start">
+          <TabsTrigger value="resumen">Resumen</TabsTrigger>
+          {tiposPresentes.map((t) => (
+            <TabsTrigger key={t} value={t}>
+              {t}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="resumen">
+          <Card>
+            <CardHeader>
+              <CardTitle>Todas las posiciones</CardTitle>
+              <CardDescription>
+                {investments.length} posiciones en cartera. Edita el valor
+                actual haciendo clic en la celda.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>{renderTable(investments, true)}</CardContent>
+          </Card>
+        </TabsContent>
+
+        {tiposPresentes.map((t) => (
+          <TabsContent key={t} value={t}>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {renderTable(
+                  investments.filter((inv) => inv.tipo === t),
+                  usaParticipaciones(t),
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
+      </Tabs>
 
       <InvestmentFormDialog
         open={formOpen}
