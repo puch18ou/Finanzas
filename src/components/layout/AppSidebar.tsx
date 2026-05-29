@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   Telescope,
+  Wallet,
   Landmark,
   PieChart,
   Target,
@@ -57,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
       { title: "Evolucion", url: "/evolucion", icon: TrendingUp },
       { title: "Proyeccion", url: "/proyeccion", icon: Telescope },
+      { title: "Presupuestos", url: "/presupuestos", icon: Wallet },
     ],
   },
   {
