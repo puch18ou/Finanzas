@@ -10,12 +10,13 @@
  * ============================================================================
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pencil,
   Trash2,
   Plus,
   Layers,
+  RefreshCw,
   PieChart as PieIcon,
   TrendingUp,
   TrendingDown,
@@ -30,6 +31,15 @@ import { ContributionsDialog } from "@/components/forms/ContributionsDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -88,17 +98,9 @@ export default function InversionesPage() {
     null,
   );
 
-  // Valor actual TOTAL en edicion local (mientras el usuario escribe). El
-  // usuario edita el total; el precio por unidad se deriva al guardar.
-  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    const m: Record<string, string> = {};
-    for (const inv of investments) {
-      m[inv.id] = String(inv.precioActual * inv.participaciones);
-    }
-    setPriceEdits(m);
-  }, [investments]);
+  // Dialogo "Actualizar valor actual" (valor TOTAL real de hoy).
+  const [valueFor, setValueFor] = useState<Investment | null>(null);
+  const [valueInput, setValueInput] = useState("");
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
@@ -119,16 +121,20 @@ export default function InversionesPage() {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
   }
 
-  const handlePriceBlur = async (inv: Investment) => {
-    const raw = priceEdits[inv.id];
-    if (raw === undefined) return;
-    const valorTotal = Number(raw);
+  const openValueUpdate = (inv: Investment) => {
+    setValueFor(inv);
+    setValueInput(String(inv.precioActual * inv.participaciones));
+  };
+
+  const submitValueUpdate = async () => {
+    if (!valueFor) return;
+    const valorTotal = Number(valueInput);
     if (isNaN(valorTotal) || valorTotal < 0) return;
-    if (valorTotal === inv.precioActual * inv.participaciones) return;
-    // El usuario edita el VALOR TOTAL; derivamos el precio por unidad.
+    // El usuario indica el VALOR TOTAL real; derivamos el precio por unidad.
     const nuevoPrecio =
-      inv.participaciones > 0 ? valorTotal / inv.participaciones : 0;
-    await updatePrice({ id: inv.id, precio: nuevoPrecio });
+      valueFor.participaciones > 0 ? valorTotal / valueFor.participaciones : 0;
+    await updatePrice({ id: valueFor.id, precio: nuevoPrecio });
+    setValueFor(null);
   };
 
   // Tipos que tienen al menos una inversion, en el orden del catalogo.
@@ -211,22 +217,8 @@ export default function InversionesPage() {
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="text-right p-1">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={priceEdits[inv.id] ?? ""}
-                    onChange={(e) =>
-                      setPriceEdits((prev) => ({
-                        ...prev,
-                        [inv.id]: e.target.value,
-                      }))
-                    }
-                    onBlur={() => handlePriceBlur(inv)}
-                    disabled={isMutating}
-                    className="h-8 text-right tabular-nums"
-                  />
+                <TableCell className="text-right tabular-nums font-medium">
+                  {formatAmount(m.valorActual, inv.moneda)}
                 </TableCell>
                 <TableCell
                   className={cn(
@@ -254,6 +246,14 @@ export default function InversionesPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openValueUpdate(inv)}
+                      aria-label="Actualizar valor"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -298,8 +298,8 @@ export default function InversionesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Inversiones</h1>
           <p className="text-sm text-muted-foreground">
-            Cartera de acciones, ETFs, fondos y cripto. Edita el precio
-            actual directamente en la tabla.
+            Cartera de acciones, ETFs, fondos y cripto. Usa el boton de
+            actualizar para poner el valor actual de cada posicion.
           </p>
         </div>
         <Button
@@ -353,8 +353,7 @@ export default function InversionesPage() {
             <CardHeader>
               <CardTitle>Todas las posiciones</CardTitle>
               <CardDescription>
-                {investments.length} posiciones en cartera. Edita el valor
-                actual haciendo clic en la celda.
+                {investments.length} posiciones en cartera.
               </CardDescription>
             </CardHeader>
             <CardContent>{renderTable(investments, true)}</CardContent>
@@ -452,6 +451,44 @@ export default function InversionesPage() {
         investment={contributionsFor}
         accounts={accounts}
       />
+
+      <Dialog open={!!valueFor} onOpenChange={(v) => !v && setValueFor(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Actualizar valor actual</DialogTitle>
+            <DialogDescription>
+              {valueFor?.nombre}: indica cuanto vale HOY en total (no por
+              unidad). No mueve dinero; solo actualiza el valor de mercado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="valor-actual-input">
+              Valor actual ({valueFor?.moneda})
+            </Label>
+            <Input
+              id="valor-actual-input"
+              type="number"
+              step="0.01"
+              min={0}
+              value={valueInput}
+              autoFocus
+              onChange={(e) => setValueInput(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setValueFor(null)}
+              disabled={isMutating}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={submitValueUpdate} disabled={isMutating}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DeleteConfirmation
         open={!!toDelete}

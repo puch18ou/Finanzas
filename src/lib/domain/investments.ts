@@ -56,6 +56,8 @@ export function usaParticipaciones(tipo: string): boolean {
 export type ContributionLike = {
   participaciones: number;
   precioUnitario: number;
+  /** true = retirada: resta en lugar de sumar. */
+  esRetirada?: boolean;
 };
 
 export function recomputeTotalsFromContributions(
@@ -64,8 +66,9 @@ export function recomputeTotalsFromContributions(
   let totalParticipaciones = 0;
   let costeTotal = 0;
   for (const c of contributions) {
-    totalParticipaciones += c.participaciones;
-    costeTotal += c.participaciones * c.precioUnitario;
+    const signo = c.esRetirada ? -1 : 1;
+    totalParticipaciones += signo * c.participaciones;
+    costeTotal += signo * c.participaciones * c.precioUnitario;
   }
   const precioMedio =
     totalParticipaciones > 0 ? costeTotal / totalParticipaciones : 0;

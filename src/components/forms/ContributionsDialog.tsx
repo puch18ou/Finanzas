@@ -14,7 +14,7 @@
  */
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ArrowDownToLine } from "lucide-react";
 import type { Account, Investment, InvestmentContribution } from "@/lib/db/schema";
 import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import {
@@ -43,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils/cn";
 import { formatAmount } from "@/lib/domain/currency";
 import { usaParticipaciones } from "@/lib/domain/investments";
 import {
@@ -65,9 +66,8 @@ export function ContributionsDialog({
   investment,
   accounts,
 }: Props) {
-  const { contributions, add, remove, isMutating } = useInvestmentContributions(
-    investment?.id,
-  );
+  const { contributions, add, withdraw, remove, isMutating } =
+    useInvestmentContributions(investment?.id);
   const activeAccounts = accounts.filter((a) => a.activa);
   const aliasById = Object.fromEntries(accounts.map((a) => [a.id, a.alias]));
 
@@ -77,6 +77,13 @@ export function ContributionsDialog({
   const [total, setTotal] = useState("");
   const [cuentaOrigenId, setCuentaOrigenId] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+
+  // Retirada
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [wCantidad, setWCantidad] = useState("");
+  const [wTodo, setWTodo] = useState(false);
+  const [wDestino, setWDestino] = useState("");
+  const [wError, setWError] = useState<string | null>(null);
 
   // Borrado con devolución
   const [toDelete, setToDelete] = useState<InvestmentContribution | null>(null);
@@ -138,6 +145,35 @@ export function ContributionsDialog({
     resetAddForm();
   }
 
+  async function submitWithdraw() {
+    if (!investment) return;
+    if (!wDestino) {
+      setWError("Selecciona la cuenta destino.");
+      return;
+    }
+    const n = Number(wCantidad);
+    if (!wTodo && (!Number.isFinite(n) || n <= 0)) {
+      setWError(
+        conParticipaciones
+          ? "Participaciones a retirar mayor que 0."
+          : "Importe a retirar mayor que 0.",
+      );
+      return;
+    }
+    await withdraw({
+      investmentId: investment.id,
+      cuentaDestinoId: wDestino,
+      fecha: new Date(),
+      todo: wTodo,
+      ...(conParticipaciones ? { participaciones: n } : { importe: n }),
+    });
+    setWithdrawOpen(false);
+    setWCantidad("");
+    setWTodo(false);
+    setWDestino("");
+    setWError(null);
+  }
+
   function openDelete(c: InvestmentContribution) {
     setToDelete(c);
     setRefundAccountId(c.cuentaOrigenId ?? "");
@@ -184,16 +220,24 @@ export function ContributionsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contributions.map((c) => (
+              {contributions.map((c) => {
+                const signo = c.esRetirada ? "−" : "";
+                return (
                 <TableRow key={c.id}>
                   <TableCell>
                     {formatDateLong(
                       c.fecha instanceof Date ? c.fecha : new Date(c.fecha),
                     )}
+                    {c.esRetirada && (
+                      <span className="ml-1 text-xs text-destructive">
+                        retirada
+                      </span>
+                    )}
                   </TableCell>
                   {conParticipaciones && (
                     <>
                       <TableCell className="text-right tabular-nums">
+                        {signo}
                         {c.participaciones.toLocaleString("es-ES", {
                           maximumFractionDigits: 6,
                         })}
@@ -203,7 +247,13 @@ export function ContributionsDialog({
                       </TableCell>
                     </>
                   )}
-                  <TableCell className="text-right tabular-nums font-medium">
+                  <TableCell
+                    className={cn(
+                      "text-right tabular-nums font-medium",
+                      c.esRetirada && "text-destructive",
+                    )}
+                  >
+                    {signo}
                     {formatAmount(
                       c.participaciones * c.precioUnitario,
                       investment.moneda,
@@ -225,7 +275,8 @@ export function ContributionsDialog({
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -294,12 +345,102 @@ export function ContributionsDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setWError(null);
+              setWithdrawOpen(true);
+            }}
+            disabled={isMutating}
+          >
+            <ArrowDownToLine className="mr-1 h-4 w-4" />
+            Retirar
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Retirada (reembolso) a una cuenta destino */}
+      <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Retirar de {investment.nombre}</DialogTitle>
+            <DialogDescription>
+              El dinero retirado entra en la cuenta destino. Baja el coste y el
+              valor de la inversion.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {!wTodo && (
+              <div className="space-y-1.5">
+                <Label htmlFor="w-cantidad">
+                  {conParticipaciones
+                    ? "Participaciones a retirar"
+                    : "Importe a retirar"}
+                </Label>
+                <Input
+                  id="w-cantidad"
+                  type="number"
+                  step={conParticipaciones ? "0.000001" : "0.01"}
+                  min={0}
+                  value={wCantidad}
+                  onChange={(e) => {
+                    setWCantidad(e.target.value);
+                    setWError(null);
+                  }}
+                />
+              </div>
+            )}
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={wTodo}
+                onChange={(e) => {
+                  setWTodo(e.target.checked);
+                  setWError(null);
+                }}
+              />
+              Retirar todo
+            </label>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="w-destino">Cuenta destino</Label>
+              <Select value={wDestino} onValueChange={setWDestino}>
+                <SelectTrigger id="w-destino">
+                  <SelectValue placeholder="Cuenta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.alias}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {wError && <p className="text-sm text-destructive">{wError}</p>}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setWithdrawOpen(false)}
+              disabled={isMutating}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={submitWithdraw} disabled={isMutating}>
+              Retirar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmacion de borrado con devolucion */}
       <Dialog
@@ -308,7 +449,9 @@ export function ContributionsDialog({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Borrar aportacion</DialogTitle>
+            <DialogTitle>
+              {toDelete?.esRetirada ? "Borrar retirada" : "Borrar aportacion"}
+            </DialogTitle>
             <DialogDescription>
               {toDelete && (
                 <>
@@ -327,7 +470,12 @@ export function ContributionsDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {toDelete?.movimientoId ? (
+          {toDelete?.esRetirada ? (
+            <p className="text-sm text-muted-foreground">
+              Se deshara la retirada: el importe sale de la cuenta destino y
+              vuelve a la inversion.
+            </p>
+          ) : toDelete?.movimientoId ? (
             <div className="space-y-1.5">
               <Label htmlFor="ap-refund">Devolver el importe a</Label>
               <Select value={refundAccountId} onValueChange={setRefundAccountId}>
@@ -361,7 +509,12 @@ export function ContributionsDialog({
             <Button
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={confirmDelete}
-              disabled={isMutating || (!!toDelete?.movimientoId && !refundAccountId)}
+              disabled={
+                isMutating ||
+                (!!toDelete?.movimientoId &&
+                  !toDelete?.esRetirada &&
+                  !refundAccountId)
+              }
             >
               Borrar
             </Button>

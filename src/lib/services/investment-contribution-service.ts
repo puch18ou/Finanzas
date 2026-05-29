@@ -24,7 +24,10 @@ import type { DrizzleDb } from "@/lib/db/proxy-driver";
 import { InvestmentRepository } from "@/lib/repositories/investment-repository";
 import { MovementRepository } from "@/lib/repositories/movement-repository";
 import { InvestmentContributionRepository } from "@/lib/repositories/investment-contribution-repository";
-import { recomputeTotalsFromContributions } from "@/lib/domain/investments";
+import {
+  recomputeTotalsFromContributions,
+  usaParticipaciones,
+} from "@/lib/domain/investments";
 import { extractPeriod } from "@/lib/utils/dates";
 
 export type AddContributionArgs = {
@@ -35,6 +38,19 @@ export type AddContributionArgs = {
   /** Cuenta de la que sale el dinero. Si se indica, se crea el movimiento. */
   cuentaOrigenId?: string | null;
   notas?: string | null;
+};
+
+export type WithdrawArgs = {
+  investmentId: string;
+  /** Cuenta a la que entra el dinero retirado. */
+  cuentaDestinoId: string;
+  fecha: Date;
+  /** Modo participaciones (Acciones/ETF/Cripto): participaciones a retirar. */
+  participaciones?: number;
+  /** Modo dinero (resto): importe a retirar. */
+  importe?: number;
+  /** Retirar toda la posicion. */
+  todo?: boolean;
 };
 
 export class InvestmentContributionService {
@@ -102,6 +118,84 @@ export class InvestmentContributionService {
   }
 
   /**
+   * Retira (reembolsa) parte o todo de una inversion: el dinero ENTRA en la
+   * cuenta destino, y bajan participaciones, coste y valor.
+   *
+   * - Modo participaciones (Acciones/ETF/Cripto): se retiran `participaciones`
+   *   unidades; el dinero recibido = unidades x precio actual.
+   * - Modo dinero (resto): se retira `importe` de valor.
+   *
+   * Se registra como una fila es_retirada=1 (participaciones positivas) para que
+   * el recalculo reste; el coste se reduce al coste medio (no afecta al medio).
+   */
+  async withdraw(args: WithdrawArgs): Promise<void> {
+    const inv = await this.investments.getById(args.investmentId);
+    if (!inv) throw new Error("La inversion no existe.");
+
+    const valorAntes = inv.precioActual * inv.participaciones;
+    const conPart = usaParticipaciones(inv.tipo);
+
+    let partRetirada: number;
+    let precioUnitario: number;
+    let dineroRecibido: number;
+
+    if (conPart) {
+      const n = args.todo ? inv.participaciones : args.participaciones ?? 0;
+      partRetirada = Math.min(Math.max(n, 0), inv.participaciones);
+      precioUnitario = inv.precioCompra; // coste medio (no mueve el medio)
+      dineroRecibido = partRetirada * inv.precioActual;
+    } else {
+      // Modo dinero (Fondo, etc.): retiras un IMPORTE del valor actual. El
+      // valor baja por ese importe; el coste baja en PROPORCION (conservas la
+      // parte de ganancia). Ej: invertido 1000, valor 1200, retiras 1100 ->
+      // quedan 100 de valor, coste ~83 (P/L +16,7).
+      const x = args.todo ? valorAntes : args.importe ?? 0;
+      dineroRecibido = Math.min(Math.max(x, 0), valorAntes);
+      const fraccion = valorAntes > 0 ? dineroRecibido / valorAntes : 0;
+      partRetirada = inv.participaciones * fraccion;
+      precioUnitario = 1;
+    }
+
+    if (partRetirada <= 0) return;
+
+    // Entrada de dinero en la cuenta destino (neutral a ingresos/gastos).
+    const { mes, anio } = extractPeriod(args.fecha);
+    const mov = await this.movements.create({
+      tipo: "transferencia",
+      fecha: args.fecha,
+      concepto: `Retirada de ${inv.nombre}`,
+      importe: dineroRecibido,
+      moneda: inv.moneda,
+      cuentaOrigenId: null,
+      cuentaDestinoId: args.cuentaDestinoId,
+      categoriaId: null,
+      categoriaTexto: null,
+      mes,
+      anio,
+      notas: null,
+      esAutomatico: false,
+      origenAutomatico: null,
+      origenAutomaticoId: null,
+    });
+
+    await this.contributions.create({
+      investmentId: args.investmentId,
+      fecha: args.fecha,
+      participaciones: partRetirada,
+      precioUnitario,
+      cuentaOrigenId: args.cuentaDestinoId,
+      movimientoId: mov.id,
+      esRetirada: true,
+      notas: "Retirada",
+    });
+
+    await this.recomputeWithValue(
+      args.investmentId,
+      Math.max(0, valorAntes - dineroRecibido),
+    );
+  }
+
+  /**
    * Borra una aportacion y DEVUELVE el importe aportado a una cuenta.
    *
    * - Deshace el movimiento de salida original (devuelve el importe a la cuenta
@@ -129,11 +223,18 @@ export class InvestmentContributionService {
       contribution.participaciones * contribution.precioUnitario;
 
     if (contribution.movimientoId) {
-      // Deshacer el descuento original: el importe vuelve a la cuenta de origen.
+      // Deshacer el movimiento asociado: en una aportacion devuelve el importe
+      // a su cuenta de origen; en una retirada quita el dinero de la cuenta
+      // destino (deshace la retirada).
       await this.movements.softDelete(contribution.movimientoId);
 
-      // Devolver a OTRA cuenta: mover el importe de la cuenta de origen a ella.
-      if (refundAccountId && refundAccountId !== contribution.cuentaOrigenId) {
+      // Devolver a OTRA cuenta (solo aportaciones): mover el importe de la
+      // cuenta de origen a la elegida. En retiradas no aplica.
+      if (
+        !contribution.esRetirada &&
+        refundAccountId &&
+        refundAccountId !== contribution.cuentaOrigenId
+      ) {
         const importe = importeQuitado;
         const fecha = new Date();
         const { mes, anio } = extractPeriod(fecha);
@@ -158,10 +259,14 @@ export class InvestmentContributionService {
     }
 
     await this.contributions.softDelete(id);
-    // El valor actual baja por lo quitado (sin bajar de 0).
+    // Borrar una aportacion baja el valor por lo aportado; borrar una retirada
+    // lo sube (deshace la retirada).
+    const target = contribution.esRetirada
+      ? valorAntes + importeQuitado
+      : valorAntes - importeQuitado;
     await this.recomputeWithValue(
       contribution.investmentId,
-      Math.max(0, valorAntes - importeQuitado),
+      Math.max(0, target),
     );
   }
 

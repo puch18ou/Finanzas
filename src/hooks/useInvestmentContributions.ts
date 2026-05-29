@@ -11,7 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import type { AddContributionArgs } from "@/lib/repositories";
+import type { AddContributionArgs, WithdrawArgs } from "@/lib/repositories";
 
 export const CONTRIBUTIONS_KEY = ["investmentContributions"] as const;
 
@@ -45,6 +45,19 @@ export function useInvestmentContributions(investmentId?: string) {
       ),
   });
 
+  const withdrawMutation = useMutation({
+    mutationFn: (args: WithdrawArgs) =>
+      repos.investmentContributionService.withdraw(args),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Retirada registrada");
+    },
+    onError: (e) =>
+      toast.error(
+        `No se pudo retirar: ${e instanceof Error ? e.message : "error"}`,
+      ),
+  });
+
   const removeMutation = useMutation({
     mutationFn: (args: { id: string; refundAccountId?: string | null }) =>
       repos.investmentContributionService.deleteContribution(
@@ -65,7 +78,11 @@ export function useInvestmentContributions(investmentId?: string) {
     contributions: query.data ?? [],
     isLoading: query.isLoading,
     add: addMutation.mutateAsync,
+    withdraw: withdrawMutation.mutateAsync,
     remove: removeMutation.mutateAsync,
-    isMutating: addMutation.isPending || removeMutation.isPending,
+    isMutating:
+      addMutation.isPending ||
+      withdrawMutation.isPending ||
+      removeMutation.isPending,
   };
 }

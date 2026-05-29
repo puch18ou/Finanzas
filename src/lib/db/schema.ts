@@ -605,6 +605,12 @@ export const investmentContributions = sqliteTable(
     cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
     movimientoId: text("movimiento_id").references(() => movements.id),
 
+    // false = aportacion (compra); true = retirada (reembolso/venta). El
+    // recalculo de totales resta las retiradas.
+    esRetirada: integer("es_retirada", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
     notas: text("notas"),
 
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
