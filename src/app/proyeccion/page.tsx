@@ -13,6 +13,8 @@ import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useMortgage } from "@/hooks/useMortgage";
 import { useOtherDebts } from "@/hooks/useOtherDebts";
+import { useGoals } from "@/hooks/useGoals";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -30,8 +32,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
+import { MESES_ES_CORTO } from "@/lib/utils/dates";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
@@ -45,6 +49,7 @@ export default function ProyeccionPage() {
   const { investments } = useInvestments();
   const { mortgage } = useMortgage();
   const { debts } = useOtherDebts();
+  const { goals } = useGoals();
 
   const currentYear = today.getFullYear();
 
@@ -168,6 +173,67 @@ export default function ProyeccionPage() {
 
   const patrimonioProyectado = projectionData[projectionData.length - 1]?.patrimonio ?? 0;
 
+  // Metas: importe objetivo (para los hitos del grafico) y fecha estimada de
+  // cumplimiento a partir de lo ya ahorrado + el ahorro mensual medio.
+  const goalsInfo = useMemo(() => {
+    return goals.map((g) => {
+      // Saldo efectivo: cuenta vinculada (si la hay) o el ya ahorrado guardado.
+      let yaAhorrado = g.yaAhorrado;
+      if (g.cuentaVinculadaId) {
+        const acc = accounts.find((a) => a.id === g.cuentaVinculadaId);
+        if (acc) {
+          try {
+            yaAhorrado = Math.max(
+              0,
+              convert(balances.get(acc.id) ?? 0, acc.moneda, g.moneda, rates),
+            );
+          } catch {}
+        }
+      }
+      let objetivoView = 0;
+      let yaView = 0;
+      try {
+        objetivoView = convert(g.importeObjetivo, g.moneda, viewCurrency, rates);
+      } catch {}
+      try {
+        yaView = convert(yaAhorrado, g.moneda, viewCurrency, rates);
+      } catch {}
+
+      const obj =
+        g.fechaObjetivo instanceof Date
+          ? g.fechaObjetivo
+          : new Date(g.fechaObjetivo);
+      const restante = Math.max(0, objetivoView - yaView);
+
+      let estado: "done" | "ontrack" | "late" | "norate" = "norate";
+      let estimada: Date | null = null;
+      let mesesRetraso = 0;
+      if (restante <= 0) {
+        estado = "done";
+      } else if (ahorroMensualMedio > 0) {
+        const meses = Math.ceil(restante / ahorroMensualMedio);
+        estimada = new Date(today.getFullYear(), today.getMonth() + meses, 1);
+        mesesRetraso =
+          (estimada.getFullYear() - obj.getFullYear()) * 12 +
+          (estimada.getMonth() - obj.getMonth());
+        estado = mesesRetraso <= 0 ? "ontrack" : "late";
+      }
+
+      return {
+        id: g.id,
+        nombre: g.nombre,
+        objetivoView,
+        fechaObjetivo: obj,
+        estado,
+        estimada,
+        mesesRetraso,
+      };
+    });
+  }, [goals, accounts, balances, rates, viewCurrency, ahorroMensualMedio, today]);
+
+  const fmtMesAnio = (d: Date) =>
+    `${MESES_ES_CORTO[d.getMonth()] ?? ""} ${d.getFullYear()}`;
+
   if (!settings) {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
   }
@@ -257,6 +323,20 @@ export default function ProyeccionPage() {
                     border: "1px solid var(--color-border)",
                   }}
                 />
+                {goalsInfo.map((g) => (
+                  <ReferenceLine
+                    key={g.id}
+                    y={g.objetivoView}
+                    stroke="var(--color-muted-foreground)"
+                    strokeDasharray="4 4"
+                    label={{
+                      value: g.nombre,
+                      position: "insideTopLeft",
+                      fontSize: 10,
+                      fill: "var(--color-muted-foreground)",
+                    }}
+                  />
+                ))}
                 <Line
                   type="monotone"
                   dataKey="patrimonio"
@@ -267,6 +347,61 @@ export default function ProyeccionPage() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Metas</CardTitle>
+          <CardDescription>
+            Fecha estimada de cumplimiento segun lo ya ahorrado y tu ahorro
+            mensual medio ({formatAmount(ahorroMensualMedio, viewCurrency)}/mes).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {goalsInfo.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No tienes metas definidas. Crealas en Metas.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {goalsInfo.map((g) => (
+                <div
+                  key={g.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">{g.nombre}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      {formatAmount(g.objetivoView, viewCurrency)} · objetivo{" "}
+                      {fmtMesAnio(g.fechaObjetivo)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    {g.estado === "done" ? (
+                      <Badge className="bg-primary">Ya alcanzada</Badge>
+                    ) : g.estado === "norate" ? (
+                      <Badge variant="secondary">Sin ritmo de ahorro</Badge>
+                    ) : (
+                      <>
+                        <span className="text-muted-foreground tabular-nums">
+                          estimado {g.estimada ? fmtMesAnio(g.estimada) : "—"}
+                        </span>
+                        {g.estado === "ontrack" ? (
+                          <Badge className="bg-primary">A tiempo</Badge>
+                        ) : (
+                          <Badge variant="destructive">
+                            +{g.mesesRetraso}{" "}
+                            {g.mesesRetraso === 1 ? "mes" : "meses"}
+                          </Badge>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
