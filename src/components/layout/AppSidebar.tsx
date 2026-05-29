@@ -37,6 +37,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { SidebarFooterHints } from "@/components/layout/SidebarFooterHints";
+import { useAuth } from "@/contexts/AuthProvider";
 
 type NavItem = {
   title: string;
@@ -98,6 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   return (
     <Sidebar>
@@ -108,7 +110,9 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Finanzas</span>
-            <span className="text-xs text-muted-foreground">v0.2 · local</span>
+            <span className="text-xs text-muted-foreground">
+              {user ? user.username : "local"}
+            </span>
           </div>
         </div>
       </SidebarHeader>

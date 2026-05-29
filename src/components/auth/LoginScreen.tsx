@@ -6,7 +6,7 @@
  * ============================================================================
  *
  *  Formulario clasico de credenciales: escribes el nombre de usuario (p.ej.
- *  puch18ou o admin) y el PIN (4-8 digitos). No mostramos la lista de usuarios
+ *  admin) y el PIN (4-8 digitos). No mostramos la lista de usuarios
  *  por privacidad.
  *
  *  Arriba a la derecha hay un boton de ajustes que controla el TEMA GLOBAL del
@@ -114,7 +114,11 @@ export function LoginScreen() {
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <Button type="submit" className="w-full gap-2" disabled={!canSubmit}>
+            <Button
+              type="submit"
+              className="w-full gap-2"
+              disabled={!canSubmit}
+            >
               <LogIn className="h-4 w-4" />
               {submitting ? "Entrando..." : "Entrar"}
             </Button>

@@ -92,7 +92,7 @@ async function getRegistry(): Promise<Database> {
 /**
  * Garantiza que existan los usuarios semilla. Idempotente y AUTORREPARABLE:
  * comprueba cada usuario por separado, de modo que un registro a medias (p.ej.
- * solo puch18ou) se completa en el siguiente arranque sin duplicar nada.
+ * solo admin) se completa en el siguiente arranque sin duplicar nada.
  */
 async function bootstrap(db: Database): Promise<void> {
   await ensureSeedUser(db, {

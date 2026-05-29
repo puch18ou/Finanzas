@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
+import { SecurityCard } from "@/components/auth/SecurityCard";
 
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
@@ -537,6 +538,8 @@ export default function AjustesPage() {
           <Button type="submit">Guardar ajustes</Button>
         </div>
       </form>
+
+      <SecurityCard />
 
       <BackupCard />
     </div>
