@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
+import { GlobalThemeProvider } from "@/contexts/GlobalThemeProvider";
 import { QueryProvider } from "@/contexts/QueryProvider";
-import {
-  DatabaseProvider,
-  DatabaseReady,
-} from "@/contexts/DatabaseProvider";
-import { QuickAddProvider } from "@/contexts/QuickAddProvider";
-import { ThemeProvider } from "@/contexts/ThemeProvider";
-import { ShortcutsProvider } from "@/contexts/ShortcutsProvider";
-import { AppShell } from "@/components/layout/AppShell";
+import { AuthProvider } from "@/contexts/AuthProvider";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -17,23 +12,17 @@ export const metadata: Metadata = {
 };
 
 /*
- * Orden de providers:
+ * Orden de providers (multiusuario, Lote 12):
  *
- *   QueryProvider          - TanStack Query (envolvente)
- *     DatabaseProvider     - Conexion BD
- *       DatabaseReady      - Bloquea hijos hasta que BD este lista
- *         QuickAddProvider - Estado del modal global de anadido rapido
- *           ThemeProvider  - Aplica clase 'dark' al <html> segun settings.tema
- *             ShortcutsProvider - Atajos globales: Ctrl+K, Ctrl+/
- *               AppShell   - Sidebar + topbar + FAB
- *                 {children}
+ *   GlobalThemeProvider  - Tema claro/oscuro GLOBAL del equipo (toda la app)
+ *     QueryProvider      - TanStack Query (envolvente)
+ *       AuthProvider     - Registro de usuarios + sesion (login por PIN)
+ *         AuthGate       - Decide: login / consola admin / app de finanzas
  *
- *  QuickAddProvider va DENTRO de DatabaseReady porque internamente usa
- *  el modal QuickExpenseDialog que necesita los repositorios y settings.
- *
- *  ThemeProvider y ShortcutsProvider tambien van dentro de DatabaseReady:
- *  el primero porque lee settings.tema, el segundo porque la CommandPalette
- *  usa useBackup() / useSettings() / useQuickAdd().
+ *  AuthGate monta el stack de finanzas (DatabaseProvider, DatabaseReady,
+ *  QuickAddProvider, ShortcutsProvider, AppShell) SOLO cuando hay un usuario
+ *  normal con sesion iniciada, abriendo SU fichero .db. El tema es global, no
+ *  depende del usuario.
  */
 
 export default function RootLayout({
@@ -44,20 +33,14 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body>
-        <QueryProvider>
-          <DatabaseProvider>
-            <DatabaseReady>
-              <QuickAddProvider>
-                <ThemeProvider>
-                  <ShortcutsProvider>
-                    <AppShell>{children}</AppShell>
-                  </ShortcutsProvider>
-                </ThemeProvider>
-              </QuickAddProvider>
-            </DatabaseReady>
-          </DatabaseProvider>
-          <Toaster richColors closeButton />
-        </QueryProvider>
+        <GlobalThemeProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <AuthGate>{children}</AuthGate>
+            </AuthProvider>
+            <Toaster richColors closeButton />
+          </QueryProvider>
+        </GlobalThemeProvider>
       </body>
     </html>
   );

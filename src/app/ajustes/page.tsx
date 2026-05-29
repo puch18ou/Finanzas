@@ -36,6 +36,7 @@ import { useEffect, useState } from "react";
 import { Check, AlertCircle } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useGlobalTheme, type ThemeValue } from "@/contexts/GlobalThemeProvider";
 import {
   Card,
   CardContent,
@@ -108,8 +109,10 @@ export default function AjustesPage() {
   const [patrimonioInicialMoneda, setPatrimonioInicialMoneda] = useState("");
   const [mostrarFab, setMostrarFab] = useState(true);
   const [integrarCuotaHipoteca, setIntegrarCuotaHipoteca] = useState(false);
-  const [tema, setTema] = useState<"light" | "dark" | "system">("system");
   const [cuentaPorDefectoId, setCuentaPorDefectoId] = useState("");
+
+  // El tema es GLOBAL del equipo (no por usuario): vive en localStorage.
+  const { theme, setTheme } = useGlobalTheme();
 
   const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -126,7 +129,6 @@ export default function AjustesPage() {
     setPatrimonioInicialMoneda(settings.patrimonioInicialMoneda ?? "");
     setMostrarFab(settings.mostrarFab);
     setIntegrarCuotaHipoteca(settings.integrarCuotaHipoteca);
-    setTema(settings.tema);
     setCuentaPorDefectoId(settings.cuentaPorDefectoId ?? "");
   }, [settings]);
 
@@ -165,7 +167,6 @@ export default function AjustesPage() {
         patrimonioInicialMoneda: emptyToNull(patrimonioInicialMoneda),
         mostrarFab,
         integrarCuotaHipoteca,
-        tema,
         cuentaPorDefectoId: emptyToNull(cuentaPorDefectoId),
       });
       setFeedback({ kind: "success", text: "Ajustes guardados" });
@@ -496,8 +497,8 @@ export default function AjustesPage() {
             <div className="space-y-2">
               <Label htmlFor="tema">Tema</Label>
               <Select
-                value={tema}
-                onValueChange={safeSet<"light" | "dark" | "system">(setTema)}
+                value={theme}
+                onValueChange={(v) => setTheme(v as ThemeValue)}
               >
                 <SelectTrigger id="tema" className="max-w-[200px]">
                   <SelectValue />
@@ -509,7 +510,8 @@ export default function AjustesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                El cambio de tema se aplica al instante.
+                Ajuste global del equipo: se aplica al instante a todos los
+                usuarios de este PC.
               </p>
             </div>
           </CardContent>

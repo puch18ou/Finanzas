@@ -33,7 +33,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getDb } from "@/lib/db/client";
+import { getDb, setActiveDbPath } from "@/lib/db/client";
+import { useAuth } from "@/contexts/AuthProvider";
 import { runMigrations } from "@/lib/db/migrate";
 import { runSeed } from "@/lib/db/seed";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
@@ -80,12 +81,19 @@ export function useRepos(): Repositories {
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
+  // Multiusuario: cada usuario tiene su propio fichero .db (Lote 12).
+  const { user } = useAuth();
+  const dbFile = user?.dbFile ?? null;
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
+        if (!dbFile) {
+          throw new Error("No hay fichero de BD para el usuario en sesion.");
+        }
+        setActiveDbPath(`sqlite:${dbFile}`);
         const db = await getDb();
         const migrationsApplied = await runMigrations();
         const seed = await runSeed();
@@ -133,7 +141,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dbFile]);
 
   return (
     <DatabaseContext.Provider value={status}>

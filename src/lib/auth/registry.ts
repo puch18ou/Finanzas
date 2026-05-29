@@ -92,28 +92,40 @@ async function getRegistry(): Promise<Database> {
   return _initPromise;
 }
 
+/**
+ * Garantiza que existan los usuarios semilla. Idempotente y AUTORREPARABLE:
+ * comprueba cada usuario por separado, de modo que un registro a medias (p.ej.
+ * solo puch18ou) se completa en el siguiente arranque sin duplicar nada.
+ */
 async function bootstrap(db: Database): Promise<void> {
-  const rows = await db.select<{ c: number }[]>(
-    `SELECT count(*) AS c FROM users`,
-  );
-  if ((rows[0]?.c ?? 0) > 0) return;
-
-  await insertUser(db, {
-    id: crypto.randomUUID(),
+  await ensureSeedUser(db, {
     username: "puch18ou",
     pin: "7410",
     role: "user",
     dbFile: LEGACY_DB_FILE,
     mustChangePin: false,
   });
-  await insertUser(db, {
-    id: crypto.randomUUID(),
+  await ensureSeedUser(db, {
     username: "admin",
     pin: "0000",
     role: "admin",
     dbFile: null,
     mustChangePin: true,
   });
+}
+
+async function ensureSeedUser(
+  db: Database,
+  seed: {
+    username: string;
+    pin: string;
+    role: UserRole;
+    dbFile: string | null;
+    mustChangePin: boolean;
+  },
+): Promise<void> {
+  if (await getRowByUsername(db, seed.username)) return;
+  await insertUser(db, { id: crypto.randomUUID(), ...seed });
 }
 
 async function insertUser(

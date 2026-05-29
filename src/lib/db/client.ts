@@ -37,7 +37,15 @@
 import Database from "@tauri-apps/plugin-sql";
 import { createDrizzleClient, type DrizzleDb } from "./proxy-driver";
 
-const DB_PATH = "sqlite:finanzas.db";
+/**
+ * Ruta de la BD ACTIVA. Es dinamica: cada usuario tiene su propio fichero
+ * (multiusuario, Lote 12). Debe fijarse con setActiveDbPath() ANTES de getDb().
+ * Mientras no haya sesion iniciada, es null y getDb() lanza.
+ */
+let _dbPath: string | null = null;
+
+/** Ruta realmente abierta (para detectar cambios de usuario). */
+let _openedPath: string | null = null;
 
 /**
  * Estado interno del modulo. No exportado: solo se accede via getDb().
@@ -45,6 +53,15 @@ const DB_PATH = "sqlite:finanzas.db";
 let _tauriDb: Database | null = null;
 let _drizzleDb: DrizzleDb | null = null;
 let _initPromise: Promise<DrizzleDb> | null = null;
+
+/**
+ * Fija la BD activa (ej. "sqlite:user_<id>.db"). La conexion no se abre hasta
+ * el siguiente getDb(). Si la ruta cambia respecto a la abierta, getDb()
+ * reabrira sobre el nuevo fichero.
+ */
+export function setActiveDbPath(path: string): void {
+  _dbPath = path;
+}
 
 /**
  * Obtiene la instancia de Drizzle conectada al SQLite local.
@@ -55,8 +72,14 @@ let _initPromise: Promise<DrizzleDb> | null = null;
  * comparten la misma promesa (no se abren dos conexiones).
  */
 export async function getDb(): Promise<DrizzleDb> {
-  // Ya inicializado: retorno directo.
-  if (_drizzleDb) {
+  if (!_dbPath) {
+    throw new Error(
+      "No hay BD activa: inicia sesion antes de usar getDb() (multiusuario).",
+    );
+  }
+
+  // Ya inicializado sobre la MISMA ruta: retorno directo.
+  if (_drizzleDb && _openedPath === _dbPath) {
     return _drizzleDb;
   }
 
@@ -65,11 +88,21 @@ export async function getDb(): Promise<DrizzleDb> {
     return _initPromise;
   }
 
+  const pathToOpen = _dbPath;
+
   // Primer caller: arrancamos la inicializacion.
   _initPromise = (async () => {
+    // Si habia una conexion abierta a OTRO fichero (cambio de usuario),
+    // la cerramos antes de abrir el nuevo.
+    if (_tauriDb && _openedPath !== pathToOpen) {
+      await _tauriDb.close();
+      _tauriDb = null;
+      _drizzleDb = null;
+    }
+
     // 1. Cargar el fichero SQLite via plugin Tauri.
     //    Si el fichero no existe, lo crea vacio.
-    _tauriDb = await Database.load(DB_PATH);
+    _tauriDb = await Database.load(pathToOpen);
 
     // 2. Activar PRAGMAs criticos. Estos se aplican en CADA conexion;
     //    SQLite no los persiste entre handles.
@@ -79,10 +112,15 @@ export async function getDb(): Promise<DrizzleDb> {
 
     // 3. Envolver con Drizzle y guardar el cliente.
     _drizzleDb = createDrizzleClient(_tauriDb);
+    _openedPath = pathToOpen;
     return _drizzleDb;
   })();
 
-  return _initPromise;
+  try {
+    return await _initPromise;
+  } finally {
+    _initPromise = null;
+  }
 }
 
 /**
@@ -105,8 +143,10 @@ export async function getRawDb(): Promise<Database> {
 export async function closeDb(): Promise<void> {
   if (_tauriDb) {
     await _tauriDb.close();
-    _tauriDb = null;
-    _drizzleDb = null;
-    _initPromise = null;
   }
+  _tauriDb = null;
+  _drizzleDb = null;
+  _initPromise = null;
+  _openedPath = null;
+  _dbPath = null;
 }

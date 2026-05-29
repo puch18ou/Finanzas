@@ -18,8 +18,9 @@
  * ShortcutsProvider sin dependencias circulares.
  */
 
-import { Command, Keyboard } from "lucide-react";
+import { Command, Keyboard, LogOut, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthProvider";
 
 function triggerShortcut(key: string, ctrl = true) {
   // Emulamos una pulsacion real para que ShortcutsProvider la pille.
@@ -32,6 +33,8 @@ function triggerShortcut(key: string, ctrl = true) {
 }
 
 export function SidebarFooterHints() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="mt-auto border-t border-sidebar-border p-2 space-y-1">
       <Button
@@ -61,6 +64,24 @@ export function SidebarFooterHints() {
         <span className="font-mono text-[10px] text-muted-foreground">
           Ctrl+/
         </span>
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full justify-between font-normal"
+        onClick={logout}
+      >
+        <span className="flex items-center gap-2">
+          <LogOut className="h-3.5 w-3.5" />
+          Cerrar sesion
+        </span>
+        {user && (
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <UserIcon className="h-3 w-3" />
+            {user.username}
+          </span>
+        )}
       </Button>
     </div>
   );
