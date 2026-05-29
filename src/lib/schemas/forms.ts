@@ -124,6 +124,9 @@ export const investmentFormSchema = z.object({
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),
   moneda: z.string().min(2).max(4),
+  // Requerida al CREAR (la cuenta de origen de la que sale el dinero). Al
+  // editar puede faltar en inversiones antiguas, asi que la validacion de
+  // obligatoriedad se hace en el formulario solo en modo creacion.
   cuentaId: z.string().nullable().optional(),
   fechaCompra: z.date().nullable().optional(),
   notas: z.string().max(500).nullable().optional(),

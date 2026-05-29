@@ -50,8 +50,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils/cn";
 import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
-const NONE_VALUE = "__none__";
-
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +79,7 @@ export function InvestmentFormDialog({
     handleSubmit,
     control,
     reset,
+    setError,
     formState: { errors },
   } = useForm<InvestmentFormData>({
     resolver: zodResolver(investmentFormSchema),
@@ -92,7 +91,7 @@ export function InvestmentFormDialog({
       precioCompra: 0,
       precioActual: 0,
       moneda: monedaLocal,
-      cuentaId: null,
+      cuentaId: "",
       fechaCompra: null,
       notas: "",
     },
@@ -109,7 +108,7 @@ export function InvestmentFormDialog({
           precioCompra: initial.precioCompra,
           precioActual: initial.precioActual,
           moneda: initial.moneda,
-          cuentaId: initial.cuentaId,
+          cuentaId: initial.cuentaId ?? "",
           fechaCompra:
             initial.fechaCompra instanceof Date
               ? initial.fechaCompra
@@ -127,7 +126,7 @@ export function InvestmentFormDialog({
           precioCompra: 0,
           precioActual: 0,
           moneda: monedaLocal,
-          cuentaId: null,
+          cuentaId: "",
           fechaCompra: null,
           notas: "",
         });
@@ -136,6 +135,14 @@ export function InvestmentFormDialog({
   }, [initial, open, monedaLocal, reset]);
 
   const internalSubmit = handleSubmit(async (data) => {
+    // Al CREAR, la cuenta de origen es obligatoria (de ahi sale el dinero).
+    if (!isEdit && !data.cuentaId) {
+      setError("cuentaId", {
+        type: "manual",
+        message: "Selecciona la cuenta de origen",
+      });
+      return;
+    }
     try {
       await onSubmit({
         ...data,
@@ -149,10 +156,9 @@ export function InvestmentFormDialog({
     }
   });
 
-  // Solo mostramos cuentas tipo Broker para el campo "broker"
-  const cuentasBroker = accounts.filter(
-    (a) => a.activa && a.tipo === "Broker",
-  );
+  // Mostramos todas las cuentas activas (no solo las de tipo "Broker"): la
+  // inversion se puede vincular a cualquier cuenta del usuario.
+  const cuentasDisponibles = accounts.filter((a) => a.activa);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -282,24 +288,21 @@ export function InvestmentFormDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="inv-cuenta">Broker / cuenta (opcional)</Label>
+              <Label htmlFor="inv-cuenta">Cuenta de origen</Label>
               <Controller
                 control={control}
                 name="cuentaId"
                 render={({ field }) => (
                   <Select
-                    value={field.value ?? NONE_VALUE}
-                    onValueChange={(v) =>
-                      field.onChange(v === NONE_VALUE ? null : v)
-                    }
+                    value={field.value ?? ""}
+                    onValueChange={field.onChange}
                     disabled={loading}
                   >
                     <SelectTrigger id="inv-cuenta">
-                      <SelectValue placeholder="Sin cuenta" />
+                      <SelectValue placeholder="Selecciona una cuenta" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE_VALUE}>Sin cuenta</SelectItem>
-                      {cuentasBroker.map((a) => (
+                      {cuentasDisponibles.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
                           {a.alias}
                         </SelectItem>
@@ -308,9 +311,20 @@ export function InvestmentFormDialog({
                   </Select>
                 )}
               />
-              {cuentasBroker.length === 0 && (
+              {errors.cuentaId && (
+                <p className="text-xs text-destructive">
+                  {errors.cuentaId.message}
+                </p>
+              )}
+              {!isEdit && cuentasDisponibles.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Para vincular un broker, primero crea una cuenta de tipo "Broker"
+                  Al crear, se descontara el importe (participaciones x precio)
+                  de esta cuenta.
+                </p>
+              )}
+              {cuentasDisponibles.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No tienes cuentas activas. Crea una en la pagina de Cuentas.
                 </p>
               )}
             </div>

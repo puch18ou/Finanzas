@@ -18,6 +18,7 @@ import {
   categories,
   accounts,
   investments,
+  investmentContributions,
   goals,
   mortgage,
   otherDebts,
@@ -27,7 +28,7 @@ import { computeNetImpactByAccount } from "@/lib/domain/accounts";
 import { buildRatesMap } from "@/lib/domain/currency";
 import type { Currency } from "@/lib/db/schema";
 
-const BACKUP_VERSION = 3;
+const BACKUP_VERSION = 4;
 const APP_ID = "finanzas";
 
 export type BackupFile = {
@@ -44,6 +45,8 @@ export type BackupFile = {
     mortgage: unknown[];
     otherDebts: unknown[];
     movements: unknown[];
+    // v4: aportaciones de inversiones. Ausente en backups v<=3.
+    investmentContributions?: unknown[];
     // Compatibilidad con formatos anteriores (ignorados al importar)
     monthlyIncomes?: unknown[];
     expenses?: unknown[];
@@ -56,13 +59,14 @@ export class BackupService {
 
   async exportAll(): Promise<BackupFile> {
     const [
-      curs, sets, cats, accs, invs, gls, mort, debts, movs,
+      curs, sets, cats, accs, invs, invContribs, gls, mort, debts, movs,
     ] = await Promise.all([
       this.db.select().from(currencies),
       this.db.select().from(settings),
       this.db.select().from(categories),
       this.db.select().from(accounts),
       this.db.select().from(investments),
+      this.db.select().from(investmentContributions),
       this.db.select().from(goals),
       this.db.select().from(mortgage),
       this.db.select().from(otherDebts),
@@ -79,6 +83,7 @@ export class BackupService {
         categories: cats,
         accounts: accs,
         investments: invs,
+        investmentContributions: invContribs,
         goals: gls,
         mortgage: mort,
         otherDebts: debts,
@@ -216,6 +221,7 @@ export class BackupService {
     );
 
     // Vaciar en orden inverso de dependencias
+    await this.db.delete(investmentContributions);
     await this.db.delete(movements);
     await this.db.delete(investments);
     await this.db.delete(goals);
@@ -237,7 +243,40 @@ export class BackupService {
     await this.insertBatch(otherDebts, convert(backup.data.otherDebts));
 
     await this.insertBatch(movements, convert(movRows));
+
+    // Aportaciones de inversiones: v4 trae el array. Backups v<=3 no lo tienen,
+    // asi que sembramos una aportacion inicial por inversion (como la migracion
+    // 0010) para que el historial sea coherente.
+    const contribRows =
+      backup.version >= 4 && backup.data.investmentContributions
+        ? (backup.data.investmentContributions as Array<Record<string, unknown>>)
+        : this.seedContributionsFromInvestments(
+            backup.data.investments as Array<Record<string, unknown>>,
+          );
+    await this.insertBatch(investmentContributions, convert(contribRows));
     // monthlyIncomes en backups antiguos: IGNORADO (tabla deprecated en uso)
+  }
+
+  /**
+   * Construye una aportacion inicial por inversion (para importar backups v<=3
+   * que aun no tenian aportaciones). Mismo criterio que la migracion 0010.
+   */
+  private seedContributionsFromInvestments(
+    investmentRows: Array<Record<string, unknown>>,
+  ): Array<Record<string, unknown>> {
+    return investmentRows.map((inv) => ({
+      id: `mig0010-${inv.id as string}`,
+      investmentId: inv.id,
+      fecha: inv.fechaCompra ?? inv.createdAt,
+      participaciones: inv.participaciones,
+      precioUnitario: inv.precioCompra,
+      cuentaOrigenId: null,
+      movimientoId: null,
+      notas: "Aportacion inicial",
+      createdAt: inv.createdAt,
+      updatedAt: inv.createdAt,
+      deletedAt: null,
+    }));
   }
 
   /**

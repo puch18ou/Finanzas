@@ -21,6 +21,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useInvestments } from "@/hooks/useInvestments";
+import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { InvestmentFormDialog } from "@/components/forms/InvestmentFormDialog";
@@ -68,6 +69,7 @@ export default function InversionesPage() {
     remove,
     isMutating,
   } = useInvestments();
+  const { add: addContribution } = useInvestmentContributions();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Investment | null>(null);
@@ -315,7 +317,7 @@ export default function InversionesPage() {
           if (editing) {
             await update({ id: editing.id, patch: data });
           } else {
-            await create({
+            const inv = await create({
               tipo: data.tipo,
               ticker: data.ticker ?? null,
               nombre: data.nombre,
@@ -326,6 +328,15 @@ export default function InversionesPage() {
               cuentaId: data.cuentaId ?? null,
               fechaCompra: data.fechaCompra ?? null,
               notas: data.notas ?? null,
+            });
+            // La primera compra es una aportacion: descuenta de la cuenta de
+            // origen (movimiento de salida) y deja el historial para el grafico.
+            await addContribution({
+              investmentId: inv.id,
+              fecha: data.fechaCompra ?? new Date(),
+              participaciones: data.participaciones,
+              precioUnitario: data.precioCompra,
+              cuentaOrigenId: data.cuentaId ?? null,
             });
           }
         }}

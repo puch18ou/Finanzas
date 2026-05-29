@@ -574,6 +574,55 @@ export const movements = sqliteTable(
 );
 
 // ============================================================================
+//  investmentContributions — APORTACIONES a una inversion (Lote 13)
+// ============================================================================
+//
+//  Historial de aportaciones de una inversion. Cada fila es una compra de
+//  `participaciones` a `precioUnitario` en una fecha. La moneda se hereda de
+//  la inversion (no se repite aqui).
+//
+//  El total de participaciones y el coste medio ponderado de la inversion se
+//  recalculan desde aqui, pero se mantienen CACHEADOS en investments para no
+//  romper a los consumidores existentes (ver investment-contribution-service).
+//
+//  movimientoId: si la aportacion descuenta de una cuenta, apunta al movement
+//  (transferencia) creado; al borrar la aportacion, se borra ese movimiento.
+// ============================================================================
+export const investmentContributions = sqliteTable(
+  "investment_contributions",
+  {
+    id: text("id").primaryKey(),
+
+    investmentId: text("investment_id")
+      .notNull()
+      .references(() => investments.id),
+
+    fecha: integer("fecha", { mode: "timestamp_ms" }).notNull(),
+
+    participaciones: real("participaciones").notNull(),
+    precioUnitario: real("precio_unitario").notNull(),
+
+    cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
+    movimientoId: text("movimiento_id").references(() => movements.id),
+
+    notas: text("notas"),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("idx_inv_contrib_investment")
+      .on(t.investmentId)
+      .where(sql`${t.deletedAt} IS NULL`),
+    check(
+      "inv_contrib_no_neg",
+      sql`${t.participaciones} >= 0 AND ${t.precioUnitario} >= 0`,
+    ),
+  ],
+);
+
+// ============================================================================
 //  BLOQUE recurringRules
 // ============================================================================
 //
@@ -706,6 +755,11 @@ export type NewSyncLog = typeof syncLog.$inferInsert;
 
 export type Movement = typeof movements.$inferSelect;
 export type NewMovement = typeof movements.$inferInsert;
+
+export type InvestmentContribution =
+  typeof investmentContributions.$inferSelect;
+export type NewInvestmentContribution =
+  typeof investmentContributions.$inferInsert;
 
 export type RecurringRule = typeof recurringRules.$inferSelect;
 export type NewRecurringRule = typeof recurringRules.$inferInsert;

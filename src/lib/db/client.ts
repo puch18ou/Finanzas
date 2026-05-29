@@ -92,14 +92,12 @@ export async function getDb(): Promise<DrizzleDb> {
 
   // Primer caller: arrancamos la inicializacion.
   _initPromise = (async () => {
-    // Si habia una conexion abierta a OTRO fichero (cambio de usuario),
-    // la cerramos antes de abrir el nuevo.
-    if (_tauriDb && _openedPath !== pathToOpen) {
-      await _tauriDb.close();
-      _tauriDb = null;
-      _drizzleDb = null;
-    }
-
+    // Cambio de usuario: abrimos la BD del nuevo fichero. NO cerramos la
+    // conexion anterior a proposito. Cerrarla mientras una query en vuelo aun
+    // la usa provoca "connection on a closed pool" (sobre todo en dev con
+    // StrictMode/HMR). Cada usuario es un fichero .db distinto, asi que dejar
+    // el pool anterior abierto no causa locks; se libera al cerrar la app.
+    //
     // 1. Cargar el fichero SQLite via plugin Tauri.
     //    Si el fichero no existe, lo crea vacio.
     _tauriDb = await Database.load(pathToOpen);

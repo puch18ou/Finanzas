@@ -28,6 +28,35 @@
 import type { Investment } from "@/lib/db/schema";
 import { convert, type RatesMap } from "./currency";
 
+/**
+ * Recalcula los totales cacheados de una inversion a partir de sus
+ * aportaciones (Lote 13): total de participaciones y coste medio PONDERADO.
+ *
+ *   participaciones = Σ part_i
+ *   precioMedio     = Σ(part_i · precio_i) / Σ part_i   (0 si no hay)
+ *
+ * Estos valores se guardan en investments.participaciones / precioCompra para
+ * que el resto de la app (metricas, dashboard, proyeccion) siga funcionando.
+ */
+export type ContributionLike = {
+  participaciones: number;
+  precioUnitario: number;
+};
+
+export function recomputeTotalsFromContributions(
+  contributions: ContributionLike[],
+): { participaciones: number; precioMedio: number } {
+  let totalParticipaciones = 0;
+  let costeTotal = 0;
+  for (const c of contributions) {
+    totalParticipaciones += c.participaciones;
+    costeTotal += c.participaciones * c.precioUnitario;
+  }
+  const precioMedio =
+    totalParticipaciones > 0 ? costeTotal / totalParticipaciones : 0;
+  return { participaciones: totalParticipaciones, precioMedio };
+}
+
 export type InvestmentMetrics = {
   valorActual: number;
   costeTotal: number;
