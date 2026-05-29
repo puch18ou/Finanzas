@@ -29,6 +29,21 @@ import type { Investment } from "@/lib/db/schema";
 import { convert, type RatesMap } from "./currency";
 
 /**
+ * Tipos de inversion que se llevan POR PARTICIPACIONES (numero de unidades a un
+ * precio). El resto (Fondo, Bono, Plan pensiones, Inmueble, Oro, Robo-advisor,
+ * Cuenta remunerada, Otro) se llevan en modo "solo dinero": el usuario solo
+ * mete importes y el valor actual total, sin participaciones.
+ *
+ * En modo dinero, internamente guardamos participaciones = importe (euros) y
+ * precio por unidad = 1, de modo que toda la logica de coste/valor sigue igual.
+ */
+const TIPOS_CON_PARTICIPACIONES = new Set(["Acciones", "ETF", "Cripto"]);
+
+export function usaParticipaciones(tipo: string): boolean {
+  return TIPOS_CON_PARTICIPACIONES.has(tipo);
+}
+
+/**
  * Recalcula los totales cacheados de una inversion a partir de sus
  * aportaciones (Lote 13): total de participaciones y coste medio PONDERADO.
  *

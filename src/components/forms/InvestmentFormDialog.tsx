@@ -13,8 +13,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { usaParticipaciones } from "@/lib/domain/investments";
 import { Calendar as CalendarIcon } from "lucide-react";
 import {
   investmentFormSchema,
@@ -97,6 +98,11 @@ export function InvestmentFormDialog({
     },
   });
 
+  // Tipo seleccionado en vivo: decide si la inversion va por participaciones
+  // (Acciones/ETF/Cripto) o en modo "solo dinero" (resto).
+  const tipoSel = useWatch({ control, name: "tipo" });
+  const conParticipaciones = usaParticipaciones(tipoSel ?? "Acciones");
+
   useEffect(() => {
     if (open) {
       if (initial) {
@@ -147,6 +153,13 @@ export function InvestmentFormDialog({
       setError("fechaCompra", {
         type: "manual",
         message: "Selecciona la fecha de compra",
+      });
+      return;
+    }
+    if (!isEdit && conParticipaciones && !(data.participaciones > 0)) {
+      setError("participaciones", {
+        type: "manual",
+        message: "Debe ser mayor que 0",
       });
       return;
     }
@@ -230,23 +243,26 @@ export function InvestmentFormDialog({
             )}
           </div>
 
-          {/* Participaciones y precio de compra: SOLO al crear. Al editar,
-              esos valores salen de las aportaciones (no se editan a mano). */}
+          {/* Participaciones e importe: SOLO al crear. Al editar, esos valores
+              salen de las aportaciones. Las participaciones solo se piden en
+              modo participaciones (Acciones/ETF/Cripto). */}
           {!isEdit && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="inv-part">Participaciones</Label>
-                <Input
-                  id="inv-part"
-                  type="number"
-                  step="0.000001"
-                  {...register("participaciones", { valueAsNumber: true })}
-                  disabled={loading}
-                />
-                {errors.participaciones && (
-                  <p className="text-xs text-destructive">{errors.participaciones.message}</p>
-                )}
-              </div>
+              {conParticipaciones && (
+                <div className="space-y-2">
+                  <Label htmlFor="inv-part">Participaciones</Label>
+                  <Input
+                    id="inv-part"
+                    type="number"
+                    step="0.000001"
+                    {...register("participaciones", { valueAsNumber: true })}
+                    disabled={loading}
+                  />
+                  {errors.participaciones && (
+                    <p className="text-xs text-destructive">{errors.participaciones.message}</p>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="inv-importe">Importe invertido (total)</Label>
                 <Input

@@ -107,6 +107,9 @@ export const TIPOS_INVERSION = [
   "Bono",
   "Plan pensiones",
   "Inmueble",
+  "Oro",
+  "Robo-advisor",
+  "Cuenta remunerada",
   "Otro",
 ] as const;
 
@@ -114,9 +117,11 @@ export const investmentFormSchema = z.object({
   tipo: z.string().min(1, "Selecciona un tipo").max(40),
   ticker: z.string().max(20).nullable().optional(),
   nombre: z.string().min(1, "El nombre es obligatorio").max(120),
+  // Solo aplica en modo "participaciones" (Acciones/ETF/Cripto); la
+  // obligatoriedad >0 se valida en el formulario segun el tipo.
   participaciones: z
     .number({ message: "Debe ser un numero" })
-    .positive("Debe ser mayor que 0"),
+    .nonnegative("No puede ser negativo"),
   // Importe TOTAL gastado en la compra (no por unidad). El precio por unidad se
   // deriva = importeInvertido / participaciones.
   importeInvertido: z

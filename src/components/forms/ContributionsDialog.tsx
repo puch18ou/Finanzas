@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatAmount } from "@/lib/domain/currency";
+import { usaParticipaciones } from "@/lib/domain/investments";
 import {
   formatDateOnlyString,
   formatDateLong,
@@ -83,6 +84,9 @@ export function ContributionsDialog({
 
   if (!investment) return null;
 
+  // Modo participaciones (Acciones/ETF/Cripto) vs "solo dinero" (resto).
+  const conParticipaciones = usaParticipaciones(investment.tipo);
+
   function resetAddForm() {
     setFecha(formatDateOnlyString(new Date()));
     setParticipaciones("");
@@ -93,14 +97,9 @@ export function ContributionsDialog({
 
   async function submitAdd() {
     if (!investment) return;
-    const part = Number(participaciones);
     const tot = Number(total);
-    if (!Number.isFinite(part) || part <= 0) {
-      setAddError("Participaciones debe ser mayor que 0.");
-      return;
-    }
-    if (!Number.isFinite(tot) || tot < 0) {
-      setAddError("El importe no puede ser negativo.");
+    if (!Number.isFinite(tot) || tot <= 0) {
+      setAddError("El importe debe ser mayor que 0.");
       return;
     }
     if (!cuentaOrigenId) {
@@ -111,12 +110,29 @@ export function ContributionsDialog({
       setAddError("Selecciona una fecha.");
       return;
     }
+
+    // En modo participaciones: el usuario mete participaciones + importe total,
+    // derivamos el precio por unidad. En modo "solo dinero": participaciones =
+    // importe (euros) y precio por unidad = 1.
+    let part: number;
+    let precioUnitario: number;
+    if (conParticipaciones) {
+      part = Number(participaciones);
+      if (!Number.isFinite(part) || part <= 0) {
+        setAddError("Participaciones debe ser mayor que 0.");
+        return;
+      }
+      precioUnitario = tot / part;
+    } else {
+      part = tot;
+      precioUnitario = 1;
+    }
+
     await add({
       investmentId: investment.id,
       fecha: normalizeDateToUTCNoon(parseDateOnlyString(fecha)),
       participaciones: part,
-      // El usuario mete el importe total; derivamos el precio por unidad.
-      precioUnitario: tot / part,
+      precioUnitario,
       cuentaOrigenId,
     });
     resetAddForm();
@@ -156,8 +172,12 @@ export function ContributionsDialog({
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead className="text-right">Particip.</TableHead>
-                <TableHead className="text-right">Precio</TableHead>
+                {conParticipaciones && (
+                  <>
+                    <TableHead className="text-right">Particip.</TableHead>
+                    <TableHead className="text-right">Precio</TableHead>
+                  </>
+                )}
                 <TableHead className="text-right">Importe</TableHead>
                 <TableHead>Cuenta</TableHead>
                 <TableHead className="w-[40px]" />
@@ -171,14 +191,18 @@ export function ContributionsDialog({
                       c.fecha instanceof Date ? c.fecha : new Date(c.fecha),
                     )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {c.participaciones.toLocaleString("es-ES", {
-                      maximumFractionDigits: 6,
-                    })}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatAmount(c.precioUnitario, investment.moneda)}
-                  </TableCell>
+                  {conParticipaciones && (
+                    <>
+                      <TableCell className="text-right tabular-nums">
+                        {c.participaciones.toLocaleString("es-ES", {
+                          maximumFractionDigits: 6,
+                        })}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatAmount(c.precioUnitario, investment.moneda)}
+                      </TableCell>
+                    </>
+                  )}
                   <TableCell className="text-right tabular-nums font-medium">
                     {formatAmount(
                       c.participaciones * c.precioUnitario,
@@ -219,17 +243,19 @@ export function ContributionsDialog({
                 onChange={(e) => setFecha(e.target.value)}
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="ap-part" className="text-xs">Participaciones</Label>
-              <Input
-                id="ap-part"
-                type="number"
-                step="0.000001"
-                min={0}
-                value={participaciones}
-                onChange={(e) => setParticipaciones(e.target.value)}
-              />
-            </div>
+            {conParticipaciones && (
+              <div className="space-y-1">
+                <Label htmlFor="ap-part" className="text-xs">Participaciones</Label>
+                <Input
+                  id="ap-part"
+                  type="number"
+                  step="0.000001"
+                  min={0}
+                  value={participaciones}
+                  onChange={(e) => setParticipaciones(e.target.value)}
+                />
+              </div>
+            )}
             <div className="space-y-1">
               <Label htmlFor="ap-total" className="text-xs">Total aportado</Label>
               <Input

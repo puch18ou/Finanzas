@@ -55,6 +55,7 @@ import {
 import {
   calculateInvestmentMetrics,
   summarizePortfolio,
+  usaParticipaciones,
 } from "@/lib/domain/investments";
 import { cn } from "@/lib/utils/cn";
 
@@ -230,18 +231,22 @@ export default function InversionesPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {inv.participaciones.toLocaleString("es-ES", {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 6,
-                        })}
+                        {usaParticipaciones(inv.tipo)
+                          ? inv.participaciones.toLocaleString("es-ES", {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 6,
+                            })
+                          : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         <div className="font-medium">
                           {formatAmount(m.costeTotal, inv.moneda)}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatAmount(inv.precioCompra, inv.moneda)}/ud
-                        </div>
+                        {usaParticipaciones(inv.tipo) && (
+                          <div className="text-xs text-muted-foreground">
+                            {formatAmount(inv.precioCompra, inv.moneda)}/ud
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right p-1">
                         <Input
@@ -352,12 +357,17 @@ export default function InversionesPage() {
               },
             });
           } else {
-            // El usuario introduce el IMPORTE TOTAL invertido; derivamos el
-            // precio por unidad.
-            const precioUnitario =
-              data.participaciones > 0
+            // Modo participaciones (Acciones/ETF/Cripto): el usuario mete
+            // participaciones + importe total -> precio por unidad derivado.
+            // Modo "solo dinero" (resto): no hay participaciones; usamos el
+            // importe como "unidades" a precio 1 (asi coste y valor cuadran).
+            const conPart = usaParticipaciones(data.tipo);
+            const part = conPart ? data.participaciones : data.importeInvertido;
+            const precioUnitario = conPart
+              ? data.participaciones > 0
                 ? data.importeInvertido / data.participaciones
-                : 0;
+                : 0
+              : 1;
             // Creamos la inversion "vacia" (0); la aportacion inicial fija
             // participaciones, coste y valor actual (asi el valor actual sube
             // exactamente por el importe invertido, sin duplicar).
@@ -378,7 +388,7 @@ export default function InversionesPage() {
             await addContribution({
               investmentId: inv.id,
               fecha: data.fechaCompra ?? new Date(),
-              participaciones: data.participaciones,
+              participaciones: part,
               precioUnitario,
               cuentaOrigenId: data.cuentaId ?? null,
             });
