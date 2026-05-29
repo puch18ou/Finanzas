@@ -44,6 +44,13 @@ export function usaParticipaciones(tipo: string): boolean {
 }
 
 /**
+ * Marca en `notas` que identifica una aportacion generada por un plan periodico
+ * (Lote 13b-2). Se usa para separar en la UI las aportaciones individuales de
+ * las periodicas.
+ */
+export const APORTACION_PERIODICA_NOTA = "Aportacion periodica";
+
+/**
  * Recalcula los totales cacheados de una inversion a partir de sus
  * aportaciones (Lote 13): total de participaciones y coste medio PONDERADO.
  *

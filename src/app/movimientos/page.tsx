@@ -29,10 +29,13 @@ import {
   Settings2,
   Sparkles,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useInvestments } from "@/hooks/useInvestments";
+import { useRepos } from "@/contexts/DatabaseProvider";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
@@ -72,6 +75,15 @@ export default function MovimientosPage() {
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
   const { accounts } = useAccounts();
+  const { investments } = useInvestments();
+  const repos = useRepos();
+
+  // Mapa movimientoId -> nombre de la inversion, para etiquetar las
+  // transferencias de aportacion/retirada (que no tienen cuenta destino/origen).
+  const { data: allContribs = [] } = useQuery({
+    queryKey: ["investmentContributions", "all"],
+    queryFn: () => repos.investmentContributions.listAll(),
+  });
 
   const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
     "mov:anio",
@@ -146,6 +158,18 @@ export default function MovimientosPage() {
     for (const a of accounts) m[a.id] = a.alias;
     return m;
   }, [accounts]);
+
+  const invNameByMovId = useMemo(() => {
+    const nameByInv: Record<string, string> = {};
+    for (const inv of investments) nameByInv[inv.id] = inv.nombre;
+    const map: Record<string, string> = {};
+    for (const c of allContribs) {
+      if (c.movimientoId) {
+        map[c.movimientoId] = nameByInv[c.investmentId] ?? "Inversion";
+      }
+    }
+    return map;
+  }, [investments, allContribs]);
 
   // Form state
   const [formOpen, setFormOpen] = useState(false);
@@ -247,6 +271,7 @@ export default function MovimientosPage() {
                     m={m}
                     catById={catById}
                     accById={accById}
+                    invNameByMovId={invNameByMovId}
                     onEdit={() => {
                       setEditing(m);
                       setFormOpen(true);
@@ -321,12 +346,14 @@ function MovementRow({
   m,
   catById,
   accById,
+  invNameByMovId,
   onEdit,
   onDelete,
 }: {
   m: Movement;
   catById: Record<string, string>;
   accById: Record<string, string>;
+  invNameByMovId: Record<string, string>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -352,7 +379,7 @@ function MovementRow({
       </TableCell>
       <TableCell className="font-medium">{m.concepto}</TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {renderCategoriaOCuentas(m, catById, accById)}
+        {renderCategoriaOCuentas(m, catById, accById, invNameByMovId)}
       </TableCell>
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass)}>
         {tipoMeta.amountSign}
@@ -382,10 +409,14 @@ function renderCategoriaOCuentas(
   m: Movement,
   catById: Record<string, string>,
   accById: Record<string, string>,
+  invNameByMovId: Record<string, string>,
 ): string {
   if (m.tipo === "transferencia") {
-    const o = m.cuentaOrigenId ? accById[m.cuentaOrigenId] ?? "?" : "?";
-    const d = m.cuentaDestinoId ? accById[m.cuentaDestinoId] ?? "?" : "?";
+    // Las aportaciones/retiradas de inversion son transferencias sin cuenta
+    // destino/origen: en su lugar mostramos el nombre de la inversion.
+    const inv = invNameByMovId[m.id];
+    const o = m.cuentaOrigenId ? accById[m.cuentaOrigenId] ?? "?" : inv ?? "?";
+    const d = m.cuentaDestinoId ? accById[m.cuentaDestinoId] ?? "?" : inv ?? "?";
     return `${o} → ${d}`;
   }
   if (m.tipo === "ingreso" || m.tipo === "intereses") {

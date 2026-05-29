@@ -67,6 +67,7 @@ const ORIGEN_LABEL: Record<string, { label: string; path: string }> = {
   mortgage: { label: "Hipoteca", path: "/hipoteca" },
   debt: { label: "Deuda", path: "/deudas" },
   interest: { label: "Intereses cuenta", path: "/cuentas" },
+  investment: { label: "Inversion periodica", path: "/inversiones" },
 };
 
 export default function RecurrentesPage() {

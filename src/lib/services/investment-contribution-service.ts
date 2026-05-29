@@ -20,14 +20,25 @@
  * ============================================================================
  */
 
+import { and, eq, isNull } from "drizzle-orm";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
+import { movements, recurringRules } from "@/lib/db/schema";
+import type { RecurringRule } from "@/lib/db/schema";
 import { InvestmentRepository } from "@/lib/repositories/investment-repository";
 import { MovementRepository } from "@/lib/repositories/movement-repository";
 import { InvestmentContributionRepository } from "@/lib/repositories/investment-contribution-repository";
 import {
+  APORTACION_PERIODICA_NOTA,
   recomputeTotalsFromContributions,
   usaParticipaciones,
 } from "@/lib/domain/investments";
+import {
+  anioMesToComparableNumber,
+  buildPeriodDate,
+  currentPeriod,
+  isPeriodInRange,
+  periodsBetween,
+} from "@/lib/domain/recurring";
 import { extractPeriod } from "@/lib/utils/dates";
 
 export type AddContributionArgs = {
@@ -196,6 +207,149 @@ export class InvestmentContributionService {
   }
 
   /**
+   * Genera las aportaciones PERIODICAS pendientes (Lote 13b-2). Las reglas
+   * de aportacion periodica se guardan en `recurring_rules` con
+   * origen_automatico = 'investment' y origen_automatico_id = id de la
+   * inversion. Por cada mes [fechaInicio..mes actual] que aun no tenga su
+   * aportacion, crea el movimiento de salida + la fila de aportacion +
+   * recalcula los totales. Idempotente: la deteccion de duplicados usa el
+   * movimiento generado (origenAutomaticoId = regla, mes, anio).
+   *
+   * Se llama al arrancar la app, despues de RecurringService.
+   */
+  async generatePeriodicContributions(now: Date = new Date()): Promise<number> {
+    const rules = await this.db
+      .select()
+      .from(recurringRules)
+      .where(
+        and(
+          eq(recurringRules.origenAutomatico, "investment"),
+          eq(recurringRules.activa, true),
+          isNull(recurringRules.deletedAt),
+        ),
+      );
+    if (rules.length === 0) return 0;
+
+    let generated = 0;
+
+    for (const rule of rules) {
+      // Sin cuenta de origen no podemos garantizar idempotencia (el movimiento
+      // es quien lleva la clave de cada ocurrencia), asi que no generamos.
+      if (!rule.origenAutomaticoId || !rule.cuentaOrigenId) continue;
+
+      const occurrences = buildOccurrences(rule, now);
+      if (occurrences.length === 0) continue;
+
+      // Movimientos ya generados por esta regla. La clave es por mes (mensual)
+      // o por dia (semanal/diaria), segun la frecuencia.
+      const existing = await this.db
+        .select({ fecha: movements.fecha })
+        .from(movements)
+        .where(
+          and(
+            eq(movements.origenAutomaticoId, rule.id),
+            isNull(movements.deletedAt),
+          ),
+        );
+      const existingKey = new Set(
+        existing.map((e) =>
+          occurrenceKey(
+            rule.frecuencia,
+            e.fecha instanceof Date ? e.fecha : new Date(e.fecha),
+          ),
+        ),
+      );
+
+      for (const fecha of occurrences) {
+        if (existingKey.has(occurrenceKey(rule.frecuencia, fecha))) continue;
+        const { mes, anio } = extractPeriod(fecha);
+        const ok = await this.addPeriodicContribution(rule, fecha, mes, anio);
+        if (ok) generated++;
+      }
+    }
+
+    return generated;
+  }
+
+  /**
+   * Registra UNA aportacion periodica para el periodo (mes, anio): crea el
+   * movimiento de salida desde la cuenta de la regla y la fila de aportacion,
+   * y recalcula los totales. El importe es fijo (regla.importe). En modo
+   * participaciones (Acciones/ETF/Cripto) las participaciones se derivan del
+   * valor actual por participacion en el momento de generarse; en modo dinero
+   * (resto) participaciones = importe y precio/ud = 1.
+   *
+   * Devuelve true si se creo la aportacion.
+   */
+  private async addPeriodicContribution(
+    rule: RecurringRule,
+    fecha: Date,
+    mes: number,
+    anio: number,
+  ): Promise<boolean> {
+    const investmentId = rule.origenAutomaticoId;
+    if (!investmentId) return false;
+
+    // Releemos la inversion en cada periodo: al aportar cambian sus totales,
+    // y el precio de referencia del siguiente mes debe partir del valor ya
+    // actualizado.
+    const investment = await this.investments.getById(investmentId);
+    if (!investment) return false; // inversion borrada -> no generamos
+
+    const importe = rule.importe;
+    if (importe <= 0) return false;
+
+    const valorAntes = investment.precioActual * investment.participaciones;
+
+    let participaciones: number;
+    let precioUnitario: number;
+    if (usaParticipaciones(investment.tipo)) {
+      const precioRef =
+        investment.precioActual > 0
+          ? investment.precioActual
+          : investment.precioCompra > 0
+            ? investment.precioCompra
+            : 1;
+      precioUnitario = precioRef;
+      participaciones = importe / precioRef;
+    } else {
+      participaciones = importe;
+      precioUnitario = 1;
+    }
+
+    const mov = await this.movements.create({
+      tipo: "transferencia",
+      fecha,
+      concepto: `Aportacion periodica a ${investment.nombre}`,
+      importe,
+      moneda: investment.moneda,
+      cuentaOrigenId: rule.cuentaOrigenId,
+      cuentaDestinoId: null,
+      categoriaId: null,
+      categoriaTexto: null,
+      mes,
+      anio,
+      notas: null,
+      esAutomatico: true,
+      origenAutomatico: null,
+      origenAutomaticoId: rule.id,
+    });
+
+    await this.contributions.create({
+      investmentId,
+      fecha,
+      participaciones,
+      precioUnitario,
+      cuentaOrigenId: rule.cuentaOrigenId,
+      movimientoId: mov.id,
+      notas: APORTACION_PERIODICA_NOTA,
+    });
+
+    await this.recomputeWithValue(investmentId, valorAntes + importe);
+    return true;
+  }
+
+  /**
    * Borra una aportacion y DEVUELVE el importe aportado a una cuenta.
    *
    * - Deshace el movimiento de salida original (devuelve el importe a la cuenta
@@ -306,6 +460,31 @@ export class InvestmentContributionService {
   }
 
   /**
+   * Archiva una inversion (posicion cerrada): la marca como archivada y
+   * CANCELA (soft-delete) sus planes de aportacion periodica activos, para que
+   * no sigan generando aportaciones. Pensada para usar cuando el valor es 0.
+   */
+  async archiveInvestment(investmentId: string): Promise<void> {
+    const ts = new Date();
+    await this.db
+      .update(recurringRules)
+      .set({ deletedAt: ts, updatedAt: ts })
+      .where(
+        and(
+          eq(recurringRules.origenAutomatico, "investment"),
+          eq(recurringRules.origenAutomaticoId, investmentId),
+          isNull(recurringRules.deletedAt),
+        ),
+      );
+    await this.investments.archive(investmentId);
+  }
+
+  /** Desarchiva una inversion (vuelve a la vista activa). */
+  async unarchiveInvestment(investmentId: string): Promise<void> {
+    await this.investments.unarchive(investmentId);
+  }
+
+  /**
    * Borrado definitivo de una inversion (vaciar papelera): elimina antes sus
    * aportaciones para no violar la foreign key.
    */
@@ -344,4 +523,105 @@ export class InvestmentContributionService {
       precioCompra: precioMedio,
     });
   }
+}
+
+// ----------------------------------------------------------------------------
+//  Helpers de ocurrencias para aportaciones periodicas (Lote 13b-2)
+// ----------------------------------------------------------------------------
+
+type Frecuencia = "diaria" | "semanal" | "mensual";
+
+const DAY_MS = 86_400_000;
+// Tope de seguridad por regla y pasada, para evitar generar miles de filas si
+// fechaInicio es muy antigua (sobre todo en frecuencia diaria).
+const OCCURRENCE_CAP = 2000;
+
+/** Numero de dia UTC (medianoche) para comparar a nivel de dia. */
+function utcDayNumber(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/** Fecha a las 12:00 UTC del mismo dia (idempotente si ya lo esta). */
+function utcNoon(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0, 0),
+  );
+}
+
+/** Clave de idempotencia: por mes (mensual) o por dia (semanal/diaria). */
+function occurrenceKey(frecuencia: Frecuencia, fecha: Date): string {
+  if (frecuencia === "mensual") {
+    return `${fecha.getUTCFullYear()}-${fecha.getUTCMonth() + 1}`;
+  }
+  return `${fecha.getUTCFullYear()}-${fecha.getUTCMonth() + 1}-${fecha.getUTCDate()}`;
+}
+
+/**
+ * Fechas (a las 12:00 UTC) en las que toca una aportacion periodica, desde
+ * fechaInicio hasta hoy (inclusive), respetando fechaFin.
+ *
+ *  - mensual: una por mes en diaDelMes (con clamp). Genera el mes en curso
+ *    aunque el dia aun no haya llegado (igual que RecurringService).
+ *  - semanal: cada 7 dias a partir del primer diaSemana >= fechaInicio.
+ *  - diaria: cada dia.
+ */
+function buildOccurrences(rule: RecurringRule, now: Date): Date[] {
+  const start =
+    rule.fechaInicio instanceof Date
+      ? rule.fechaInicio
+      : new Date(rule.fechaInicio);
+  const end = rule.fechaFin
+    ? rule.fechaFin instanceof Date
+      ? rule.fechaFin
+      : new Date(rule.fechaFin)
+    : null;
+
+  const frecuencia: Frecuencia = rule.frecuencia;
+
+  if (frecuencia === "mensual") {
+    const startAnio = start.getUTCFullYear();
+    const startMes = start.getUTCMonth() + 1;
+    const { anio: anioEnd, mes: mesEnd } = currentPeriod(now);
+    if (
+      anioMesToComparableNumber(startAnio, startMes) >
+      anioMesToComparableNumber(anioEnd, mesEnd)
+    ) {
+      return [];
+    }
+    const result: Date[] = [];
+    for (const p of periodsBetween(startAnio, startMes, anioEnd, mesEnd)) {
+      if (!isPeriodInRange(p.anio, p.mes, start, end)) continue;
+      result.push(buildPeriodDate(rule.diaDelMes, p.anio, p.mes));
+    }
+    return result;
+  }
+
+  // diaria / semanal: iteramos por dias a las 12:00 UTC.
+  const stepDays = frecuencia === "semanal" ? 7 : 1;
+  let cursor = utcNoon(start);
+
+  if (frecuencia === "semanal") {
+    const target = rule.diaSemana ?? cursor.getUTCDay();
+    let guard = 0;
+    while (cursor.getUTCDay() !== target && guard < 7) {
+      cursor = new Date(cursor.getTime() + DAY_MS);
+      guard++;
+    }
+  }
+
+  const nowDay = utcDayNumber(now);
+  const endDay = end ? utcDayNumber(end) : Number.POSITIVE_INFINITY;
+
+  const result: Date[] = [];
+  let count = 0;
+  while (
+    utcDayNumber(cursor) <= nowDay &&
+    utcDayNumber(cursor) <= endDay &&
+    count < OCCURRENCE_CAP
+  ) {
+    result.push(cursor);
+    cursor = new Date(cursor.getTime() + stepDays * DAY_MS);
+    count++;
+  }
+  return result;
 }

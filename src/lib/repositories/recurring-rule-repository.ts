@@ -32,7 +32,13 @@ export type RecurringRuleType =
   | "cuota"
   | "intereses";
 
-export type RecurringRuleOrigen = "mortgage" | "debt" | "interest";
+export type RecurringRuleOrigen =
+  | "mortgage"
+  | "debt"
+  | "interest"
+  | "investment";
+
+export type RecurringFrecuencia = "diaria" | "semanal" | "mensual";
 
 export type CreateRecurringRuleData = {
   nombre: string;
@@ -46,6 +52,10 @@ export type CreateRecurringRuleData = {
   diaDelMes: number;
   fechaInicio: Date;
   fechaFin?: Date | null;
+  /** 'mensual' por defecto. 'semanal' usa diaSemana; 'diaria' ninguno. */
+  frecuencia?: RecurringFrecuencia;
+  /** 0=domingo..6=sabado. Solo para frecuencia 'semanal'. */
+  diaSemana?: number | null;
   activa?: boolean;
   origenAutomatico?: RecurringRuleOrigen | null;
   origenAutomaticoId?: string | null;
@@ -143,6 +153,8 @@ export class RecurringRuleRepository {
       diaDelMes: data.diaDelMes,
       fechaInicio: data.fechaInicio,
       fechaFin: data.fechaFin ?? null,
+      frecuencia: data.frecuencia ?? "mensual",
+      diaSemana: data.diaSemana ?? null,
       activa: data.activa ?? true,
       origenAutomatico: data.origenAutomatico ?? null,
       origenAutomaticoId: data.origenAutomaticoId ?? null,

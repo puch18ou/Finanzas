@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usaParticipaciones } from "@/lib/domain/investments";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Trash2 } from "lucide-react";
 import {
   investmentFormSchema,
   type InvestmentFormData,
@@ -59,6 +59,8 @@ type Props = {
   accounts: Account[];
   monedaLocal: string;
   onSubmit: (data: InvestmentFormData) => Promise<void>;
+  /** Si se indica y estamos editando, muestra "Borrar" en el pie del dialogo. */
+  onDelete?: () => void;
   loading?: boolean;
 };
 
@@ -70,6 +72,7 @@ export function InvestmentFormDialog({
   accounts,
   monedaLocal,
   onSubmit,
+  onDelete,
   loading = false,
 }: Props) {
   const isEdit = !!initial;
@@ -419,18 +422,32 @@ export function InvestmentFormDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Guardando..." : isEdit ? "Guardar cambios" : "Anadir inversion"}
-            </Button>
+          <DialogFooter className={cn(isEdit && onDelete && "sm:justify-between")}>
+            {isEdit && onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onDelete}
+                disabled={loading}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                Borrar
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Guardando..." : isEdit ? "Guardar cambios" : "Anadir inversion"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

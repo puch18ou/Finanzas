@@ -77,6 +77,34 @@ export function useInvestments() {
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) =>
+      repos.investmentContributionService.archiveInvestment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVESTMENTS_KEY });
+      qc.invalidateQueries({ queryKey: ["investmentsArchived"] });
+      qc.invalidateQueries({ queryKey: ["recurringRules"] });
+      qc.invalidateQueries({ queryKey: ["investmentPlan"] });
+      toast.success("Inversion archivada");
+    },
+    onError: (e) => {
+      toast.error(`No se pudo archivar: ${e instanceof Error ? e.message : "error"}`);
+    },
+  });
+
+  const unarchiveMutation = useMutation({
+    mutationFn: (id: string) =>
+      repos.investmentContributionService.unarchiveInvestment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVESTMENTS_KEY });
+      qc.invalidateQueries({ queryKey: ["investmentsArchived"] });
+      toast.success("Inversion desarchivada");
+    },
+    onError: (e) => {
+      toast.error(`No se pudo desarchivar: ${e instanceof Error ? e.message : "error"}`);
+    },
+  });
+
   return {
     investments: query.data ?? [],
     isLoading: query.isLoading,
@@ -85,10 +113,14 @@ export function useInvestments() {
     update: updateMutation.mutateAsync,
     updatePrice: updatePriceMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,
+    archive: archiveMutation.mutateAsync,
+    unarchive: unarchiveMutation.mutateAsync,
     isMutating:
       createMutation.isPending ||
       updateMutation.isPending ||
       updatePriceMutation.isPending ||
-      deleteMutation.isPending,
+      deleteMutation.isPending ||
+      archiveMutation.isPending ||
+      unarchiveMutation.isPending,
   };
 }

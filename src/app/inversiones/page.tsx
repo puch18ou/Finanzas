@@ -11,12 +11,14 @@
  */
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Pencil,
-  Trash2,
   Plus,
   Layers,
   RefreshCw,
+  Archive,
+  ArchiveRestore,
   PieChart as PieIcon,
   TrendingUp,
   TrendingDown,
@@ -25,6 +27,7 @@ import {
 import { useInvestments } from "@/hooks/useInvestments";
 import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useRepos } from "@/contexts/DatabaseProvider";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { InvestmentFormDialog } from "@/components/forms/InvestmentFormDialog";
 import { ContributionsDialog } from "@/components/forms/ContributionsDialog";
@@ -32,6 +35,7 @@ import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -87,16 +91,27 @@ export default function InversionesPage() {
     update,
     updatePrice,
     remove,
+    archive,
+    unarchive,
     isMutating,
   } = useInvestments();
   const { add: addContribution } = useInvestmentContributions();
+  const repos = useRepos();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Investment | null>(null);
   const [toDelete, setToDelete] = useState<Investment | null>(null);
+  const [toArchive, setToArchive] = useState<Investment | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [contributionsFor, setContributionsFor] = useState<Investment | null>(
     null,
   );
+
+  const { data: archivadas = [] } = useQuery({
+    queryKey: ["investmentsArchived"],
+    queryFn: () => repos.investments.listArchived(),
+    enabled: showArchived,
+  });
 
   // Dialogo "Actualizar valor actual" (valor TOTAL real de hoy).
   const [valueFor, setValueFor] = useState<Investment | null>(null);
@@ -145,7 +160,11 @@ export default function InversionesPage() {
   // Tabla de posiciones reutilizable. `showParticipaciones` controla si se
   // muestran las columnas de participaciones y precio/ud (se ocultan en las
   // pestanas de tipos "solo dinero").
-  const renderTable = (list: Investment[], showParticipaciones: boolean) => {
+  const renderTable = (
+    list: Investment[],
+    showParticipaciones: boolean,
+    archived = false,
+  ) => {
     if (!isLoading && list.length === 0) {
       return (
         <p className="py-8 text-center text-sm text-muted-foreground">
@@ -246,42 +265,73 @@ export default function InversionesPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openValueUpdate(inv)}
-                      aria-label="Actualizar valor"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setContributionsFor(inv)}
-                      aria-label="Aportaciones"
-                    >
-                      <Layers className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditing(inv);
-                        setFormOpen(true);
-                      }}
-                      aria-label="Editar"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setToDelete(inv)}
-                      className="text-destructive hover:text-destructive"
-                      aria-label="Borrar"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {archived ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => unarchive(inv.id)}
+                          aria-label="Desarchivar"
+                        >
+                          <ArchiveRestore className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditing(inv);
+                            setFormOpen(true);
+                          }}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openValueUpdate(inv)}
+                          aria-label="Actualizar valor"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setContributionsFor(inv)}
+                          aria-label="Aportaciones"
+                        >
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditing(inv);
+                            setFormOpen(true);
+                          }}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setToArchive(inv)}
+                          disabled={m.valorActual >= 0.005}
+                          aria-label="Archivar"
+                          title={
+                            m.valorActual >= 0.005
+                              ? "Solo se puede archivar con valor 0"
+                              : "Archivar"
+                          }
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -302,15 +352,28 @@ export default function InversionesPage() {
             actualizar para poner el valor actual de cada posicion.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Anadir inversion
-        </Button>
+        <div className="flex items-center gap-3">
+          <Label
+            htmlFor="show-archived"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <Switch
+              id="show-archived"
+              checked={showArchived}
+              onCheckedChange={setShowArchived}
+            />
+            Mostrar archivadas
+          </Label>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Anadir inversion
+          </Button>
+        </div>
       </header>
 
       {/* KPIs */}
@@ -377,6 +440,27 @@ export default function InversionesPage() {
         ))}
       </Tabs>
 
+      {showArchived && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Archivadas</CardTitle>
+            <CardDescription>
+              Posiciones cerradas (valor 0). Fuera de los KPIs y la vista
+              principal. Puedes desarchivarlas cuando quieras.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {archivadas.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No tienes inversiones archivadas.
+              </p>
+            ) : (
+              renderTable(archivadas, true, true)
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <InvestmentFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
@@ -385,6 +469,15 @@ export default function InversionesPage() {
         accounts={accounts}
         monedaLocal={settings.monedaLocal}
         loading={isMutating}
+        onDelete={
+          editing
+            ? () => {
+                const inv = editing;
+                setFormOpen(false);
+                setToDelete(inv);
+              }
+            : undefined
+        }
         onSubmit={async (data) => {
           if (editing) {
             // Al editar solo se tocan los metadatos + el valor actual TOTAL
@@ -450,6 +543,11 @@ export default function InversionesPage() {
         onOpenChange={(v) => !v && setContributionsFor(null)}
         investment={contributionsFor}
         accounts={accounts}
+        onWithdrewAll={() => {
+          const inv = contributionsFor;
+          setContributionsFor(null);
+          if (inv) setToArchive(inv);
+        }}
       />
 
       <Dialog open={!!valueFor} onOpenChange={(v) => !v && setValueFor(null)}>
@@ -507,6 +605,41 @@ export default function InversionesPage() {
           }
         }}
       />
+
+      {/* Confirmar archivar */}
+      <Dialog open={!!toArchive} onOpenChange={(v) => !v && setToArchive(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archivar inversion</DialogTitle>
+            <DialogDescription>
+              {toArchive
+                ? `"${toArchive.nombre}" se archivara como posicion cerrada. Se cancelaran sus aportaciones periodicas y quedara fuera de la vista principal. Podras desarchivarla cuando quieras.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setToArchive(null)}
+              disabled={isMutating}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                if (toArchive) {
+                  await archive(toArchive.id);
+                  setToArchive(null);
+                }
+              }}
+              disabled={isMutating}
+            >
+              <Archive className="mr-1 h-4 w-4" />
+              Archivar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

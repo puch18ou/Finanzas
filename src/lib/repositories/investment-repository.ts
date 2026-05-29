@@ -16,7 +16,7 @@
  * ============================================================================
  */
 
-import { eq, asc, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, asc, isNull, isNotNull } from "drizzle-orm";
 import {
   investments,
   type Investment,
@@ -26,17 +26,27 @@ import { BaseRepository, newId, now } from "./base";
 
 export type CreateInvestmentData = Omit<
   NewInvestment,
-  "id" | "createdAt" | "updatedAt" | "deletedAt"
+  "id" | "createdAt" | "updatedAt" | "deletedAt" | "archivada"
 >;
 
 export type UpdateInvestmentData = Partial<CreateInvestmentData>;
 
 export class InvestmentRepository extends BaseRepository {
+  /** Inversiones activas: no borradas y NO archivadas. */
   async list(): Promise<Investment[]> {
     return this.db
       .select()
       .from(investments)
-      .where(isNull(investments.deletedAt))
+      .where(and(isNull(investments.deletedAt), eq(investments.archivada, false)))
+      .orderBy(asc(investments.nombre));
+  }
+
+  /** Inversiones archivadas (no borradas). */
+  async listArchived(): Promise<Investment[]> {
+    return this.db
+      .select()
+      .from(investments)
+      .where(and(isNull(investments.deletedAt), eq(investments.archivada, true)))
       .orderBy(asc(investments.nombre));
   }
 
@@ -105,6 +115,20 @@ export class InvestmentRepository extends BaseRepository {
     await this.db
       .update(investments)
       .set({ deletedAt: null, updatedAt: now() })
+      .where(eq(investments.id, id));
+  }
+
+  async archive(id: string): Promise<void> {
+    await this.db
+      .update(investments)
+      .set({ archivada: true, updatedAt: now() })
+      .where(eq(investments.id, id));
+  }
+
+  async unarchive(id: string): Promise<void> {
+    await this.db
+      .update(investments)
+      .set({ archivada: false, updatedAt: now() })
       .where(eq(investments.id, id));
   }
 

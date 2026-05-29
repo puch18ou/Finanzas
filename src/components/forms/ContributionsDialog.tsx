@@ -5,17 +5,24 @@
  *  src/components/forms/ContributionsDialog.tsx — Aportaciones de una inversion
  * ============================================================================
  *
- *  Lista las aportaciones de una inversion y permite:
- *    - Anadir una aportacion puntual (fecha, participaciones, precio, cuenta de
- *      origen). Descuenta el importe de esa cuenta.
- *    - Borrar una aportacion, devolviendo el importe aportado a la cuenta que
- *      se elija (por defecto, la de origen).
+ *  Dos pestañas:
+ *    - Individuales: aportaciones puntuales (y retiradas). Botones "Anadir
+ *      aportacion" y "Retirar".
+ *    - Periodicas: lista de planes de aportacion periodica (se pueden tener
+ *      varios) con su historial de aportaciones generadas.
+ *
+ *  Las listas tienen scroll propio para no desbordar el dialogo.
  * ============================================================================
  */
 
 import { useState } from "react";
-import { Plus, Trash2, ArrowDownToLine } from "lucide-react";
-import type { Account, Investment, InvestmentContribution } from "@/lib/db/schema";
+import { Plus, Trash2, ArrowDownToLine, Repeat, Pencil } from "lucide-react";
+import type {
+  Account,
+  Investment,
+  InvestmentContribution,
+  RecurringRule,
+} from "@/lib/db/schema";
 import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import {
   Dialog,
@@ -40,12 +47,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { formatAmount } from "@/lib/domain/currency";
-import { usaParticipaciones } from "@/lib/domain/investments";
+import {
+  APORTACION_PERIODICA_NOTA,
+  usaParticipaciones,
+} from "@/lib/domain/investments";
 import {
   formatDateOnlyString,
   formatDateLong,
@@ -58,6 +69,26 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   investment: Investment | null;
   accounts: Account[];
+  /** Se llama tras una retirada "todo" (la posicion queda a 0). */
+  onWithdrewAll?: () => void;
+};
+
+// Dias de la semana en convencion JS getUTCDay (0=domingo). Orden de display
+// empezando en lunes.
+const DIAS_SEMANA = [
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miercoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sabado" },
+  { value: 0, label: "Domingo" },
+] as const;
+
+const FRECUENCIA_LABEL: Record<string, string> = {
+  diaria: "cada dia",
+  semanal: "cada semana",
+  mensual: "al mes",
 };
 
 export function ContributionsDialog({
@@ -65,13 +96,25 @@ export function ContributionsDialog({
   onOpenChange,
   investment,
   accounts,
+  onWithdrewAll,
 }: Props) {
-  const { contributions, add, withdraw, remove, isMutating } =
-    useInvestmentContributions(investment?.id);
+  const {
+    contributions,
+    add,
+    withdraw,
+    remove,
+    plans,
+    savePlan,
+    cancelPlan,
+    isMutating,
+  } = useInvestmentContributions(investment?.id);
   const activeAccounts = accounts.filter((a) => a.activa);
   const aliasById = Object.fromEntries(accounts.map((a) => [a.id, a.alias]));
 
-  // Formulario de "añadir"
+  const [tab, setTab] = useState<"individuales" | "periodicas">("individuales");
+
+  // Añadir aportación
+  const [addOpen, setAddOpen] = useState(false);
   const [fecha, setFecha] = useState(formatDateOnlyString(new Date()));
   const [participaciones, setParticipaciones] = useState("");
   const [total, setTotal] = useState("");
@@ -89,10 +132,31 @@ export function ContributionsDialog({
   const [toDelete, setToDelete] = useState<InvestmentContribution | null>(null);
   const [refundAccountId, setRefundAccountId] = useState("");
 
+  // Plan de aportación periódica
+  const [planFormOpen, setPlanFormOpen] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [pImporte, setPImporte] = useState("");
+  const [pCuenta, setPCuenta] = useState("");
+  const [pFrecuencia, setPFrecuencia] = useState<
+    "diaria" | "semanal" | "mensual"
+  >("mensual");
+  const [pDia, setPDia] = useState("1");
+  const [pDiaSemana, setPDiaSemana] = useState("1");
+  const [pInicio, setPInicio] = useState(formatDateOnlyString(new Date()));
+  const [pFin, setPFin] = useState("");
+  const [pError, setPError] = useState<string | null>(null);
+
   if (!investment) return null;
 
   // Modo participaciones (Acciones/ETF/Cripto) vs "solo dinero" (resto).
   const conParticipaciones = usaParticipaciones(investment.tipo);
+
+  // Aportaciones periodicas (generadas por un plan) vs individuales (resto,
+  // incluidas las retiradas).
+  const esPeriodica = (c: InvestmentContribution) =>
+    !c.esRetirada && c.notas === APORTACION_PERIODICA_NOTA;
+  const periodicas = contributions.filter(esPeriodica);
+  const individuales = contributions.filter((c) => !esPeriodica(c));
 
   function resetAddForm() {
     setFecha(formatDateOnlyString(new Date()));
@@ -118,9 +182,6 @@ export function ContributionsDialog({
       return;
     }
 
-    // En modo participaciones: el usuario mete participaciones + importe total,
-    // derivamos el precio por unidad. En modo "solo dinero": participaciones =
-    // importe (euros) y precio por unidad = 1.
     let part: number;
     let precioUnitario: number;
     if (conParticipaciones) {
@@ -143,6 +204,7 @@ export function ContributionsDialog({
       cuentaOrigenId,
     });
     resetAddForm();
+    setAddOpen(false);
   }
 
   async function submitWithdraw() {
@@ -160,6 +222,7 @@ export function ContributionsDialog({
       );
       return;
     }
+    const fueTodo = wTodo;
     await withdraw({
       investmentId: investment.id,
       cuentaDestinoId: wDestino,
@@ -172,6 +235,8 @@ export function ContributionsDialog({
     setWTodo(false);
     setWDestino("");
     setWError(null);
+    // Si se retiro todo, la posicion queda a 0: avisamos para ofrecer archivar.
+    if (fueTodo) onWithdrewAll?.();
   }
 
   function openDelete(c: InvestmentContribution) {
@@ -188,41 +253,134 @@ export function ContributionsDialog({
     setToDelete(null);
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Aportaciones · {investment.nombre}</DialogTitle>
-          <DialogDescription>
-            Cada aportacion descuenta su importe de la cuenta de origen.
-          </DialogDescription>
-        </DialogHeader>
+  function openPlanForm(p: RecurringRule | null) {
+    if (p) {
+      setEditingPlanId(p.id);
+      setPImporte(String(p.importe));
+      setPCuenta(p.cuentaOrigenId ?? "");
+      setPFrecuencia(p.frecuencia);
+      setPDia(String(p.diaDelMes));
+      setPDiaSemana(String(p.diaSemana ?? 1));
+      setPInicio(
+        formatDateOnlyString(
+          p.fechaInicio instanceof Date ? p.fechaInicio : new Date(p.fechaInicio),
+        ),
+      );
+      setPFin(
+        p.fechaFin
+          ? formatDateOnlyString(
+              p.fechaFin instanceof Date ? p.fechaFin : new Date(p.fechaFin),
+            )
+          : "",
+      );
+    } else {
+      setEditingPlanId(null);
+      setPImporte("");
+      setPCuenta("");
+      setPFrecuencia("mensual");
+      setPDia("1");
+      setPDiaSemana("1");
+      setPInicio(formatDateOnlyString(new Date()));
+      setPFin("");
+    }
+    setPError(null);
+    setPlanFormOpen(true);
+  }
 
-        {/* Lista de aportaciones */}
-        {contributions.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Aun no hay aportaciones.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                {conParticipaciones && (
-                  <>
-                    <TableHead className="text-right">Particip.</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                  </>
-                )}
-                <TableHead className="text-right">Importe</TableHead>
-                <TableHead>Cuenta</TableHead>
-                <TableHead className="w-[40px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contributions.map((c) => {
-                const signo = c.esRetirada ? "−" : "";
-                return (
+  async function submitPlan() {
+    if (!investment) return;
+    const imp = Number(pImporte);
+    if (!Number.isFinite(imp) || imp <= 0) {
+      setPError("El importe debe ser mayor que 0.");
+      return;
+    }
+    if (!pCuenta) {
+      setPError("Selecciona la cuenta de origen.");
+      return;
+    }
+    if (!pInicio) {
+      setPError("Selecciona la fecha de inicio.");
+      return;
+    }
+    const inicio = normalizeDateToUTCNoon(parseDateOnlyString(pInicio));
+
+    // diaDelMes solo aplica a 'mensual'; en otras frecuencias guardamos el dia
+    // de la fecha de inicio para satisfacer la columna NOT NULL (1-31).
+    let diaDelMes = inicio.getUTCDate();
+    if (pFrecuencia === "mensual") {
+      const dia = Number(pDia);
+      if (!Number.isInteger(dia) || dia < 1 || dia > 31) {
+        setPError("El dia del mes debe estar entre 1 y 31.");
+        return;
+      }
+      diaDelMes = dia;
+    }
+
+    await savePlan({
+      id: editingPlanId ?? undefined,
+      nombre: investment.nombre,
+      moneda: investment.moneda,
+      importe: imp,
+      cuentaOrigenId: pCuenta,
+      frecuencia: pFrecuencia,
+      diaDelMes,
+      diaSemana: pFrecuencia === "semanal" ? Number(pDiaSemana) : null,
+      fechaInicio: inicio,
+      fechaFin: pFin ? normalizeDateToUTCNoon(parseDateOnlyString(pFin)) : null,
+    });
+    setPlanFormOpen(false);
+  }
+
+  function planResumen(p: RecurringRule): string {
+    const detalle =
+      p.frecuencia === "mensual"
+        ? `, dia ${p.diaDelMes}`
+        : p.frecuencia === "semanal"
+          ? `, ${DIAS_SEMANA.find((d) => d.value === p.diaSemana)?.label ?? ""}`
+          : "";
+    const fin = p.fechaFin
+      ? ` · hasta ${formatDateLong(
+          p.fechaFin instanceof Date ? p.fechaFin : new Date(p.fechaFin),
+          false,
+        )}`
+      : "";
+    return `${formatAmount(p.importe, investment!.moneda)} ${
+      FRECUENCIA_LABEL[p.frecuencia] ?? "al mes"
+    } desde ${aliasById[p.cuentaOrigenId ?? ""] ?? "—"}${detalle}${fin}`;
+  }
+
+  function renderContribList(
+    list: InvestmentContribution[],
+    emptyText: string,
+  ) {
+    if (list.length === 0) {
+      return (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {emptyText}
+        </p>
+      );
+    }
+    return (
+      <div className="max-h-[38vh] overflow-y-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Fecha</TableHead>
+              {conParticipaciones && (
+                <>
+                  <TableHead className="text-right">Particip.</TableHead>
+                  <TableHead className="text-right">Precio</TableHead>
+                </>
+              )}
+              <TableHead className="text-right">Importe</TableHead>
+              <TableHead>Cuenta</TableHead>
+              <TableHead className="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.map((c) => {
+              const signo = c.esRetirada ? "−" : "";
+              return (
                 <TableRow key={c.id}>
                   <TableCell>
                     {formatDateLong(
@@ -243,7 +401,7 @@ export function ContributionsDialog({
                         })}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatAmount(c.precioUnitario, investment.moneda)}
+                        {formatAmount(c.precioUnitario, investment!.moneda)}
                       </TableCell>
                     </>
                   )}
@@ -256,7 +414,7 @@ export function ContributionsDialog({
                     {signo}
                     {formatAmount(
                       c.participaciones * c.precioUnitario,
-                      investment.moneda,
+                      investment!.moneda,
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -275,18 +433,160 @@ export function ContributionsDialog({
                     </Button>
                   </TableCell>
                 </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
 
-        {/* Formulario de añadir */}
-        <div className="rounded-md border p-3">
-          <p className="mb-2 text-sm font-medium">Anadir aportacion</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Aportaciones · {investment.nombre}</DialogTitle>
+          <DialogDescription>
+            Cada aportacion descuenta su importe de la cuenta de origen.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "individuales" | "periodicas")}
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="individuales">
+              Individuales
+              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums">
+                {individuales.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="periodicas">
+              Periodicas
+              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums">
+                {plans.length}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Individuales */}
+          <TabsContent value="individuales" className="space-y-3">
+            {renderContribList(individuales, "Aun no hay aportaciones.")}
+            <div className="flex justify-between gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  resetAddForm();
+                  setAddOpen(true);
+                }}
+                disabled={isMutating}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Anadir aportacion
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setWError(null);
+                  setWithdrawOpen(true);
+                }}
+                disabled={isMutating}
+              >
+                <ArrowDownToLine className="mr-1 h-4 w-4" />
+                Retirar
+              </Button>
+            </div>
+          </TabsContent>
+
+          {/* Periodicas */}
+          <TabsContent value="periodicas" className="space-y-3">
+            <div className="space-y-2">
+              {plans.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No tienes aportaciones periodicas. Crea una para aportar
+                  automaticamente cada dia, semana o mes.
+                </p>
+              ) : (
+                plans.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-2 rounded-md border p-2.5"
+                  >
+                    <p className="flex items-center gap-1.5 text-sm">
+                      <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      {planResumen(p)}
+                    </p>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openPlanForm(p)}
+                        disabled={isMutating}
+                        aria-label="Editar plan"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => cancelPlan(p.id)}
+                        disabled={isMutating}
+                        aria-label="Cancelar plan"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openPlanForm(null)}
+                disabled={isMutating}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Nueva periodica
+              </Button>
+            </div>
+
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                Aportaciones generadas
+              </p>
+              {renderContribList(
+                periodicas,
+                "Aun no se ha generado ninguna aportacion periodica.",
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+
+      {/* Añadir aportación */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Anadir aportacion · {investment.nombre}</DialogTitle>
+            <DialogDescription>
+              Descuenta el importe de la cuenta de origen.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="ap-fecha" className="text-xs">Fecha</Label>
+              <Label htmlFor="ap-fecha" className="text-xs">
+                Fecha
+              </Label>
               <Input
                 id="ap-fecha"
                 type="date"
@@ -296,7 +596,9 @@ export function ContributionsDialog({
             </div>
             {conParticipaciones && (
               <div className="space-y-1">
-                <Label htmlFor="ap-part" className="text-xs">Participaciones</Label>
+                <Label htmlFor="ap-part" className="text-xs">
+                  Participaciones
+                </Label>
                 <Input
                   id="ap-part"
                   type="number"
@@ -308,7 +610,9 @@ export function ContributionsDialog({
               </div>
             )}
             <div className="space-y-1">
-              <Label htmlFor="ap-total" className="text-xs">Total aportado</Label>
+              <Label htmlFor="ap-total" className="text-xs">
+                Total aportado
+              </Label>
               <Input
                 id="ap-total"
                 type="number"
@@ -319,7 +623,9 @@ export function ContributionsDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ap-cuenta" className="text-xs">Cuenta de origen</Label>
+              <Label htmlFor="ap-cuenta" className="text-xs">
+                Cuenta de origen
+              </Label>
               <Select value={cuentaOrigenId} onValueChange={setCuentaOrigenId}>
                 <SelectTrigger id="ap-cuenta">
                   <SelectValue placeholder="Cuenta" />
@@ -334,34 +640,23 @@ export function ContributionsDialog({
               </Select>
             </div>
           </div>
-          {addError && (
-            <p className="mt-2 text-xs text-destructive">{addError}</p>
-          )}
-          <div className="mt-3 flex justify-end">
-            <Button size="sm" onClick={submitAdd} disabled={isMutating}>
+          {addError && <p className="mt-2 text-xs text-destructive">{addError}</p>}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+              disabled={isMutating}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={submitAdd} disabled={isMutating}>
               <Plus className="mr-1 h-4 w-4" />
               Anadir
             </Button>
-          </div>
-        </div>
-
-        <DialogFooter className="sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setWError(null);
-              setWithdrawOpen(true);
-            }}
-            disabled={isMutating}
-          >
-            <ArrowDownToLine className="mr-1 h-4 w-4" />
-            Retirar
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cerrar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Retirada (reembolso) a una cuenta destino */}
       <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
@@ -442,11 +737,152 @@ export function ContributionsDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Formulario de plan periódico */}
+      <Dialog open={planFormOpen} onOpenChange={setPlanFormOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingPlanId ? "Editar" : "Nueva"} aportacion periodica
+            </DialogTitle>
+            <DialogDescription>
+              Registra una aportacion automatica cada dia, semana o mes desde una
+              cuenta. Se genera al abrir la app.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="pl-importe" className="text-xs">
+                Importe
+              </Label>
+              <Input
+                id="pl-importe"
+                type="number"
+                step="0.01"
+                min={0}
+                value={pImporte}
+                onChange={(e) => setPImporte(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pl-cuenta" className="text-xs">
+                Cuenta de origen
+              </Label>
+              <Select value={pCuenta} onValueChange={setPCuenta}>
+                <SelectTrigger id="pl-cuenta">
+                  <SelectValue placeholder="Cuenta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.alias}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pl-frec" className="text-xs">
+                Frecuencia
+              </Label>
+              <Select
+                value={pFrecuencia}
+                onValueChange={(v) =>
+                  setPFrecuencia(v as "diaria" | "semanal" | "mensual")
+                }
+              >
+                <SelectTrigger id="pl-frec">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mensual">Mensual</SelectItem>
+                  <SelectItem value="semanal">Semanal</SelectItem>
+                  <SelectItem value="diaria">Diaria</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {pFrecuencia === "mensual" && (
+              <div className="space-y-1">
+                <Label htmlFor="pl-dia" className="text-xs">
+                  Dia del mes
+                </Label>
+                <Input
+                  id="pl-dia"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={pDia}
+                  onChange={(e) => setPDia(e.target.value)}
+                />
+              </div>
+            )}
+            {pFrecuencia === "semanal" && (
+              <div className="space-y-1">
+                <Label htmlFor="pl-diasem" className="text-xs">
+                  Dia de la semana
+                </Label>
+                <Select value={pDiaSemana} onValueChange={setPDiaSemana}>
+                  <SelectTrigger id="pl-diasem">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DIAS_SEMANA.map((d) => (
+                      <SelectItem key={d.value} value={String(d.value)}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label htmlFor="pl-inicio" className="text-xs">
+                Desde
+              </Label>
+              <Input
+                id="pl-inicio"
+                type="date"
+                value={pInicio}
+                onChange={(e) => setPInicio(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pl-fin" className="text-xs">
+                Hasta (opcional)
+              </Label>
+              <Input
+                id="pl-fin"
+                type="date"
+                value={pFin}
+                onChange={(e) => setPFin(e.target.value)}
+              />
+            </div>
+          </div>
+          {conParticipaciones && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Las participaciones se calculan con el valor actual de cada periodo
+              al generarse.
+            </p>
+          )}
+          {pError && <p className="mt-2 text-xs text-destructive">{pError}</p>}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPlanFormOpen(false)}
+              disabled={isMutating}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={submitPlan} disabled={isMutating}>
+              Guardar plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmacion de borrado con devolucion */}
-      <Dialog
-        open={!!toDelete}
-        onOpenChange={(v) => !v && setToDelete(null)}
-      >
+      <Dialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>

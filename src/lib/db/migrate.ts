@@ -16,6 +16,8 @@ import migration0008 from "../../../drizzle/0008_account_saldo_inicial.sql?raw";
 import migration0009 from "../../../drizzle/0009_add_cuenta_por_defecto.sql?raw";
 import migration0010 from "../../../drizzle/0010_investment_contributions.sql?raw";
 import migration0011 from "../../../drizzle/0011_contribution_retirada.sql?raw";
+import migration0012 from "../../../drizzle/0012_recurring_frecuencia.sql?raw";
+import migration0013 from "../../../drizzle/0013_investment_archivada.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -30,6 +32,8 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0009_add_cuenta_por_defecto", sql: migration0009 },
   { name: "0010_investment_contributions", sql: migration0010 },
   { name: "0011_contribution_retirada", sql: migration0011 },
+  { name: "0012_recurring_frecuencia", sql: migration0012 },
+  { name: "0013_investment_archivada", sql: migration0013 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

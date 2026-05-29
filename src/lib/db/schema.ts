@@ -287,6 +287,12 @@ export const investments = sqliteTable(
 
     notas: text("notas"),
 
+    // Lote 13b-2: posicion archivada (cerrada, valor 0). Fuera de la vista
+    // activa/KPIs pero conservada por historial. Distinto de deletedAt.
+    archivada: integer("archivada", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -690,10 +696,24 @@ export const recurringRules = sqliteTable(
     fechaInicio: integer("fecha_inicio", { mode: "timestamp_ms" }).notNull(),
     fechaFin: integer("fecha_fin", { mode: "timestamp_ms" }),
 
+    // Frecuencia (Lote 13b-2). 'mensual' por defecto (compatibilidad con todas
+    // las reglas existentes, que usan diaDelMes). 'semanal' usa diaSemana
+    // (0=domingo..6=sabado); 'diaria' no usa ninguno. Solo lo honra el
+    // generador de aportaciones periodicas a inversiones.
+    frecuencia: text("frecuencia", {
+      enum: ["diaria", "semanal", "mensual"],
+    })
+      .notNull()
+      .default("mensual"),
+    diaSemana: integer("dia_semana"),
+
     activa: integer("activa", { mode: "boolean" }).notNull().default(true),
 
+    // 'investment' (Lote 13b-2): regla de aportacion periodica a una inversion.
+    // No la genera RecurringService (la genera InvestmentContributionService,
+    // que ademas crea la fila de aportacion y recalcula los totales).
     origenAutomatico: text("origen_automatico", {
-      enum: ["mortgage", "debt", "interest"],
+      enum: ["mortgage", "debt", "interest", "investment"],
     }),
     origenAutomaticoId: text("origen_automatico_id"),
 

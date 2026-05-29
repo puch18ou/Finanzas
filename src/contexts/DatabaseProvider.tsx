@@ -124,6 +124,18 @@ async function initDatabaseForUser(dbFile: string): Promise<InitResult> {
       console.error("[recurring] Error generando movimientos:", err);
     }
 
+    // [Lote 13b-2] Generar aportaciones periodicas pendientes a inversiones.
+    try {
+      const periodicas =
+        await repos.investmentContributionService.generatePeriodicContributions();
+      if (periodicas > 0) {
+        console.log(`[recurring] Generadas ${periodicas} aportaciones periodicas`);
+        toast.info(`Generadas ${periodicas} aportaciones periodicas`);
+      }
+    } catch (err) {
+      console.error("[recurring] Error generando aportaciones periodicas:", err);
+    }
+
     return { db, repos, migrationsApplied, seed };
   })();
 

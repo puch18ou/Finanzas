@@ -88,8 +88,15 @@ export class RecurringService {
       isNull(recurringRules.deletedAt),
     );
 
-    const activeRules = allRules.filter((r) => r.activa);
-    const inactiveRulesSkipped = allRules.length - activeRules.length;
+    // Las reglas de aportacion periodica a inversiones (origen 'investment')
+    // NO se generan aqui: las genera InvestmentContributionService, que crea
+    // ademas la fila de aportacion y recalcula los totales de la inversion.
+    const relevantRules = allRules.filter(
+      (r) => r.origenAutomatico !== "investment",
+    );
+
+    const activeRules = relevantRules.filter((r) => r.activa);
+    const inactiveRulesSkipped = relevantRules.length - activeRules.length;
 
     const result: RecurringGenerationResult = {
       generated: [],
@@ -196,8 +203,12 @@ export class RecurringService {
         esAutomatico: true,
         // origenAutomatico solo se rellena para reglas vinculadas (11c).
         // Para reglas manuales queda NULL pero origenAutomaticoId si lleva
-        // el id de la regla.
-        origenAutomatico: c.rule.origenAutomatico,
+        // el id de la regla. ('investment' nunca llega aqui: se filtra arriba,
+        // y ademas el enum de movements no lo contempla.)
+        origenAutomatico:
+          c.rule.origenAutomatico === "investment"
+            ? null
+            : c.rule.origenAutomatico,
         origenAutomaticoId: c.rule.id,
         createdAt: new Date(),
         updatedAt: new Date(),

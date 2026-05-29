@@ -14,6 +14,25 @@ import { useRepos } from "@/contexts/DatabaseProvider";
 import type { AddContributionArgs, WithdrawArgs } from "@/lib/repositories";
 
 export const CONTRIBUTIONS_KEY = ["investmentContributions"] as const;
+export const INVESTMENT_PLAN_KEY = ["investmentPlan"] as const;
+
+/** Datos de un plan de aportacion periodica (Lote 13b-2). */
+export type SavePlanArgs = {
+  /** Si se indica, edita ese plan; si no, crea uno nuevo. */
+  id?: string;
+  /** Nombre y moneda de la inversion (para construir la regla). */
+  nombre: string;
+  moneda: string;
+  importe: number;
+  cuentaOrigenId: string;
+  frecuencia: "diaria" | "semanal" | "mensual";
+  /** Solo para 'mensual' (1-31). En otras frecuencias se ignora. */
+  diaDelMes: number;
+  /** Solo para 'semanal' (0=domingo..6=sabado). */
+  diaSemana: number | null;
+  fechaInicio: Date;
+  fechaFin: Date | null;
+};
 
 export function useInvestmentContributions(investmentId?: string) {
   const repos = useRepos();
@@ -74,15 +93,88 @@ export function useInvestmentContributions(investmentId?: string) {
       ),
   });
 
+  // --- Plan de aportacion periodica (Lote 13b-2) -------------------------
+
+  const plansQuery = useQuery({
+    queryKey: [...INVESTMENT_PLAN_KEY, investmentId ?? null],
+    queryFn: async () =>
+      investmentId
+        ? repos.recurringRules.listByOrigen("investment", investmentId)
+        : [],
+    enabled: !!investmentId,
+  });
+
+  const invalidatePlan = () => {
+    qc.invalidateQueries({ queryKey: INVESTMENT_PLAN_KEY });
+    qc.invalidateQueries({ queryKey: ["recurringRules"] });
+  };
+
+  const savePlanMutation = useMutation({
+    mutationFn: async (args: SavePlanArgs) => {
+      if (!investmentId) throw new Error("Falta la inversion.");
+      const patch = {
+        nombre: `Aportacion · ${args.nombre}`,
+        tipoMovimiento: "transferencia" as const,
+        importe: args.importe,
+        moneda: args.moneda,
+        cuentaOrigenId: args.cuentaOrigenId,
+        cuentaDestinoId: null,
+        frecuencia: args.frecuencia,
+        diaDelMes: args.diaDelMes,
+        diaSemana: args.diaSemana,
+        fechaInicio: args.fechaInicio,
+        fechaFin: args.fechaFin,
+        activa: true,
+      };
+      if (args.id) {
+        await repos.recurringRules.update(args.id, patch);
+      } else {
+        await repos.recurringRules.create({
+          ...patch,
+          origenAutomatico: "investment",
+          origenAutomaticoId: investmentId,
+        });
+      }
+      // Genera ya las aportaciones pendientes hasta el mes actual.
+      await repos.investmentContributionService.generatePeriodicContributions();
+    },
+    onSuccess: () => {
+      invalidatePlan();
+      invalidate();
+      toast.success("Plan periodico guardado");
+    },
+    onError: (e) =>
+      toast.error(
+        `No se pudo guardar el plan: ${e instanceof Error ? e.message : "error"}`,
+      ),
+  });
+
+  const cancelPlanMutation = useMutation({
+    mutationFn: (id: string) => repos.recurringRules.softDelete(id),
+    onSuccess: () => {
+      invalidatePlan();
+      toast.success("Plan periodico cancelado");
+    },
+    onError: (e) =>
+      toast.error(
+        `No se pudo cancelar: ${e instanceof Error ? e.message : "error"}`,
+      ),
+  });
+
   return {
     contributions: query.data ?? [],
     isLoading: query.isLoading,
     add: addMutation.mutateAsync,
     withdraw: withdrawMutation.mutateAsync,
     remove: removeMutation.mutateAsync,
+    plans: plansQuery.data ?? [],
+    savePlan: savePlanMutation.mutateAsync,
+    cancelPlan: cancelPlanMutation.mutateAsync,
     isMutating:
       addMutation.isPending ||
       withdrawMutation.isPending ||
-      removeMutation.isPending,
+      removeMutation.isPending ||
+      savePlanMutation.isPending ||
+      cancelPlanMutation.isPending,
   };
 }
