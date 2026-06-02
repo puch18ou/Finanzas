@@ -120,9 +120,21 @@ export default function InversionesPage() {
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
+  // Tab activo en la seccion de pestañas por tipo. Los KPIs de arriba se
+  // calculan sobre las inversiones de la pestaña activa (o todas en 'resumen').
+  const [activeTab, setActiveTab] = useState<string>("resumen");
+
+  const investmentsForKpi = useMemo(
+    () =>
+      activeTab === "resumen"
+        ? investments
+        : investments.filter((inv) => inv.tipo === activeTab),
+    [investments, activeTab],
+  );
+
   const portfolio = useMemo(
-    () => summarizePortfolio(investments, rates, viewCurrency),
-    [investments, rates, viewCurrency],
+    () => summarizePortfolio(investmentsForKpi, rates, viewCurrency),
+    [investmentsForKpi, rates, viewCurrency],
   );
 
   // Lookup rapido: id de cuenta → alias (para mostrar el broker en la tabla)
@@ -424,7 +436,7 @@ export default function InversionesPage() {
         />
       </div>
 
-      <Tabs defaultValue="resumen">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex h-auto flex-wrap justify-start">
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           {tiposPresentes.map((t) => (
