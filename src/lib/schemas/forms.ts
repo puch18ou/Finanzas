@@ -138,6 +138,17 @@ export const investmentFormSchema = z.object({
   cuentaId: z.string().nullable().optional(),
   fechaCompra: z.date().nullable().optional(),
   notas: z.string().max(500).nullable().optional(),
+  // Lote 16: TAE automatica (solo "Cuenta remunerada"). 0 o null = sin interes.
+  tasaInteres: z
+    .number({ message: "Debe ser un numero" })
+    .min(0, "No puede ser negativo")
+    .nullable()
+    .optional(),
+  frecuenciaInteres: z
+    .enum(["mensual", "trimestral", "anual"])
+    .nullable()
+    .optional(),
+  interesCompuesto: z.boolean().nullable().optional(),
 });
 
 export type InvestmentFormData = z.infer<typeof investmentFormSchema>;

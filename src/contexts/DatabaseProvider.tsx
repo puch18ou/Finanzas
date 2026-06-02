@@ -136,6 +136,23 @@ async function initDatabaseForUser(dbFile: string): Promise<InitResult> {
       console.error("[recurring] Error generando aportaciones periodicas:", err);
     }
 
+    // [Lote 16] Aplicar intereses pendientes a inversiones con TAE configurada.
+    try {
+      const result =
+        await repos.investmentInterestService.applyPendingInterest();
+      if (result.inversionesActualizadas > 0) {
+        console.log(
+          `[interest] Intereses aplicados a ${result.inversionesActualizadas} ` +
+            `inversiones (${result.periodosAplicados} periodos en total)`,
+        );
+        toast.info(
+          `Intereses aplicados a ${result.inversionesActualizadas} inversiones`,
+        );
+      }
+    } catch (err) {
+      console.error("[interest] Error aplicando intereses:", err);
+    }
+
     return { db, repos, migrationsApplied, seed };
   })();
 

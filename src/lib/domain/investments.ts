@@ -148,6 +148,102 @@ export function summarizePortfolio(
   };
 }
 
+// ============================================================================
+//  Lote 16 — TAE automatica para "Cuenta remunerada"
+// ============================================================================
+
+export type FrecuenciaInteres = "mensual" | "trimestral" | "anual";
+
+/**
+ * Periodos COMPLETOS transcurridos entre dos fechas segun la frecuencia.
+ * Cuenta por dia del mes: si la fecha "desde" es el 25 y "hasta" es el 24
+ * del mes siguiente, NO ha pasado todavia un periodo mensual.
+ *
+ * Devuelve 0 si hasta <= desde.
+ */
+export function periodosTranscurridos(
+  desde: Date,
+  hasta: Date,
+  frecuencia: FrecuenciaInteres,
+): number {
+  if (hasta.getTime() <= desde.getTime()) return 0;
+  let months =
+    (hasta.getUTCFullYear() - desde.getUTCFullYear()) * 12 +
+    (hasta.getUTCMonth() - desde.getUTCMonth());
+  if (hasta.getUTCDate() < desde.getUTCDate()) months--;
+  if (months < 0) return 0;
+  switch (frecuencia) {
+    case "mensual":
+      return months;
+    case "trimestral":
+      return Math.floor(months / 3);
+    case "anual":
+      return Math.floor(months / 12);
+  }
+}
+
+/**
+ * Periodos por anio segun la frecuencia.
+ */
+export function periodosPorAnio(frecuencia: FrecuenciaInteres): number {
+  switch (frecuencia) {
+    case "mensual":
+      return 12;
+    case "trimestral":
+      return 4;
+    case "anual":
+      return 1;
+  }
+}
+
+/**
+ * Calcula el nuevo precioActual tras aplicar N periodos de interes.
+ *
+ *   - compuesto: precioActual *= (1 + r/n)^periodos
+ *   - simple:    precioActual += precioCompra * (r/n) * periodos
+ *
+ * Donde r = tasa anual en tanto por uno (3% → 0.03), n = periodos por anio.
+ *
+ * En modo "solo dinero" (participaciones = importe, precioCompra = 1) ambas
+ * formulas son equivalentes a interpretar precioActual como un "factor" sobre
+ * el principal: en simple el factor crece linealmente con tasa/n por periodo;
+ * en compuesto crece geometricamente.
+ */
+export function aplicarIntereses(
+  precioActualPrev: number,
+  precioCompra: number,
+  tasaAnualPct: number,
+  frecuencia: FrecuenciaInteres,
+  compuesto: boolean,
+  periodos: number,
+): number {
+  if (periodos <= 0) return precioActualPrev;
+  const n = periodosPorAnio(frecuencia);
+  const r = tasaAnualPct / 100;
+  if (compuesto) {
+    return precioActualPrev * Math.pow(1 + r / n, periodos);
+  }
+  return precioActualPrev + precioCompra * (r / n) * periodos;
+}
+
+/**
+ * Avanza una fecha "ultimo aplicado" en N periodos segun la frecuencia.
+ * Util para actualizar `ultimoInteresAplicado` tras aplicar intereses.
+ */
+export function avanzarFechaPeriodos(
+  desde: Date,
+  periodos: number,
+  frecuencia: FrecuenciaInteres,
+): Date {
+  if (periodos <= 0) return desde;
+  const mesesPorPeriodo =
+    frecuencia === "mensual" ? 1 : frecuencia === "trimestral" ? 3 : 12;
+  const totalMeses = periodos * mesesPorPeriodo;
+  const d = new Date(desde.getTime());
+  d.setUTCMonth(d.getUTCMonth() + totalMeses);
+  return d;
+}
+
 /**
  * Agrupacion por tipo (Acciones, ETF, Fondo, Cripto...).
  */

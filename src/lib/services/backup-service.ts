@@ -337,6 +337,7 @@ export class BackupService {
         k === "createdAt" ||
         k === "updatedAt" ||
         k === "deletedAt" ||
+        k === "ultimoInteresAplicado" ||
         k.startsWith("fecha");
       if (looksLikeDateField && typeof v === "string") {
         const d = new Date(v);

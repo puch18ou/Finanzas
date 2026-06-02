@@ -299,6 +299,15 @@ export const investments = sqliteTable(
       .notNull()
       .default(false),
 
+    // Lote 16: TAE automatica (solo para "Cuenta remunerada"). El servicio
+    // aplica los intereses pendientes al arrancar y actualiza precioActual.
+    tasaInteres: real("tasa_interes"),
+    frecuenciaInteres: text("frecuencia_interes"), // 'mensual' | 'trimestral' | 'anual'
+    interesCompuesto: integer("interes_compuesto", { mode: "boolean" }),
+    ultimoInteresAplicado: integer("ultimo_interes_aplicado", {
+      mode: "timestamp_ms",
+    }),
+
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

@@ -98,6 +98,9 @@ export function InvestmentFormDialog({
       cuentaId: "",
       fechaCompra: null,
       notas: "",
+      tasaInteres: null,
+      frecuenciaInteres: "mensual",
+      interesCompuesto: true,
     },
   });
 
@@ -131,6 +134,11 @@ export function InvestmentFormDialog({
               ? new Date(initial.fechaCompra)
               : null,
           notas: initial.notas ?? "",
+          tasaInteres: initial.tasaInteres ?? null,
+          frecuenciaInteres:
+            (initial.frecuenciaInteres as "mensual" | "trimestral" | "anual" | null) ??
+            "mensual",
+          interesCompuesto: initial.interesCompuesto ?? true,
         });
       } else {
         reset({
@@ -144,6 +152,9 @@ export function InvestmentFormDialog({
           cuentaId: "",
           fechaCompra: null,
           notas: "",
+          tasaInteres: null,
+          frecuenciaInteres: "mensual",
+          interesCompuesto: true,
         });
       }
     }
@@ -419,6 +430,86 @@ export function InvestmentFormDialog({
                   </p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAE automatica: solo para "Cuenta remunerada" (Lote 16). */}
+          {tipoSel === "Cuenta remunerada" && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Interes automatico (TAE)
+              </p>
+              <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="inv-tae">TAE (%)</Label>
+                  <Input
+                    id="inv-tae"
+                    type="number"
+                    step="0.01"
+                    placeholder="0"
+                    {...register("tasaInteres", {
+                      setValueAs: (v) =>
+                        v === "" || v == null ? null : Number(v),
+                    })}
+                    disabled={loading}
+                  />
+                  {errors.tasaInteres && (
+                    <p className="text-xs text-destructive">
+                      {errors.tasaInteres.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Frecuencia</Label>
+                  <Controller
+                    control={control}
+                    name="frecuenciaInteres"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? "mensual"}
+                        onValueChange={field.onChange}
+                        disabled={loading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mensual">Mensual</SelectItem>
+                          <SelectItem value="trimestral">Trimestral</SelectItem>
+                          <SelectItem value="anual">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Modo</Label>
+                  <Controller
+                    control={control}
+                    name="interesCompuesto"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ? "compuesto" : "simple"}
+                        onValueChange={(v) => field.onChange(v === "compuesto")}
+                        disabled={loading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="compuesto">Compuesto</SelectItem>
+                          <SelectItem value="simple">Simple</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dejar TAE en 0 o vacio para desactivar. El interes se aplica al
+                arrancar la app: sube el valor de la inversion (no genera
+                movimientos).
+              </p>
             </div>
           )}
 

@@ -217,7 +217,20 @@ export default function InversionesPage() {
                   <Badge variant="secondary">{inv.tipo}</Badge>
                 </TableCell>
                 <TableCell>
-                  <div className="font-medium">{inv.nombre}</div>
+                  <div className="font-medium flex items-center gap-2">
+                    {inv.nombre}
+                    {inv.tasaInteres != null && inv.tasaInteres > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="border-primary/30 text-primary text-xs"
+                      >
+                        {inv.tasaInteres.toLocaleString("es-ES", {
+                          maximumFractionDigits: 2,
+                        })}
+                        % TAE
+                      </Badge>
+                    )}
+                  </div>
                   {(inv.ticker || brokerAlias) && (
                     <div className="text-xs font-mono text-muted-foreground">
                       {inv.ticker}
@@ -500,6 +513,18 @@ export default function InversionesPage() {
               : editing.participaciones > 0
                 ? data.valorActual / editing.participaciones
                 : 0;
+            // Lote 16: TAE. Si la inversion pasa de "sin TAE" a "con TAE",
+            // fijamos ultimoInteresAplicado=now para no aplicar retroactivos.
+            const tasaInteresNueva =
+              data.tasaInteres && data.tasaInteres > 0
+                ? data.tasaInteres
+                : null;
+            const teniaTae = (editing.tasaInteres ?? 0) > 0;
+            const ahoraTae = tasaInteresNueva != null;
+            const ultimoInteresAplicado =
+              ahoraTae && !teniaTae
+                ? new Date()
+                : editing.ultimoInteresAplicado;
             await update({
               id: editing.id,
               patch: {
@@ -509,6 +534,14 @@ export default function InversionesPage() {
                 moneda: data.moneda,
                 precioActual,
                 notas: data.notas ?? null,
+                tasaInteres: tasaInteresNueva,
+                frecuenciaInteres: ahoraTae
+                  ? (data.frecuenciaInteres ?? "mensual")
+                  : null,
+                interesCompuesto: ahoraTae
+                  ? (data.interesCompuesto ?? true)
+                  : null,
+                ultimoInteresAplicado,
               },
             });
           } else {
@@ -526,6 +559,10 @@ export default function InversionesPage() {
             // Creamos la inversion "vacia" (0); la aportacion inicial fija
             // participaciones, coste y valor actual (asi el valor actual sube
             // exactamente por el importe invertido, sin duplicar).
+            const tasaInteresNueva =
+              data.tasaInteres && data.tasaInteres > 0
+                ? data.tasaInteres
+                : null;
             const inv = await create({
               tipo: data.tipo,
               ticker: data.ticker ?? null,
@@ -537,6 +574,16 @@ export default function InversionesPage() {
               cuentaId: data.cuentaId ?? null,
               fechaCompra: data.fechaCompra ?? null,
               notas: data.notas ?? null,
+              tasaInteres: tasaInteresNueva,
+              frecuenciaInteres:
+                tasaInteresNueva != null
+                  ? (data.frecuenciaInteres ?? "mensual")
+                  : null,
+              interesCompuesto:
+                tasaInteresNueva != null
+                  ? (data.interesCompuesto ?? true)
+                  : null,
+              ultimoInteresAplicado: null,
             });
             // La primera compra es una aportacion: descuenta de la cuenta de
             // origen (movimiento de salida) y deja el historial para el grafico.
