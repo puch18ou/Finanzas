@@ -101,6 +101,7 @@ export function ContributionsDialog({
   const {
     contributions,
     add,
+    update,
     withdraw,
     remove,
     plans,
@@ -113,8 +114,11 @@ export function ContributionsDialog({
 
   const [tab, setTab] = useState<"individuales" | "periodicas">("individuales");
 
-  // Añadir aportación
+  // Añadir / editar aportación
   const [addOpen, setAddOpen] = useState(false);
+  // Lote 18: si != null, el dialog "Añadir" actua como "Editar" sobre esta fila.
+  const [editingContribution, setEditingContribution] =
+    useState<InvestmentContribution | null>(null);
   const [fecha, setFecha] = useState(formatDateOnlyString(new Date()));
   const [participaciones, setParticipaciones] = useState("");
   // En modo participaciones se mete PRECIO por unidad; en modo dinero el total.
@@ -170,12 +174,33 @@ export function ContributionsDialog({
     setComision("");
     setCuentaOrigenId("");
     setAddError(null);
+    setEditingContribution(null);
+  }
+
+  function openEditForm(c: InvestmentContribution) {
+    setEditingContribution(c);
+    const d = c.fecha instanceof Date ? c.fecha : new Date(c.fecha);
+    setFecha(formatDateOnlyString(d));
+    setCuentaOrigenId(c.cuentaOrigenId ?? "");
+    setComision((c.comision ?? 0) > 0 ? String(c.comision) : "");
+    if (conParticipaciones) {
+      setParticipaciones(String(c.participaciones));
+      setPrecioUnit(String(c.precioUnitario));
+      setTotal("");
+    } else {
+      // Modo dinero: el "total aportado" = part*precio = participaciones (precio=1).
+      setTotal(String(c.participaciones * c.precioUnitario));
+      setParticipaciones("");
+      setPrecioUnit("");
+    }
+    setAddError(null);
+    setAddOpen(true);
   }
 
   async function submitAdd() {
     if (!investment) return;
     if (!cuentaOrigenId) {
-      setAddError("Selecciona la cuenta de origen.");
+      setAddError("Selecciona la cuenta.");
       return;
     }
     if (!fecha) {
@@ -210,14 +235,28 @@ export function ContributionsDialog({
       precioUnitario = 1;
     }
 
-    await add({
-      investmentId: investment.id,
-      fecha: normalizeDateToUTCNoon(parseDateOnlyString(fecha)),
-      participaciones: part,
-      precioUnitario,
-      comision: fee,
-      cuentaOrigenId,
-    });
+    const fechaNorm = normalizeDateToUTCNoon(parseDateOnlyString(fecha));
+
+    if (editingContribution) {
+      await update({
+        id: editingContribution.id,
+        fecha: fechaNorm,
+        participaciones: part,
+        precioUnitario,
+        comision: fee,
+        cuentaId: cuentaOrigenId,
+        notas: editingContribution.notas,
+      });
+    } else {
+      await add({
+        investmentId: investment.id,
+        fecha: fechaNorm,
+        participaciones: part,
+        precioUnitario,
+        comision: fee,
+        cuentaOrigenId,
+      });
+    }
     resetAddForm();
     setAddOpen(false);
   }
@@ -449,16 +488,28 @@ export function ContributionsDialog({
                     {c.cuentaOrigenId ? aliasById[c.cuentaOrigenId] ?? "—" : "—"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => openDelete(c)}
-                      disabled={isMutating}
-                      aria-label="Borrar aportacion"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditForm(c)}
+                        disabled={isMutating}
+                        aria-label="Editar aportacion"
+                        className="h-7 w-7"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => openDelete(c)}
+                        disabled={isMutating}
+                        aria-label="Borrar aportacion"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -601,12 +652,27 @@ export function ContributionsDialog({
       </DialogContent>
 
       {/* Añadir aportación */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(v) => {
+          setAddOpen(v);
+          if (!v) resetAddForm();
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Anadir aportacion · {investment.nombre}</DialogTitle>
+            <DialogTitle>
+              {editingContribution
+                ? editingContribution.esRetirada
+                  ? "Editar retirada"
+                  : "Editar aportacion"
+                : "Anadir aportacion"}{" "}
+              · {investment.nombre}
+            </DialogTitle>
             <DialogDescription>
-              Descuenta el importe de la cuenta de origen.
+              {editingContribution
+                ? "Se actualiza tambien el movimiento asociado en la cuenta."
+                : "Descuenta el importe de la cuenta de origen."}
             </DialogDescription>
           </DialogHeader>
 
@@ -682,7 +748,9 @@ export function ContributionsDialog({
             )}
             <div className="space-y-1 col-span-2">
               <Label htmlFor="ap-cuenta" className="text-xs">
-                Cuenta de origen
+                {editingContribution?.esRetirada
+                  ? "Cuenta destino"
+                  : "Cuenta de origen"}
               </Label>
               <Select value={cuentaOrigenId} onValueChange={setCuentaOrigenId}>
                 <SelectTrigger id="ap-cuenta">
@@ -719,8 +787,14 @@ export function ContributionsDialog({
               Cancelar
             </Button>
             <Button onClick={submitAdd} disabled={isMutating}>
-              <Plus className="mr-1 h-4 w-4" />
-              Anadir
+              {editingContribution ? (
+                "Guardar"
+              ) : (
+                <>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Anadir
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

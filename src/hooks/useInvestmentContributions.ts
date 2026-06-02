@@ -11,7 +11,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import type { AddContributionArgs, WithdrawArgs } from "@/lib/repositories";
+import type {
+  AddContributionArgs,
+  WithdrawArgs,
+  UpdateContributionArgs,
+} from "@/lib/repositories";
 
 export const CONTRIBUTIONS_KEY = ["investmentContributions"] as const;
 export const INVESTMENT_PLAN_KEY = ["investmentPlan"] as const;
@@ -74,6 +78,19 @@ export function useInvestmentContributions(investmentId?: string) {
     onError: (e) =>
       toast.error(
         `No se pudo retirar: ${e instanceof Error ? e.message : "error"}`,
+      ),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (args: UpdateContributionArgs) =>
+      repos.investmentContributionService.updateContribution(args),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Aportacion actualizada");
+    },
+    onError: (e) =>
+      toast.error(
+        `No se pudo editar: ${e instanceof Error ? e.message : "error"}`,
       ),
   });
 
@@ -165,6 +182,7 @@ export function useInvestmentContributions(investmentId?: string) {
     contributions: query.data ?? [],
     isLoading: query.isLoading,
     add: addMutation.mutateAsync,
+    update: updateMutation.mutateAsync,
     withdraw: withdrawMutation.mutateAsync,
     remove: removeMutation.mutateAsync,
     plans: plansQuery.data ?? [],
@@ -172,6 +190,7 @@ export function useInvestmentContributions(investmentId?: string) {
     cancelPlan: cancelPlanMutation.mutateAsync,
     isMutating:
       addMutation.isPending ||
+      updateMutation.isPending ||
       withdrawMutation.isPending ||
       removeMutation.isPending ||
       savePlanMutation.isPending ||

@@ -53,6 +53,22 @@ export type AddContributionArgs = {
   notas?: string | null;
 };
 
+export type UpdateContributionArgs = {
+  id: string;
+  fecha: Date;
+  participaciones: number;
+  precioUnitario: number;
+  /** Comision (Lote 17). Para aportacion suma al coste; para retirada lo resta. */
+  comision?: number;
+  /**
+   * Cuenta vinculada. Para aportaciones, cuenta de origen del dinero.
+   * Para retiradas, cuenta destino. Si la aportacion no tenia movimiento,
+   * no se crea uno al editar; solo se actualiza la fila.
+   */
+  cuentaId?: string | null;
+  notas?: string | null;
+};
+
 export type WithdrawArgs = {
   investmentId: string;
   /** Cuenta a la que entra el dinero retirado. */
@@ -219,6 +235,63 @@ export class InvestmentContributionService {
       args.investmentId,
       Math.max(0, valorAntes - dineroRecibido),
     );
+  }
+
+  /**
+   * Edita una aportacion/retirada existente (Lote 18). Actualiza la fila, el
+   * movimiento asociado si lo tiene, y recalcula los totales de la inversion.
+   *
+   * El precioActual de mercado se mantiene; el valor total se ajusta por el
+   * cambio de participaciones (delta * precioActual). El esRetirada NO se
+   * puede cambiar (borrar y crear de nuevo si hace falta).
+   */
+  async updateContribution(args: UpdateContributionArgs): Promise<void> {
+    const c = await this.contributions.getById(args.id);
+    if (!c) throw new Error("Aportacion no existe");
+    const inv = await this.investments.getById(c.investmentId);
+    if (!inv) throw new Error("Inversion no existe");
+
+    const comision = Math.max(0, args.comision ?? 0);
+    const importeMovimiento = c.esRetirada
+      ? Math.max(0, args.participaciones * args.precioUnitario - comision)
+      : args.participaciones * args.precioUnitario + comision;
+
+    // Delta de participaciones aplicado al valor actual (al precio de mercado).
+    // En una aportacion, mas participaciones suben el valor; en una retirada,
+    // mas participaciones retiradas bajan el valor.
+    const partDelta = args.participaciones - c.participaciones;
+    const signo = c.esRetirada ? -1 : 1;
+    const valorActualAntes = inv.precioActual * inv.participaciones;
+    const valorObjetivo = Math.max(
+      0,
+      valorActualAntes + signo * partDelta * inv.precioActual,
+    );
+
+    // Sincroniza el movimiento asociado (si existe).
+    if (c.movimientoId) {
+      const { mes, anio } = extractPeriod(args.fecha);
+      await this.movements.update(c.movimientoId, {
+        fecha: args.fecha,
+        importe: importeMovimiento,
+        // En aportacion el dinero SALE de la cuenta (origen). En retirada
+        // ENTRA en la cuenta (destino).
+        cuentaOrigenId: c.esRetirada ? null : (args.cuentaId ?? null),
+        cuentaDestinoId: c.esRetirada ? (args.cuentaId ?? null) : null,
+        mes,
+        anio,
+      });
+    }
+
+    await this.contributions.update(args.id, {
+      fecha: args.fecha,
+      participaciones: args.participaciones,
+      precioUnitario: args.precioUnitario,
+      comision,
+      cuentaOrigenId: args.cuentaId ?? null,
+      notas: args.notas ?? null,
+    });
+
+    await this.recomputeWithValue(c.investmentId, valorObjetivo);
   }
 
   /**

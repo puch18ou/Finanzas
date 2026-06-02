@@ -22,6 +22,10 @@ export type CreateContributionData = Omit<
   "id" | "createdAt" | "updatedAt" | "deletedAt"
 >;
 
+export type UpdateContributionData = Partial<
+  Omit<CreateContributionData, "investmentId" | "esRetirada">
+>;
+
 export class InvestmentContributionRepository extends BaseRepository {
   /** Aportaciones activas de una inversion, mas antiguas primero. */
   async listByInvestment(
@@ -74,6 +78,22 @@ export class InvestmentContributionRepository extends BaseRepository {
       );
     }
     return created;
+  }
+
+  async update(
+    id: string,
+    patch: UpdateContributionData,
+  ): Promise<InvestmentContribution> {
+    await this.db
+      .update(investmentContributions)
+      .set({ ...patch, updatedAt: now() })
+      .where(eq(investmentContributions.id, id));
+    const updated = await this.getById(id);
+    if (!updated)
+      throw new Error(
+        `InvestmentContributionRepository.update: id ${id} no existe`,
+      );
+    return updated;
   }
 
   async softDelete(id: string): Promise<void> {

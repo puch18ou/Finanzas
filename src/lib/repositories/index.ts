@@ -95,6 +95,7 @@ export type { CreateContributionData } from "./investment-contribution-repositor
 export type {
   AddContributionArgs,
   WithdrawArgs,
+  UpdateContributionArgs,
 } from "@/lib/services/investment-contribution-service";
 export type {
   CreateGoalData,
