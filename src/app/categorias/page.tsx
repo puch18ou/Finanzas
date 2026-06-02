@@ -14,7 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
@@ -61,6 +61,7 @@ export default function CategoriasPage() {
     create,
     update,
     remove,
+    reorder,
     isMutating,
   } = useCategories();
 
@@ -86,6 +87,18 @@ export default function CategoriasPage() {
     const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
     return sumMovementsByCategory(filtered, rates, viewCurrency);
   }, [movements, periodMes, periodAnio, rates, viewCurrency]);
+
+  const moveCategory = async (id: string, dir: -1 | 1) => {
+    const idx = categories.findIndex((c) => c.id === id);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= categories.length) return;
+    const next = [...categories];
+    const a = next[idx]!;
+    const b = next[target]!;
+    next[idx] = b;
+    next[target] = a;
+    await reorder(next.map((c) => c.id));
+  };
 
   if (!settings) {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
@@ -142,11 +155,11 @@ export default function CategoriasPage() {
                   <TableHead className="text-right">Gastado</TableHead>
                   <TableHead className="text-right">Presupuesto</TableHead>
                   <TableHead>Progreso</TableHead>
-                  <TableHead className="w-[80px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[150px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map((c) => {
+                {categories.map((c, idx) => {
                   const gastado = gastosPorCategoria[c.id] ?? 0;
                   let presupuestoView = 0;
                   if (c.presupuestoMensual > 0) {
@@ -208,7 +221,27 @@ export default function CategoriasPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveCategory(c.id, -1)}
+                            disabled={idx === 0 || isMutating}
+                            aria-label="Subir"
+                            className="h-8 w-8"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveCategory(c.id, 1)}
+                            disabled={idx === categories.length - 1 || isMutating}
+                            aria-label="Bajar"
+                            className="h-8 w-8"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -217,6 +250,7 @@ export default function CategoriasPage() {
                               setFormOpen(true);
                             }}
                             aria-label="Editar"
+                            className="h-8 w-8"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -224,7 +258,7 @@ export default function CategoriasPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setToDelete(c)}
-                            className="text-destructive hover:text-destructive"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             aria-label="Borrar"
                           >
                             <Trash2 className="h-4 w-4" />

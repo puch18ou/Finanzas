@@ -72,6 +72,18 @@ export function useCategories() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: (ids: string[]) => repos.categories.reorder(ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CATEGORIES_KEY });
+    },
+    onError: (e) => {
+      toast.error(
+        `No se pudo reordenar: ${e instanceof Error ? e.message : "error"}`,
+      );
+    },
+  });
+
   return {
     categories: query.data ?? [],
     isLoading: query.isLoading,
@@ -79,9 +91,11 @@ export function useCategories() {
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,
+    reorder: reorderMutation.mutateAsync,
     isMutating:
       createMutation.isPending ||
       updateMutation.isPending ||
-      deleteMutation.isPending,
+      deleteMutation.isPending ||
+      reorderMutation.isPending,
   };
 }
