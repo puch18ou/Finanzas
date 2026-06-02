@@ -109,13 +109,19 @@ export function InvestmentFormDialog({
   useEffect(() => {
     if (open) {
       if (initial) {
+        // En modo participaciones (Acciones/ETF/Cripto) el campo "valor actual"
+        // representa el PRECIO POR UNIDAD (como cotiza en bolsa). En modo
+        // dinero, el VALOR TOTAL.
+        const usaPart = usaParticipaciones(initial.tipo);
         reset({
           tipo: initial.tipo,
           ticker: initial.ticker ?? "",
           nombre: initial.nombre,
           participaciones: initial.participaciones,
           importeInvertido: initial.precioCompra * initial.participaciones,
-          valorActual: initial.precioActual * initial.participaciones,
+          valorActual: usaPart
+            ? initial.precioActual
+            : initial.precioActual * initial.participaciones,
           moneda: initial.moneda,
           cuentaId: initial.cuentaId ?? "",
           fechaCompra:
@@ -283,15 +289,19 @@ export function InvestmentFormDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            {/* Valor actual TOTAL (lo que tienes ahora). Solo al editar; al
-                crear el valor inicial = importe invertido. */}
+            {/* Valor actual. En modo participaciones (Acciones/ETF/Cripto)
+                se introduce el PRECIO POR UNIDAD; en modo dinero, el TOTAL. */}
             {isEdit && (
               <div className="space-y-2">
-                <Label htmlFor="inv-valor-a">Valor actual (total)</Label>
+                <Label htmlFor="inv-valor-a">
+                  {conParticipaciones
+                    ? "Precio actual (por unidad)"
+                    : "Valor actual (total)"}
+                </Label>
                 <Input
                   id="inv-valor-a"
                   type="number"
-                  step="0.01"
+                  step="0.000001"
                   {...register("valorActual", { valueAsNumber: true })}
                   disabled={loading}
                 />

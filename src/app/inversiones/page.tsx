@@ -138,16 +138,26 @@ export default function InversionesPage() {
 
   const openValueUpdate = (inv: Investment) => {
     setValueFor(inv);
-    setValueInput(String(inv.precioActual * inv.participaciones));
+    // En modo participaciones mostramos el precio POR UNIDAD; en modo dinero
+    // el VALOR TOTAL.
+    const usaPart = usaParticipaciones(inv.tipo);
+    setValueInput(
+      String(usaPart ? inv.precioActual : inv.precioActual * inv.participaciones),
+    );
   };
 
   const submitValueUpdate = async () => {
     if (!valueFor) return;
-    const valorTotal = Number(valueInput);
-    if (isNaN(valorTotal) || valorTotal < 0) return;
-    // El usuario indica el VALOR TOTAL real; derivamos el precio por unidad.
-    const nuevoPrecio =
-      valueFor.participaciones > 0 ? valorTotal / valueFor.participaciones : 0;
+    const valorInput = Number(valueInput);
+    if (isNaN(valorInput) || valorInput < 0) return;
+    const usaPart = usaParticipaciones(valueFor.tipo);
+    // Modo participaciones: el usuario indica precio por unidad directamente.
+    // Modo dinero: indica el valor TOTAL; derivamos el precio por unidad.
+    const nuevoPrecio = usaPart
+      ? valorInput
+      : valueFor.participaciones > 0
+        ? valorInput / valueFor.participaciones
+        : 0;
     await updatePrice({ id: valueFor.id, precio: nuevoPrecio });
     setValueFor(null);
   };
@@ -480,11 +490,14 @@ export default function InversionesPage() {
         }
         onSubmit={async (data) => {
           if (editing) {
-            // Al editar solo se tocan los metadatos + el valor actual TOTAL
-            // (de el derivamos el precio por unidad). Participaciones, coste,
-            // fecha y cuenta salen de las aportaciones, no se editan aqui.
-            const precioActual =
-              editing.participaciones > 0
+            // Al editar solo se tocan los metadatos + el valor actual.
+            // En modo participaciones el campo viene como PRECIO POR UNIDAD;
+            // en modo dinero, como VALOR TOTAL (que dividimos entre
+            // participaciones para obtener el precio por unidad cacheado).
+            const usaPart = usaParticipaciones(editing.tipo);
+            const precioActual = usaPart
+              ? data.valorActual
+              : editing.participaciones > 0
                 ? data.valorActual / editing.participaciones
                 : 0;
             await update({
@@ -555,18 +568,23 @@ export default function InversionesPage() {
           <DialogHeader>
             <DialogTitle>Actualizar valor actual</DialogTitle>
             <DialogDescription>
-              {valueFor?.nombre}: indica cuanto vale HOY en total (no por
-              unidad). No mueve dinero; solo actualiza el valor de mercado.
+              {valueFor?.nombre}:{" "}
+              {valueFor && usaParticipaciones(valueFor.tipo)
+                ? "indica el precio HOY por unidad (como cotiza)."
+                : "indica cuanto vale HOY en total."}{" "}
+              No mueve dinero; solo actualiza el valor de mercado.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="valor-actual-input">
-              Valor actual ({valueFor?.moneda})
+              {valueFor && usaParticipaciones(valueFor.tipo)
+                ? `Precio por unidad (${valueFor.moneda})`
+                : `Valor total (${valueFor?.moneda})`}
             </Label>
             <Input
               id="valor-actual-input"
               type="number"
-              step="0.01"
+              step="0.000001"
               min={0}
               value={valueInput}
               autoFocus
