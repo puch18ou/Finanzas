@@ -73,16 +73,22 @@ export class RecurringService {
     now: Date = new Date(),
   ): Promise<RecurringGenerationResult> {
     const { anio, mes } = currentPeriod(now);
-    return this.generateUpTo(anio, mes);
+    return this.generateUpTo(anio, mes, now);
   }
 
   /**
    * Como generatePendingUpToCurrentMonth pero permitiendo especificar
    * el periodo final (util para tests).
+   *
+   * IMPORTANTE: solo se generan movements cuya fecha (segun el diaDelMes
+   * de la regla) sea <= `now`. Las ocurrencias futuras del mes actual NO
+   * se materializan: se exponen aparte como "previstos" via
+   * computeUpcomingFromRule() en domain/recurring.ts.
    */
   async generateUpTo(
     anioEnd: number,
     mesEnd: number,
+    now: Date = new Date(),
   ): Promise<RecurringGenerationResult> {
     const allRules = await this.db.select().from(recurringRules).where(
       isNull(recurringRules.deletedAt),
@@ -175,6 +181,7 @@ export class RecurringService {
 
     // Lo que toca insertar (no duplicado).
     const newMovements: NewMovement[] = [];
+    const nowMs = now.getTime();
 
     for (const c of toInsertCandidates) {
       const key = `${c.rule.id}:${c.anio}:${c.mes}`;
@@ -184,6 +191,9 @@ export class RecurringService {
       }
 
       const fecha = buildPeriodDate(c.rule.diaDelMes, c.anio, c.mes);
+      // No materializamos las ocurrencias cuya fecha aun no ha llegado:
+      // se exponen como "previstos" en la UI hasta que toque.
+      if (fecha.getTime() > nowMs) continue;
       const concepto = c.rule.nombre;
 
       const newMov: NewMovement = {

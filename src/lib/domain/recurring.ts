@@ -125,3 +125,57 @@ export function currentPeriod(now: Date = new Date()): { anio: number; mes: numb
     mes: now.getMonth() + 1,
   };
 }
+
+/**
+ * Dadas la fecha de inicio/fin de una regla MENSUAL y un diaDelMes,
+ * devuelve las proximas ocurrencias previstas en el horizonte
+ * [now, now + daysAhead]. No incluye ocurrencias ya pasadas: solo
+ * las futuras (fecha > now).
+ *
+ * Esto se usa para exponer en la UI los movimientos recurrentes que
+ * AUN no se han generado (se generaran al llegar el dia).
+ */
+export function computeUpcomingFromRule(
+  rule: {
+    diaDelMes: number;
+    fechaInicio: Date;
+    fechaFin: Date | null;
+  },
+  now: Date,
+  daysAhead: number,
+): Array<{ fecha: Date; anio: number; mes: number }> {
+  const startDate =
+    rule.fechaInicio instanceof Date
+      ? rule.fechaInicio
+      : new Date(rule.fechaInicio);
+  const endDate = rule.fechaFin
+    ? rule.fechaFin instanceof Date
+      ? rule.fechaFin
+      : new Date(rule.fechaFin)
+    : null;
+
+  const horizonTs = now.getTime() + daysAhead * 24 * 3600 * 1000;
+  const nowTs = now.getTime();
+
+  // Empezamos por el periodo actual y avanzamos mes a mes hasta superar
+  // el horizonte (max 6 iteraciones por seguridad, ~6 meses).
+  const result: Array<{ fecha: Date; anio: number; mes: number }> = [];
+  let { anio, mes } = currentPeriod(now);
+  for (let i = 0; i < 6; i++) {
+    if (isPeriodInRange(anio, mes, startDate, endDate)) {
+      const fecha = buildPeriodDate(rule.diaDelMes, anio, mes);
+      const ts = fecha.getTime();
+      if (ts > nowTs && ts <= horizonTs) {
+        result.push({ fecha, anio, mes });
+      } else if (ts > horizonTs) {
+        break;
+      }
+    }
+    mes++;
+    if (mes > 12) {
+      mes = 1;
+      anio++;
+    }
+  }
+  return result;
+}

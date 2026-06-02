@@ -28,6 +28,7 @@ import {
   ArrowLeftRight,
   Settings2,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMovements } from "@/hooks/useMovements";
@@ -35,7 +36,10 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useInvestments } from "@/hooks/useInvestments";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { computeUpcomingFromRule } from "@/lib/domain/recurring";
+import type { RecurringRule } from "@/lib/db/schema";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
@@ -171,6 +175,39 @@ export default function MovimientosPage() {
     return map;
   }, [investments, allContribs]);
 
+  // Movimientos PREVISTOS: ocurrencias futuras de reglas recurrentes (no
+  // investment) que aun no se han materializado. Solo se muestran si el
+  // periodo seleccionado abarca dias futuros.
+  const { data: activeRules = [] } = useActiveRecurringRules();
+  const upcomings = useMemo(() => {
+    const now = today;
+    // Horizonte: hasta fin del periodo seleccionado.
+    const endOfPeriod = periodMes
+      ? new Date(periodAnio, periodMes, 0, 23, 59, 59) // ultimo dia del mes
+      : new Date(periodAnio, 11, 31, 23, 59, 59); // fin del anio
+    if (endOfPeriod.getTime() <= now.getTime()) return [];
+    const daysAhead = Math.ceil(
+      (endOfPeriod.getTime() - now.getTime()) / (1000 * 3600 * 24),
+    );
+    const items: Array<{
+      rule: RecurringRule;
+      fecha: Date;
+      anio: number;
+      mes: number;
+    }> = [];
+    for (const rule of activeRules) {
+      if (rule.origenAutomatico === "investment") continue;
+      const upcoming = computeUpcomingFromRule(rule, now, daysAhead);
+      for (const u of upcoming) {
+        if (u.anio !== periodAnio) continue;
+        if (periodMes != null && u.mes !== periodMes) continue;
+        items.push({ rule, ...u });
+      }
+    }
+    items.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+    return items;
+  }, [activeRules, periodAnio, periodMes, today]);
+
   // Form state
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Movement | null>(null);
@@ -226,6 +263,43 @@ export default function MovimientosPage() {
           </Button>
         </div>
       </header>
+
+      {upcomings.length > 0 && (
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              Proximos en este periodo
+              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums font-normal">
+                {upcomings.length}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[110px]">Fecha</TableHead>
+                  <TableHead className="w-[110px]">Tipo</TableHead>
+                  <TableHead>Concepto</TableHead>
+                  <TableHead>Cuenta</TableHead>
+                  <TableHead className="text-right">Importe</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {upcomings.map((u, idx) => (
+                  <UpcomingRow
+                    key={`${u.rule.id}-${u.anio}-${u.mes}-${idx}`}
+                    rule={u.rule}
+                    fecha={u.fecha}
+                    accById={accById}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
@@ -437,6 +511,50 @@ function renderCategoriaOCuentas(
     return `Conciliacion · ${cuenta}`;
   }
   return "";
+}
+
+function UpcomingRow({
+  rule,
+  fecha,
+  accById,
+}: {
+  rule: RecurringRule;
+  fecha: Date;
+  accById: Record<string, string>;
+}) {
+  const tipoMeta = getTipoMeta(rule.tipoMovimiento);
+  // La cuenta a mostrar segun el tipo del movimiento: para gastos/cuotas la
+  // cuenta origen, para ingresos/intereses la destino, para transferencias
+  // origen → destino.
+  const cuenta =
+    rule.tipoMovimiento === "transferencia"
+      ? `${rule.cuentaOrigenId ? (accById[rule.cuentaOrigenId] ?? "?") : "?"} → ${
+          rule.cuentaDestinoId ? (accById[rule.cuentaDestinoId] ?? "?") : "?"
+        }`
+      : rule.cuentaOrigenId
+        ? (accById[rule.cuentaOrigenId] ?? "?")
+        : rule.cuentaDestinoId
+          ? (accById[rule.cuentaDestinoId] ?? "?")
+          : "—";
+
+  return (
+    <TableRow className="text-muted-foreground">
+      <TableCell className="tabular-nums text-sm">{formatDateLong(fecha)}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className={cn("gap-1 opacity-70", tipoMeta.className)}>
+          <tipoMeta.icon className="h-3 w-3" />
+          {tipoMeta.label}
+          <Clock className="h-3 w-3 ml-1 opacity-60" aria-label="Previsto" />
+        </Badge>
+      </TableCell>
+      <TableCell className="font-medium">{rule.nombre}</TableCell>
+      <TableCell className="text-sm">{cuenta}</TableCell>
+      <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass, "opacity-80")}>
+        {tipoMeta.amountSign}
+        {formatAmount(rule.importe, rule.moneda)}
+      </TableCell>
+    </TableRow>
+  );
 }
 
 function getTipoMeta(tipo: MovementType) {
