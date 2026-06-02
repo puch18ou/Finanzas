@@ -21,6 +21,7 @@ import migration0013 from "../../../drizzle/0013_investment_archivada.sql?raw";
 import migration0014 from "../../../drizzle/0014_settings_objetivo_ahorro_importe.sql?raw";
 import migration0015 from "../../../drizzle/0015_remove_oro_tipo.sql?raw";
 import migration0016 from "../../../drizzle/0016_investment_interes.sql?raw";
+import migration0017 from "../../../drizzle/0017_investment_contributions_comision.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -40,6 +41,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0014_settings_objetivo_ahorro_importe", sql: migration0014 },
   { name: "0015_remove_oro_tipo", sql: migration0015 },
   { name: "0016_investment_interes", sql: migration0016 },
+  { name: "0017_investment_contributions_comision", sql: migration0017 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

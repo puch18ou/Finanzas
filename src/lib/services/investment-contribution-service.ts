@@ -46,6 +46,8 @@ export type AddContributionArgs = {
   fecha: Date;
   participaciones: number;
   precioUnitario: number;
+  /** Comision de compra (Lote 17). Se suma al coste y al movimiento. */
+  comision?: number;
   /** Cuenta de la que sale el dinero. Si se indica, se crea el movimiento. */
   cuentaOrigenId?: string | null;
   notas?: string | null;
@@ -62,6 +64,8 @@ export type WithdrawArgs = {
   importe?: number;
   /** Retirar toda la posicion. */
   todo?: boolean;
+  /** Comision de venta (Lote 17). Reduce el dinero recibido en la cuenta. */
+  comision?: number;
 };
 
 export class InvestmentContributionService {
@@ -81,22 +85,25 @@ export class InvestmentContributionService {
       throw new Error("La inversion no existe.");
     }
 
-    // Valor actual ANTES y el importe aportado: el valor actual sube por lo
-    // aportado (si aportas 100, el valor actual aumenta 100).
+    // Valor actual ANTES y el importe aportado. La comision SE SUMA al coste
+    // y por tanto sale tambien de la cuenta, pero NO sube el valor actual
+    // (es coste hundido). En cuanto al valor actual de la inversion sube por
+    // el importe efectivamente comprado (sin contar fee).
     const valorAntes = investment.precioActual * investment.participaciones;
-    const importeAportado = args.participaciones * args.precioUnitario;
+    const importeComprado = args.participaciones * args.precioUnitario;
+    const comision = Math.max(0, args.comision ?? 0);
+    const importeMovimiento = importeComprado + comision;
 
     // Movimiento de salida: transferencia con solo cuenta de origen (sin
     // destino). Baja el saldo de la cuenta y es neutral a gastos/ingresos.
     let movimientoId: string | null = null;
     if (args.cuentaOrigenId) {
-      const importe = importeAportado;
       const { mes, anio } = extractPeriod(args.fecha);
       const mov = await this.movements.create({
         tipo: "transferencia",
         fecha: args.fecha,
         concepto: `Aportacion a ${investment.nombre}`,
-        importe,
+        importe: importeMovimiento,
         moneda: investment.moneda,
         cuentaOrigenId: args.cuentaOrigenId,
         cuentaDestinoId: null,
@@ -117,6 +124,7 @@ export class InvestmentContributionService {
       fecha: args.fecha,
       participaciones: args.participaciones,
       precioUnitario: args.precioUnitario,
+      comision,
       cuentaOrigenId: args.cuentaOrigenId ?? null,
       movimientoId,
       notas: args.notas ?? null,
@@ -124,7 +132,7 @@ export class InvestmentContributionService {
 
     await this.recomputeWithValue(
       args.investmentId,
-      valorAntes + importeAportado,
+      valorAntes + importeComprado,
     );
   }
 
@@ -169,13 +177,19 @@ export class InvestmentContributionService {
 
     if (partRetirada <= 0) return;
 
+    // Lote 17: comision de venta reduce el dinero que entra en la cuenta;
+    // el valor de la inversion baja por el bruto (lo que sale de la
+    // cartera), pero a la cuenta entra el neto.
+    const comision = Math.max(0, args.comision ?? 0);
+    const dineroNeto = Math.max(0, dineroRecibido - comision);
+
     // Entrada de dinero en la cuenta destino (neutral a ingresos/gastos).
     const { mes, anio } = extractPeriod(args.fecha);
     const mov = await this.movements.create({
       tipo: "transferencia",
       fecha: args.fecha,
       concepto: `Retirada de ${inv.nombre}`,
-      importe: dineroRecibido,
+      importe: dineroNeto,
       moneda: inv.moneda,
       cuentaOrigenId: null,
       cuentaDestinoId: args.cuentaDestinoId,
@@ -194,6 +208,7 @@ export class InvestmentContributionService {
       fecha: args.fecha,
       participaciones: partRetirada,
       precioUnitario,
+      comision,
       cuentaOrigenId: args.cuentaDestinoId,
       movimientoId: mov.id,
       esRetirada: true,

@@ -622,6 +622,10 @@ export const investmentContributions = sqliteTable(
 
     participaciones: real("participaciones").notNull(),
     precioUnitario: real("precio_unitario").notNull(),
+    // Lote 17: comision aplicada en la operacion (compra o venta). En modo
+    // broker se suma al coste total (sube el coste medio) o reduce el efectivo
+    // recibido en una retirada.
+    comision: real("comision").notNull().default(0),
 
     cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
     movimientoId: text("movimiento_id").references(() => movements.id),

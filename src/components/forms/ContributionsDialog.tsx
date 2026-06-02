@@ -117,7 +117,11 @@ export function ContributionsDialog({
   const [addOpen, setAddOpen] = useState(false);
   const [fecha, setFecha] = useState(formatDateOnlyString(new Date()));
   const [participaciones, setParticipaciones] = useState("");
+  // En modo participaciones se mete PRECIO por unidad; en modo dinero el total.
+  const [precioUnit, setPrecioUnit] = useState("");
   const [total, setTotal] = useState("");
+  // Comision de la operacion (Lote 17). Solo aplica en modo participaciones.
+  const [comision, setComision] = useState("");
   const [cuentaOrigenId, setCuentaOrigenId] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -161,18 +165,15 @@ export function ContributionsDialog({
   function resetAddForm() {
     setFecha(formatDateOnlyString(new Date()));
     setParticipaciones("");
+    setPrecioUnit("");
     setTotal("");
+    setComision("");
     setCuentaOrigenId("");
     setAddError(null);
   }
 
   async function submitAdd() {
     if (!investment) return;
-    const tot = Number(total);
-    if (!Number.isFinite(tot) || tot <= 0) {
-      setAddError("El importe debe ser mayor que 0.");
-      return;
-    }
     if (!cuentaOrigenId) {
       setAddError("Selecciona la cuenta de origen.");
       return;
@@ -184,14 +185,27 @@ export function ContributionsDialog({
 
     let part: number;
     let precioUnitario: number;
+    let fee = 0;
     if (conParticipaciones) {
       part = Number(participaciones);
+      const pu = Number(precioUnit);
       if (!Number.isFinite(part) || part <= 0) {
         setAddError("Participaciones debe ser mayor que 0.");
         return;
       }
-      precioUnitario = tot / part;
+      if (!Number.isFinite(pu) || pu <= 0) {
+        setAddError("Precio por unidad debe ser mayor que 0.");
+        return;
+      }
+      precioUnitario = pu;
+      const com = Number(comision);
+      fee = Number.isFinite(com) && com >= 0 ? com : 0;
     } else {
+      const tot = Number(total);
+      if (!Number.isFinite(tot) || tot <= 0) {
+        setAddError("El importe debe ser mayor que 0.");
+        return;
+      }
       part = tot;
       precioUnitario = 1;
     }
@@ -201,6 +215,7 @@ export function ContributionsDialog({
       fecha: normalizeDateToUTCNoon(parseDateOnlyString(fecha)),
       participaciones: part,
       precioUnitario,
+      comision: fee,
       cuentaOrigenId,
     });
     resetAddForm();
@@ -413,8 +428,21 @@ export function ContributionsDialog({
                   >
                     {signo}
                     {formatAmount(
-                      c.participaciones * c.precioUnitario,
+                      c.esRetirada
+                        ? Math.max(
+                            0,
+                            c.participaciones * c.precioUnitario -
+                              (c.comision ?? 0),
+                          )
+                        : c.participaciones * c.precioUnitario +
+                          (c.comision ?? 0),
                       investment!.moneda,
+                    )}
+                    {(c.comision ?? 0) > 0 && (
+                      <div className="text-xs font-normal text-muted-foreground">
+                        {c.esRetirada ? "− " : "+ "}
+                        {formatAmount(c.comision ?? 0, investment!.moneda)} fee
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -594,35 +622,65 @@ export function ContributionsDialog({
                 onChange={(e) => setFecha(e.target.value)}
               />
             </div>
-            {conParticipaciones && (
+            {conParticipaciones ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="ap-part" className="text-xs">
+                    Participaciones
+                  </Label>
+                  <Input
+                    id="ap-part"
+                    type="number"
+                    step="0.000001"
+                    min={0}
+                    value={participaciones}
+                    onChange={(e) => setParticipaciones(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="ap-precio" className="text-xs">
+                    Precio por unidad
+                  </Label>
+                  <Input
+                    id="ap-precio"
+                    type="number"
+                    step="0.000001"
+                    min={0}
+                    value={precioUnit}
+                    onChange={(e) => setPrecioUnit(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="ap-fee" className="text-xs">
+                    Comision (opcional)
+                  </Label>
+                  <Input
+                    id="ap-fee"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="0"
+                    value={comision}
+                    onChange={(e) => setComision(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
               <div className="space-y-1">
-                <Label htmlFor="ap-part" className="text-xs">
-                  Participaciones
+                <Label htmlFor="ap-total" className="text-xs">
+                  Total aportado
                 </Label>
                 <Input
-                  id="ap-part"
+                  id="ap-total"
                   type="number"
-                  step="0.000001"
+                  step="0.01"
                   min={0}
-                  value={participaciones}
-                  onChange={(e) => setParticipaciones(e.target.value)}
+                  value={total}
+                  onChange={(e) => setTotal(e.target.value)}
                 />
               </div>
             )}
-            <div className="space-y-1">
-              <Label htmlFor="ap-total" className="text-xs">
-                Total aportado
-              </Label>
-              <Input
-                id="ap-total"
-                type="number"
-                step="0.01"
-                min={0}
-                value={total}
-                onChange={(e) => setTotal(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
+            <div className="space-y-1 col-span-2">
               <Label htmlFor="ap-cuenta" className="text-xs">
                 Cuenta de origen
               </Label>
@@ -640,6 +698,16 @@ export function ContributionsDialog({
               </Select>
             </div>
           </div>
+          {conParticipaciones && participaciones && precioUnit && (
+            <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+              Total a descontar:{" "}
+              {formatAmount(
+                Number(participaciones) * Number(precioUnit) +
+                  (Number(comision) || 0),
+                investment!.moneda,
+              )}
+            </p>
+          )}
           {addError && <p className="mt-2 text-xs text-destructive">{addError}</p>}
 
           <DialogFooter>

@@ -45,6 +45,37 @@ describe("recomputeTotalsFromContributions", () => {
     expect(r.participaciones).toBe(0);
     expect(r.precioMedio).toBe(0);
   });
+
+  it("la comision en aportaciones SUBE el coste medio", () => {
+    // 10 acc x 50 + 5 fee = 505 invertido / 10 acc = 50.5 €/acc
+    const r = recomputeTotalsFromContributions([
+      { participaciones: 10, precioUnitario: 50, comision: 5 },
+    ]);
+    expect(r.participaciones).toBe(10);
+    expect(r.precioMedio).toBeCloseTo(50.5, 10);
+  });
+
+  it("la comision en retiradas REDUCE el coste retirado", () => {
+    // Aportacion: 10@50 + 5 fee → coste 505 / 10 = 50.5
+    // Retirada: 5@60 - 2 fee → coste retirado 298 (5*60-2)
+    // Restante: coste 505 - 298 = 207, participaciones 5 → medio 41.4
+    const r = recomputeTotalsFromContributions([
+      { participaciones: 10, precioUnitario: 50, comision: 5 },
+      { participaciones: 5, precioUnitario: 60, comision: 2, esRetirada: true },
+    ]);
+    expect(r.participaciones).toBe(5);
+    expect(r.precioMedio).toBeCloseTo(41.4, 10);
+  });
+
+  it("sin comision se comporta como antes (compat)", () => {
+    const r = recomputeTotalsFromContributions([
+      { participaciones: 10, precioUnitario: 50 },
+      { participaciones: 20, precioUnitario: 70 },
+    ]);
+    expect(r.participaciones).toBe(30);
+    // (500 + 1400) / 30 = 63.333...
+    expect(r.precioMedio).toBeCloseTo(63.3333, 3);
+  });
 });
 
 describe("periodosTranscurridos", () => {

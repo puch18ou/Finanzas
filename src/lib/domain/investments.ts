@@ -63,6 +63,8 @@ export const APORTACION_PERIODICA_NOTA = "Aportacion periodica";
 export type ContributionLike = {
   participaciones: number;
   precioUnitario: number;
+  /** Comision de la operacion (Lote 17). Sube el coste medio en aportaciones; reduce el "ingreso" en retiradas. */
+  comision?: number;
   /** true = retirada: resta en lugar de sumar. */
   esRetirada?: boolean;
 };
@@ -74,8 +76,15 @@ export function recomputeTotalsFromContributions(
   let costeTotal = 0;
   for (const c of contributions) {
     const signo = c.esRetirada ? -1 : 1;
+    const comision = c.comision ?? 0;
     totalParticipaciones += signo * c.participaciones;
-    costeTotal += signo * c.participaciones * c.precioUnitario;
+    // En aportaciones, la comision SUMA al coste (sube el coste medio).
+    // En retiradas, la comision REDUCE lo recuperado, por lo que el coste
+    // que sale de la cartera es (participaciones*precio - comision).
+    const costeOperacion = c.esRetirada
+      ? c.participaciones * c.precioUnitario - comision
+      : c.participaciones * c.precioUnitario + comision;
+    costeTotal += signo * costeOperacion;
   }
   const precioMedio =
     totalParticipaciones > 0 ? costeTotal / totalParticipaciones : 0;
