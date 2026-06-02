@@ -6,8 +6,10 @@
  * Modal CRUD para movimientos. El tipo se elige arriba (tabs) y los
  * campos del formulario se adaptan.
  *
- * Tipos soportados: gasto, ingreso, transferencia.
- * (Ajuste se crea desde la pantalla de conciliacion en 10b.)
+ * Tipos soportados en creacion: gasto, ingreso, transferencia.
+ * Tipos soportados en edicion: gasto, ingreso, transferencia, ajuste.
+ * (Ajuste solo se crea desde la pantalla de conciliacion; aqui solo se
+ * permite editarlo: fecha, cuenta, importe, sentido, concepto, notas.)
  *
  * Para ediciones, el tipo no es cambiable (cambiar de gasto a ingreso
  * implica recategorizar todo). Si necesitas cambiar el tipo, borra y
@@ -22,9 +24,11 @@ import {
   gastoFormSchema,
   ingresoFormSchema,
   transferenciaFormSchema,
+  ajusteFormSchema,
   type GastoFormData,
   type IngresoFormData,
   type TransferenciaFormData,
+  type AjusteFormData,
   CATEGORIAS_INGRESO_EXTRA,
 } from "@/lib/schemas/forms";
 import type { Movement, Currency, Category, Account } from "@/lib/db/schema";
@@ -58,7 +62,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils/cn";
 import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
-type FormTipo = "gasto" | "ingreso" | "transferencia";
+type FormTipo = "gasto" | "ingreso" | "transferencia" | "ajuste";
 
 type Props = {
   open: boolean;
@@ -143,6 +147,22 @@ export function MovementFormDialog({
     },
   });
 
+  // El form de ajuste solo se usa en edicion (la creacion va por Conciliacion
+  // en /cuentas). Modelamos cuentaOrigenId/cuentaDestinoId con UI de
+  // "cuenta + sentido": positivo=cuentaDestino, negativo=cuentaOrigen.
+  const ajusteForm = useForm<AjusteFormData>({
+    resolver: zodResolver(ajusteFormSchema),
+    defaultValues: {
+      fecha: new Date(),
+      concepto: "Ajuste",
+      importe: 0,
+      moneda: monedaLocal,
+      cuentaOrigenId: null,
+      cuentaDestinoId: null,
+      notas: "",
+    },
+  });
+
   // Hidratar al abrir
   useEffect(() => {
     if (!open) return;
@@ -179,6 +199,16 @@ export function MovementFormDialog({
           moneda: initial.moneda,
           cuentaOrigenId: initial.cuentaOrigenId ?? "",
           cuentaDestinoId: initial.cuentaDestinoId ?? "",
+          notas: initial.notas ?? "",
+        });
+      } else if (initial.tipo === "ajuste") {
+        ajusteForm.reset({
+          fecha,
+          concepto: initial.concepto,
+          importe: initial.importe,
+          moneda: initial.moneda,
+          cuentaOrigenId: initial.cuentaOrigenId ?? null,
+          cuentaDestinoId: initial.cuentaDestinoId ?? null,
           notas: initial.notas ?? "",
         });
       }
@@ -220,6 +250,7 @@ export function MovementFormDialog({
     gastoForm,
     ingresoForm,
     transferenciaForm,
+    ajusteForm,
   ]);
 
   // Lista de cuentas activas (para los selects)
@@ -296,6 +327,28 @@ export function MovementFormDialog({
     },
   );
 
+  const handleAjusteSubmit = ajusteForm.handleSubmit(async (data) => {
+    const fecha = normalizeDateToUTCNoon(data.fecha);
+    await onSubmit({
+      tipo: "ajuste",
+      fecha,
+      mes: fecha.getUTCMonth() + 1,
+      anio: fecha.getUTCFullYear(),
+      concepto: data.concepto,
+      importe: data.importe,
+      moneda: data.moneda,
+      cuentaOrigenId: data.cuentaOrigenId ?? null,
+      cuentaDestinoId: data.cuentaDestinoId ?? null,
+      categoriaId: null,
+      categoriaTexto: "Ajuste",
+      notas: data.notas ?? null,
+      esAutomatico: false,
+      origenAutomatico: null,
+      origenAutomaticoId: null,
+    });
+    onOpenChange(false);
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -310,12 +363,19 @@ export function MovementFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Tabs de tipo (solo en creacion, en edicion estan disabled) */}
+        {/* Tabs de tipo (solo en creacion, en edicion estan disabled).
+            La tab "Ajuste" SOLO aparece editando un ajuste, ya que se crea
+            via conciliacion en /cuentas. */}
         <Tabs
           value={formTipo}
           onValueChange={(v) => setFormTipo(v as FormTipo)}
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList
+            className={cn(
+              "grid w-full",
+              formTipo === "ajuste" ? "grid-cols-4" : "grid-cols-3",
+            )}
+          >
             <TabsTrigger
               value="gasto"
               disabled={isEdit && formTipo !== "gasto"}
@@ -334,6 +394,11 @@ export function MovementFormDialog({
             >
               Transferencia
             </TabsTrigger>
+            {formTipo === "ajuste" && (
+              <TabsTrigger value="ajuste" disabled>
+                Ajuste
+              </TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
 
@@ -572,8 +637,133 @@ export function MovementFormDialog({
             />
           </form>
         )}
+
+        {/* === AJUSTE === (solo edicion) */}
+        {formTipo === "ajuste" && (
+          <AjusteForm
+            form={ajusteForm}
+            cuentasActivas={cuentasActivas}
+            currencies={currencies}
+            onSubmit={handleAjusteSubmit}
+            onCancel={() => onOpenChange(false)}
+            loading={loading}
+            isEdit={isEdit}
+          />
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-form de Ajuste
+// ---------------------------------------------------------------------------
+
+function AjusteForm({
+  form,
+  cuentasActivas,
+  currencies,
+  onSubmit,
+  onCancel,
+  loading,
+  isEdit,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  form: any;
+  cuentasActivas: Account[];
+  currencies: Currency[];
+  onSubmit: (e?: React.BaseSyntheticEvent) => void | Promise<void>;
+  onCancel: () => void;
+  loading: boolean;
+  isEdit: boolean;
+}) {
+  const cuentaOrigen = form.watch("cuentaOrigenId") as string | null;
+  const cuentaDestino = form.watch("cuentaDestinoId") as string | null;
+  const cuentaActual = cuentaDestino ?? cuentaOrigen ?? "";
+  const sentido: "positivo" | "negativo" = cuentaDestino ? "positivo" : "negativo";
+
+  const setCuenta = (cuentaId: string) => {
+    if (sentido === "positivo") {
+      form.setValue("cuentaDestinoId", cuentaId, { shouldValidate: true });
+      form.setValue("cuentaOrigenId", null, { shouldValidate: true });
+    } else {
+      form.setValue("cuentaOrigenId", cuentaId, { shouldValidate: true });
+      form.setValue("cuentaDestinoId", null, { shouldValidate: true });
+    }
+  };
+
+  const setSentido = (next: "positivo" | "negativo") => {
+    if (next === sentido) return;
+    const cuentaId = cuentaActual;
+    if (next === "positivo") {
+      form.setValue("cuentaDestinoId", cuentaId || null, { shouldValidate: true });
+      form.setValue("cuentaOrigenId", null, { shouldValidate: true });
+    } else {
+      form.setValue("cuentaOrigenId", cuentaId || null, { shouldValidate: true });
+      form.setValue("cuentaDestinoId", null, { shouldValidate: true });
+    }
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <FechaImporteMoneda
+        control={form.control}
+        register={form.register}
+        currencies={currencies}
+        errors={form.formState.errors}
+      />
+      <div className="space-y-2">
+        <Label htmlFor="a-concepto">Concepto</Label>
+        <Input
+          id="a-concepto"
+          {...form.register("concepto")}
+          placeholder="Conciliacion de saldo..."
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Cuenta</Label>
+          <Select value={cuentaActual} onValueChange={setCuenta}>
+            <SelectTrigger>
+              <SelectValue placeholder="Cuenta" />
+            </SelectTrigger>
+            <SelectContent>
+              {cuentasActivas.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.alias}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {form.formState.errors.cuentaDestinoId && (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.cuentaDestinoId.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label>Sentido</Label>
+          <Select
+            value={sentido}
+            onValueChange={(v) => setSentido(v as "positivo" | "negativo")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="positivo">Positivo (suma a la cuenta)</SelectItem>
+              <SelectItem value="negativo">Negativo (resta de la cuenta)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <Notas register={form.register} name="notas" />
+      <FooterButtons
+        loading={loading}
+        isEdit={isEdit}
+        onCancel={onCancel}
+      />
+    </form>
   );
 }
 
@@ -585,7 +775,8 @@ function movementTypeToForm(tipo: MovementType): FormTipo {
   if (tipo === "gasto" || tipo === "cuota") return "gasto";
   if (tipo === "ingreso" || tipo === "intereses") return "ingreso";
   if (tipo === "transferencia") return "transferencia";
-  return "gasto"; // 'ajuste' lo tratamos como gasto en el form (rarezas las llevamos a 10b)
+  if (tipo === "ajuste") return "ajuste";
+  return "gasto";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
