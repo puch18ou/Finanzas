@@ -24,7 +24,9 @@ import { useMovements } from "@/hooks/useMovements";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useMortgage } from "@/hooks/useMortgage";
 import { useOtherDebts } from "@/hooks/useOtherDebts";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { computeUpcomingFromRule } from "@/lib/domain/recurring";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CategoryChart } from "@/components/charts/CategoryChart";
@@ -64,6 +66,7 @@ export default function DashboardPage() {
   );
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
   const categoryById = useMemo(() => {
     const m: Record<string, { nombre: string; color: string | null }> = {};
@@ -97,6 +100,36 @@ export default function DashboardPage() {
     });
   }, [settings, periodMes, periodAnio, movements, rates, viewCurrency]);
 
+  // Ingresos PREVISTOS de este mes: ocurrencias futuras de reglas recurrentes
+  // tipo 'ingreso' o 'intereses' que aun no se han materializado (Lote 15c).
+  // Solo se anaden si el periodo seleccionado es el mes actual o futuro.
+  const ingresosPrevistos = useMemo(() => {
+    if (!settings) return 0;
+    const now = new Date();
+    const endOfPeriod = new Date(periodAnio, periodMes, 0, 23, 59, 59);
+    if (endOfPeriod.getTime() <= now.getTime()) return 0;
+    const daysAhead = Math.ceil(
+      (endOfPeriod.getTime() - now.getTime()) / (1000 * 3600 * 24),
+    );
+    let total = 0;
+    for (const rule of activeRules) {
+      if (rule.origenAutomatico === "investment") continue;
+      if (rule.tipoMovimiento !== "ingreso" && rule.tipoMovimiento !== "intereses") {
+        continue;
+      }
+      const upcoming = computeUpcomingFromRule(rule, now, daysAhead);
+      for (const u of upcoming) {
+        if (u.anio !== periodAnio || u.mes !== periodMes) continue;
+        try {
+          total += convert(rule.importe, rule.moneda, viewCurrency, rates);
+        } catch {
+          // moneda no encontrada, ignorar
+        }
+      }
+    }
+    return total;
+  }, [settings, periodAnio, periodMes, activeRules, rates, viewCurrency]);
+
   // Mortgage summary para descontar capital del patrimonio
   const mortgageSummary = useMemo(() => {
     if (!mortgage) return null;
@@ -122,12 +155,12 @@ export default function DashboardPage() {
 
   const summary = useMemo(() => {
     if (!baseSummary) return null;
-    if (cuotaHipotecaVista === 0) return baseSummary;
+    const ingresos = baseSummary.ingresos + ingresosPrevistos;
     const gastos = baseSummary.gastos + cuotaHipotecaVista;
-    const ahorro = baseSummary.ingresos - gastos;
-    const tasaAhorro = baseSummary.ingresos > 0 ? ahorro / baseSummary.ingresos : 0;
-    return { ...baseSummary, gastos, ahorro, tasaAhorro };
-  }, [baseSummary, cuotaHipotecaVista]);
+    const ahorro = ingresos - gastos;
+    const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
+    return { ...baseSummary, ingresos, gastos, ahorro, tasaAhorro };
+  }, [baseSummary, cuotaHipotecaVista, ingresosPrevistos]);
 
   const valorCuentas = useMemo(() => {
     let total = 0;
@@ -252,7 +285,13 @@ export default function DashboardPage() {
           value={formatAmount(summary.ingresos, viewCurrency)}
           icon={Wallet}
           intent="positive"
-          hint={summary.ingresos === 0 ? "Llegara con movimientos recurrentes (Lote 11)" : undefined}
+          hint={
+            ingresosPrevistos > 0
+              ? `Incluye ${formatAmount(ingresosPrevistos, viewCurrency)} previstos`
+              : summary.ingresos === 0
+                ? "Sin ingresos este mes"
+                : undefined
+          }
         />
         <KpiCard
           label="Gastos"
