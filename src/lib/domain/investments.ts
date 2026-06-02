@@ -30,7 +30,7 @@ import { convert, type RatesMap } from "./currency";
 
 /**
  * Tipos de inversion que se llevan POR PARTICIPACIONES (numero de unidades a un
- * precio). El resto (Fondo, Bono, Plan pensiones, Inmueble, Oro, Robo-advisor,
+ * precio). El resto (Fondo, Bono, Plan pensiones, Inmueble, Robo-advisor,
  * Cuenta remunerada, Otro) se llevan en modo "solo dinero": el usuario solo
  * mete importes y el valor actual total, sin participaciones.
  *
