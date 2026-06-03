@@ -26,7 +26,7 @@ import { useMortgage } from "@/hooks/useMortgage";
 import { useOtherDebts } from "@/hooks/useOtherDebts";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { computeUpcomingFromRule } from "@/lib/domain/recurring";
+import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CategoryChart } from "@/components/charts/CategoryChart";
@@ -100,35 +100,57 @@ export default function DashboardPage() {
     });
   }, [settings, periodMes, periodAnio, movements, rates, viewCurrency]);
 
-  // Ingresos PREVISTOS de este mes: ocurrencias futuras de reglas recurrentes
-  // tipo 'ingreso' o 'intereses' que aun no se han materializado (Lote 15c).
-  // Solo se anaden si el periodo seleccionado es el mes actual o futuro.
-  const ingresosPrevistos = useMemo(() => {
-    if (!settings) return 0;
+  // Previstos del periodo: solo se anaden si el periodo seleccionado
+  // COINCIDE con el mes/anio actual del sistema (no en periodos futuros,
+  // donde no tiene sentido contar como movimiento del mes algo aun por
+  // venir). Devuelve totales y el desglose de gastos por categoria para
+  // alimentar el grafico y los presupuestos del mes.
+  const previstos = useMemo(() => {
+    const zero = {
+      ingresos: 0,
+      gastos: 0,
+      gastosPorCategoria: {} as Record<string, number>,
+    };
+    if (!settings) return zero;
     const now = new Date();
-    const endOfPeriod = new Date(periodAnio, periodMes, 0, 23, 59, 59);
-    if (endOfPeriod.getTime() <= now.getTime()) return 0;
-    const daysAhead = Math.ceil(
-      (endOfPeriod.getTime() - now.getTime()) / (1000 * 3600 * 24),
-    );
-    let total = 0;
+    const isCurrentMonth =
+      periodAnio === now.getFullYear() && periodMes === now.getMonth() + 1;
+    if (!isCurrentMonth) return zero;
+    const nowMs = now.getTime();
+    let ingresos = 0;
+    let gastos = 0;
+    const gastosPorCategoria: Record<string, number> = {};
     for (const rule of activeRules) {
       if (rule.origenAutomatico === "investment") continue;
-      if (rule.tipoMovimiento !== "ingreso" && rule.tipoMovimiento !== "intereses") {
-        continue;
-      }
-      const upcoming = computeUpcomingFromRule(rule, now, daysAhead);
-      for (const u of upcoming) {
-        if (u.anio !== periodAnio || u.mes !== periodMes) continue;
-        try {
-          total += convert(rule.importe, rule.moneda, viewCurrency, rates);
-        } catch {
-          // moneda no encontrada, ignorar
+      const esIngreso =
+        rule.tipoMovimiento === "ingreso" ||
+        rule.tipoMovimiento === "intereses";
+      const esGasto =
+        rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+      if (!esIngreso && !esGasto) continue;
+      const occ = monthlyOccurrenceFor(rule, periodAnio, periodMes);
+      if (!occ) continue;
+      if (occ.getTime() <= nowMs) continue;
+      try {
+        const importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+        if (esIngreso) {
+          ingresos += importe;
+        } else {
+          gastos += importe;
+          if (rule.categoriaId) {
+            gastosPorCategoria[rule.categoriaId] =
+              (gastosPorCategoria[rule.categoriaId] ?? 0) + importe;
+          }
         }
+      } catch {
+        // moneda no encontrada, ignorar
       }
     }
-    return total;
+    return { ingresos, gastos, gastosPorCategoria };
   }, [settings, periodAnio, periodMes, activeRules, rates, viewCurrency]);
+  const ingresosPrevistos = previstos.ingresos;
+  const gastosPrevistos = previstos.gastos;
+  const gastosPrevistosPorCategoria = previstos.gastosPorCategoria;
 
   // Mortgage summary para descontar capital del patrimonio
   const mortgageSummary = useMemo(() => {
@@ -156,11 +178,11 @@ export default function DashboardPage() {
   const summary = useMemo(() => {
     if (!baseSummary) return null;
     const ingresos = baseSummary.ingresos + ingresosPrevistos;
-    const gastos = baseSummary.gastos + cuotaHipotecaVista;
+    const gastos = baseSummary.gastos + cuotaHipotecaVista + gastosPrevistos;
     const ahorro = ingresos - gastos;
     const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
     return { ...baseSummary, ingresos, gastos, ahorro, tasaAhorro };
-  }, [baseSummary, cuotaHipotecaVista, ingresosPrevistos]);
+  }, [baseSummary, cuotaHipotecaVista, ingresosPrevistos, gastosPrevistos]);
 
   const valorCuentas = useMemo(() => {
     let total = 0;
@@ -200,10 +222,28 @@ export default function DashboardPage() {
 
   const patrimonioNeto = valorCuentas + portfolio.valorActualVista - deudaTotalVista;
 
-  const categoryChartData = useMemo(() => {
+  // Suma los gastos materializados (byCat) con los previstos del mes
+  // (gastosPrevistosPorCategoria) para alimentar el grafico de categorias
+  // y el progreso de presupuesto del mes.
+  const gastosPorCategoriaConPrevistos = useMemo(() => {
     const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
     const byCat = sumMovementsByCategory(filtered, rates, viewCurrency);
-    return Object.entries(byCat)
+    const result: Record<string, number> = { ...byCat };
+    for (const [catId, importe] of Object.entries(gastosPrevistosPorCategoria)) {
+      result[catId] = (result[catId] ?? 0) + importe;
+    }
+    return result;
+  }, [
+    movements,
+    periodMes,
+    periodAnio,
+    rates,
+    viewCurrency,
+    gastosPrevistosPorCategoria,
+  ]);
+
+  const categoryChartData = useMemo(() => {
+    return Object.entries(gastosPorCategoriaConPrevistos)
       .map(([catId, value]) => {
         const cat = categoryById[catId];
         return {
@@ -214,11 +254,10 @@ export default function DashboardPage() {
       })
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [movements, periodMes, periodAnio, rates, viewCurrency, categoryById]);
+  }, [gastosPorCategoriaConPrevistos, categoryById]);
 
   const budgetRows = useMemo(() => {
-    const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
-    const byCat = sumMovementsByCategory(filtered, rates, viewCurrency);
+    const byCat = gastosPorCategoriaConPrevistos;
 
     return categories.map((c) => {
       let presupuestoView = 0;
@@ -241,7 +280,7 @@ export default function DashboardPage() {
         presupuesto: presupuestoView,
       };
     });
-  }, [categories, movements, periodMes, periodAnio, rates, viewCurrency]);
+  }, [categories, gastosPorCategoriaConPrevistos, rates, viewCurrency]);
 
   if (!settings || !summary) {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
@@ -297,7 +336,15 @@ export default function DashboardPage() {
           label="Gastos"
           value={formatAmount(summary.gastos, viewCurrency)}
           icon={TrendingDown}
-          hint={cuotaHipotecaVista > 0 ? "Incluye cuota hipoteca" : undefined}
+          hint={
+            gastosPrevistos > 0
+              ? `Incluye ${formatAmount(gastosPrevistos, viewCurrency)} previstos${
+                  cuotaHipotecaVista > 0 ? " + cuota hipoteca" : ""
+                }`
+              : cuotaHipotecaVista > 0
+                ? "Incluye cuota hipoteca"
+                : undefined
+          }
         />
         <KpiCard
           label="Ahorro"

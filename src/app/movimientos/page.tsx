@@ -38,7 +38,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import { computeUpcomingFromRule } from "@/lib/domain/recurring";
+import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import type { RecurringRule } from "@/lib/db/schema";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
@@ -176,32 +176,25 @@ export default function MovimientosPage() {
   }, [investments, allContribs]);
 
   // Movimientos PREVISTOS: ocurrencias futuras de reglas recurrentes (no
-  // investment) que aun no se han materializado. Solo se muestran si el
-  // periodo seleccionado abarca dias futuros.
+  // investment) que aun no se han materializado, filtradas al periodo
+  // seleccionado. Independiente de si el mes es el actual o uno futuro.
   const { data: activeRules = [] } = useActiveRecurringRules();
   const upcomings = useMemo(() => {
-    const now = today;
-    // Horizonte: hasta fin del periodo seleccionado.
-    const endOfPeriod = periodMes
-      ? new Date(periodAnio, periodMes, 0, 23, 59, 59) // ultimo dia del mes
-      : new Date(periodAnio, 11, 31, 23, 59, 59); // fin del anio
-    if (endOfPeriod.getTime() <= now.getTime()) return [];
-    const daysAhead = Math.ceil(
-      (endOfPeriod.getTime() - now.getTime()) / (1000 * 3600 * 24),
-    );
+    const nowMs = today.getTime();
     const items: Array<{
       rule: RecurringRule;
       fecha: Date;
       anio: number;
       mes: number;
     }> = [];
+    const meses = periodMes != null ? [periodMes] : Array.from({ length: 12 }, (_, i) => i + 1);
     for (const rule of activeRules) {
       if (rule.origenAutomatico === "investment") continue;
-      const upcoming = computeUpcomingFromRule(rule, now, daysAhead);
-      for (const u of upcoming) {
-        if (u.anio !== periodAnio) continue;
-        if (periodMes != null && u.mes !== periodMes) continue;
-        items.push({ rule, ...u });
+      for (const mes of meses) {
+        const occ = monthlyOccurrenceFor(rule, periodAnio, mes);
+        if (!occ) continue;
+        if (occ.getTime() <= nowMs) continue;
+        items.push({ rule, fecha: occ, anio: periodAnio, mes });
       }
     }
     items.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());

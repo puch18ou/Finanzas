@@ -9,7 +9,9 @@
 import { useMemo } from "react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useMovements } from "@/hooks/useMovements";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import {
   Card,
   CardContent,
@@ -33,7 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
-import { buildRatesMap, formatAmount } from "@/lib/domain/currency";
+import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { cn } from "@/lib/utils/cn";
 
@@ -53,25 +55,76 @@ export default function EvolucionPage() {
   );
 
   const { movements } = useMovements({ anio });
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
+
+  // Previstos del mes ACTUAL real (no en meses futuros, donde no tiene
+  // sentido contar como movimiento del mes algo aun por venir). Devuelve
+  // ingresos y gastos previstos del mes actual del anio seleccionado.
+  const previstosMesActual = useMemo(() => {
+    const zero = { mes: 0, ingresos: 0, gastos: 0 };
+    if (!settings) return zero;
+    const now = new Date();
+    if (anio !== now.getFullYear()) return zero;
+    const currentMes = now.getMonth() + 1;
+    const nowMs = now.getTime();
+    let ingresos = 0;
+    let gastos = 0;
+    for (const rule of activeRules) {
+      if (rule.origenAutomatico === "investment") continue;
+      const esIngreso =
+        rule.tipoMovimiento === "ingreso" ||
+        rule.tipoMovimiento === "intereses";
+      const esGasto =
+        rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+      if (!esIngreso && !esGasto) continue;
+      const occ = monthlyOccurrenceFor(rule, anio, currentMes);
+      if (!occ) continue;
+      if (occ.getTime() <= nowMs) continue;
+      try {
+        const importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+        if (esIngreso) ingresos += importe;
+        else gastos += importe;
+      } catch {
+        // ignorar moneda no encontrada
+      }
+    }
+    return { mes: currentMes, ingresos, gastos };
+  }, [settings, anio, activeRules, rates, viewCurrency]);
 
   const monthlyData = useMemo(() => {
     if (!settings) return [];
     const result = [];
     for (let mes = 1; mes <= 12; mes++) {
-      const summary = summarizeMonth({
+      const base = summarizeMonth({
         mes,
         anio,
         movements,
         rates,
         viewCurrency,
       });
-      result.push({ mes, ...summary });
+      const isCurrent = mes === previstosMesActual.mes;
+      const ingresoPrevisto = isCurrent ? previstosMesActual.ingresos : 0;
+      const gastoPrevisto = isCurrent ? previstosMesActual.gastos : 0;
+      const ingresos = base.ingresos + ingresoPrevisto;
+      const gastos = base.gastos + gastoPrevisto;
+      const ahorro = ingresos - gastos;
+      const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
+      result.push({
+        mes,
+        ...base,
+        ingresos,
+        gastos,
+        ahorro,
+        tasaAhorro,
+        ingresoPrevisto,
+        gastoPrevisto,
+      });
     }
     return result;
-  }, [settings, anio, movements, rates, viewCurrency]);
+  }, [settings, anio, movements, rates, viewCurrency, previstosMesActual]);
 
   const yearTotals = useMemo(() => {
     let ingresos = 0;
@@ -166,9 +219,19 @@ export default function EvolucionPage() {
                   <TableCell className="font-medium">{MESES_LABEL[r.mes - 1]}</TableCell>
                   <TableCell className="text-right tabular-nums text-primary">
                     {formatAmount(r.ingresos, viewCurrency)}
+                    {r.ingresoPrevisto > 0 && (
+                      <div className="text-xs font-normal text-muted-foreground">
+                        +{formatAmount(r.ingresoPrevisto, viewCurrency)} previsto
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-destructive">
                     {formatAmount(r.gastos, viewCurrency)}
+                    {r.gastoPrevisto > 0 && (
+                      <div className="text-xs font-normal text-muted-foreground">
+                        +{formatAmount(r.gastoPrevisto, viewCurrency)} previsto
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell
                     className={cn(

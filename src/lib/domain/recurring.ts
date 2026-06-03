@@ -127,6 +127,36 @@ export function currentPeriod(now: Date = new Date()): { anio: number; mes: numb
 }
 
 /**
+ * Devuelve la fecha de la ocurrencia mensual de una regla en un mes/anio
+ * concreto, o null si ese periodo cae fuera del rango de la regla
+ * [fechaInicio, fechaFin].
+ *
+ * Util para mostrar "previstos" mes a mes en evolucion/dashboard sin
+ * depender de un horizonte temporal.
+ */
+export function monthlyOccurrenceFor(
+  rule: {
+    diaDelMes: number;
+    fechaInicio: Date;
+    fechaFin: Date | null;
+  },
+  anio: number,
+  mes: number,
+): Date | null {
+  const startDate =
+    rule.fechaInicio instanceof Date
+      ? rule.fechaInicio
+      : new Date(rule.fechaInicio);
+  const endDate = rule.fechaFin
+    ? rule.fechaFin instanceof Date
+      ? rule.fechaFin
+      : new Date(rule.fechaFin)
+    : null;
+  if (!isPeriodInRange(anio, mes, startDate, endDate)) return null;
+  return buildPeriodDate(rule.diaDelMes, anio, mes);
+}
+
+/**
  * Dadas la fecha de inicio/fin de una regla MENSUAL y un diaDelMes,
  * devuelve las proximas ocurrencias previstas en el horizonte
  * [now, now + daysAhead]. No incluye ocurrencias ya pasadas: solo
