@@ -92,10 +92,10 @@ export function RecurringRuleFormDialog({
     [accounts],
   );
 
-  const categoriasGasto = useMemo(
-    () => categories.filter((c) => c.tipo === "gasto"),
-    [categories],
-  );
+  // Todas las categorias son de gasto (sus tipos son "Esencial", "Ocio",
+  // etc., no "gasto"). El antiguo filtro c.tipo === "gasto" dejaba el
+  // selector vacio.
+  const categoriasGasto = categories;
 
   const {
     register,
