@@ -52,6 +52,16 @@ export function SavingsRateCard() {
     [movsThisYear, movsPrevYear],
   );
 
+  const desdeKeyMemo = settings?.objetivoAhorroDesde
+    ? (() => {
+        const d =
+          settings.objetivoAhorroDesde instanceof Date
+            ? settings.objetivoAhorroDesde
+            : new Date(settings.objetivoAhorroDesde);
+        return d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1);
+      })()
+    : 0;
+
   const data = useMemo(() => {
     // Ultimos 12 meses (mas antiguo primero).
     const months: { anio: number; mes: number }[] = [];
@@ -71,14 +81,21 @@ export function SavingsRateCard() {
       }),
     }));
 
-    const conDatos = summaries.filter((s) => s.ingresos > 0 || s.gastos > 0);
+    // Para la media solo consideramos los meses CON DATOS y EFECTIVOS (a
+    // partir de objetivoAhorroDesde). Si no hay fecha desde, todos los
+    // meses con datos cuentan.
+    const conDatos = summaries.filter(
+      (s) =>
+        (s.ingresos > 0 || s.gastos > 0) &&
+        (desdeKeyMemo === 0 || s.anio * 100 + s.mes >= desdeKeyMemo),
+    );
     const sumIngresos = conDatos.reduce((a, s) => a + s.ingresos, 0);
     const sumAhorro = conDatos.reduce((a, s) => a + s.ahorro, 0);
     const avgTasa = sumIngresos > 0 ? sumAhorro / sumIngresos : 0;
     const avgImporte = conDatos.length > 0 ? sumAhorro / conDatos.length : 0;
 
     return { summaries, avgTasa, avgImporte, mesesConDatos: conDatos.length };
-  }, [allMovements, rates, monedaLocal, currentYear, today]);
+  }, [allMovements, rates, monedaLocal, currentYear, today, desdeKeyMemo]);
 
   if (!settings) return null;
 
@@ -86,27 +103,45 @@ export function SavingsRateCard() {
   const objetivoImporte = settings.objetivoAhorroImporte;
   const hayObjetivo = objetivoPct > 0 || objetivoImporte > 0;
 
+  // Mes/año "efectivo desde" como numero comparable (anio*100 + mes). Si no
+  // hay fecha, todos los meses son efectivos.
+  const desde = settings.objetivoAhorroDesde
+    ? settings.objetivoAhorroDesde instanceof Date
+      ? settings.objetivoAhorroDesde
+      : new Date(settings.objetivoAhorroDesde)
+    : null;
+  const desdeKey = desde ? desde.getUTCFullYear() * 100 + (desde.getUTCMonth() + 1) : 0;
+  const isEffective = (anio: number, mes: number) =>
+    !desde || anio * 100 + mes >= desdeKey;
+
   const esteMes = data.summaries[data.summaries.length - 1]!;
+  const esteMesEffective = isEffective(esteMes.anio, esteMes.mes);
 
   const pctCells: Cell[] = data.summaries.map((s) => {
+    const effective = isEffective(s.anio, s.mes);
     const tiene = s.ingresos > 0;
     return {
       label: MESES_ES_CORTO[s.mes - 1] ?? "",
-      state: !tiene ? "none" : s.tasaAhorro >= objetivoPct ? "ok" : "bad",
-      title: tiene
-        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${(s.tasaAhorro * 100).toFixed(0)}%`
-        : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
+      state: !effective || !tiene ? "none" : s.tasaAhorro >= objetivoPct ? "ok" : "bad",
+      title: !effective
+        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: fuera de objetivo`
+        : tiene
+          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${(s.tasaAhorro * 100).toFixed(0)}%`
+          : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
     };
   });
 
   const importeCells: Cell[] = data.summaries.map((s) => {
+    const effective = isEffective(s.anio, s.mes);
     const tiene = s.ingresos > 0 || s.gastos > 0;
     return {
       label: MESES_ES_CORTO[s.mes - 1] ?? "",
-      state: !tiene ? "none" : s.ahorro >= objetivoImporte ? "ok" : "bad",
-      title: tiene
-        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${formatAmount(s.ahorro, monedaLocal)}`
-        : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
+      state: !effective || !tiene ? "none" : s.ahorro >= objetivoImporte ? "ok" : "bad",
+      title: !effective
+        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: fuera de objetivo`
+        : tiene
+          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${formatAmount(s.ahorro, monedaLocal)}`
+          : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
     };
   });
 
@@ -125,7 +160,10 @@ export function SavingsRateCard() {
           </CardTitle>
           <CardDescription>
             Objetivo de ahorro mensual y su cumplimiento (ultimos 12 meses, en{" "}
-            {monedaLocal}).
+            {monedaLocal})
+            {desde
+              ? `. Efectivo desde ${MESES_ES_CORTO[desde.getUTCMonth()]} ${desde.getUTCFullYear()}.`
+              : "."}
           </CardDescription>
         </div>
         <Button asChild variant="ghost" size="sm">
@@ -151,11 +189,17 @@ export function SavingsRateCard() {
                 titulo="% de ingresos"
                 objetivo={`${(objetivoPct * 100).toFixed(0)}%`}
                 esteMesTexto={
-                  esteMes.ingresos > 0
-                    ? `${(esteMes.tasaAhorro * 100).toFixed(0)}%`
-                    : "sin datos"
+                  !esteMesEffective
+                    ? "no efectivo"
+                    : esteMes.ingresos > 0
+                      ? `${(esteMes.tasaAhorro * 100).toFixed(0)}%`
+                      : "sin datos"
                 }
-                esteMesOk={esteMes.ingresos > 0 && esteMes.tasaAhorro >= objetivoPct}
+                esteMesOk={
+                  esteMesEffective &&
+                  esteMes.ingresos > 0 &&
+                  esteMes.tasaAhorro >= objetivoPct
+                }
                 mediaTexto={`${(data.avgTasa * 100).toFixed(0)}%`}
                 mediaOk={data.avgTasa >= objetivoPct}
                 cumplidos={cumplidosPct}
@@ -168,11 +212,14 @@ export function SavingsRateCard() {
                 titulo={`Importe (${monedaLocal}/mes)`}
                 objetivo={formatAmount(objetivoImporte, monedaLocal)}
                 esteMesTexto={
-                  esteMes.ingresos > 0 || esteMes.gastos > 0
-                    ? formatAmount(esteMes.ahorro, monedaLocal)
-                    : "sin datos"
+                  !esteMesEffective
+                    ? "no efectivo"
+                    : esteMes.ingresos > 0 || esteMes.gastos > 0
+                      ? formatAmount(esteMes.ahorro, monedaLocal)
+                      : "sin datos"
                 }
                 esteMesOk={
+                  esteMesEffective &&
                   (esteMes.ingresos > 0 || esteMes.gastos > 0) &&
                   esteMes.ahorro >= objetivoImporte
                 }

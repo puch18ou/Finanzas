@@ -121,6 +121,13 @@ export const settings = sqliteTable(
       .notNull()
       .default(0),
 
+    // Fecha "desde cuando" la meta de ahorro es efectiva. NULL = desde
+    // siempre. Aplica al % y al importe. La SavingsRateCard descarta los
+    // meses anteriores en la media y la tira de cumplimiento.
+    objetivoAhorroDesde: integer("objetivo_ahorro_desde", {
+      mode: "timestamp_ms",
+    }),
+
     tieneHipoteca: integer("tiene_hipoteca", { mode: "boolean" })
       .notNull()
       .default(false),

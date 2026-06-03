@@ -105,6 +105,9 @@ export default function AjustesPage() {
   const [mesActual, setMesActual] = useState<number>(new Date().getMonth() + 1);
   const [objetivoAhorroPct, setObjetivoAhorroPct] = useState<number>(0.2);
   const [objetivoAhorroImporte, setObjetivoAhorroImporte] = useState<number>(0);
+  const [objetivoAhorroDesde, setObjetivoAhorroDesde] = useState<Date | null>(
+    null,
+  );
   const [tieneHipoteca, setTieneHipoteca] = useState(false);
   const [monedaHipoteca, setMonedaHipoteca] = useState("");
   const [patrimonioInicial, setPatrimonioInicial] = useState<number>(0);
@@ -126,6 +129,13 @@ export default function AjustesPage() {
     setMesActual(settings.mesActual);
     setObjetivoAhorroPct(settings.objetivoAhorroPct);
     setObjetivoAhorroImporte(settings.objetivoAhorroImporte);
+    setObjetivoAhorroDesde(
+      settings.objetivoAhorroDesde
+        ? settings.objetivoAhorroDesde instanceof Date
+          ? settings.objetivoAhorroDesde
+          : new Date(settings.objetivoAhorroDesde)
+        : null,
+    );
     setTieneHipoteca(settings.tieneHipoteca);
     setMonedaHipoteca(settings.monedaHipoteca ?? "");
     setPatrimonioInicial(settings.patrimonioInicial);
@@ -165,6 +175,7 @@ export default function AjustesPage() {
         mesActual,
         objetivoAhorroPct,
         objetivoAhorroImporte,
+        objetivoAhorroDesde,
         tieneHipoteca,
         monedaHipoteca: tieneHipoteca ? emptyToNull(monedaHipoteca) : null,
         patrimonioInicial,
@@ -386,6 +397,50 @@ export default function AjustesPage() {
                   }}
                   className="max-w-[200px]"
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="ahorro-desde">Efectivo desde (opcional)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="ahorro-desde"
+                    type="month"
+                    value={
+                      objetivoAhorroDesde
+                        ? `${objetivoAhorroDesde.getUTCFullYear()}-${String(
+                            objetivoAhorroDesde.getUTCMonth() + 1,
+                          ).padStart(2, "0")}`
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) {
+                        setObjetivoAhorroDesde(null);
+                        return;
+                      }
+                      const [y, m] = v.split("-").map(Number);
+                      if (!y || !m) return;
+                      setObjetivoAhorroDesde(
+                        new Date(Date.UTC(y, m - 1, 1, 12, 0, 0)),
+                      );
+                    }}
+                    className="max-w-[200px]"
+                  />
+                  {objetivoAhorroDesde && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setObjetivoAhorroDesde(null)}
+                    >
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Si lo indicas, los meses anteriores no cuentan en la media ni
+                  en la tira de cumplimiento de la tarjeta de Metas. Vacio =
+                  desde siempre.
+                </p>
               </div>
             </div>
           </CardContent>
