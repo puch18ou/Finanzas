@@ -121,8 +121,20 @@ export const investmentFormSchema = z.object({
   participaciones: z
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),
-  // Importe TOTAL gastado en la compra (no por unidad). El precio por unidad se
-  // deriva = importeInvertido / participaciones.
+  // Modo participaciones: PRECIO POR UNIDAD en la compra (igual que al aportar).
+  // Modo dinero: ignorado; el coste viene de `importeInvertido`.
+  precioUnitario: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativo")
+    .optional(),
+  // Modo participaciones: comision opcional de la compra inicial (suma al coste).
+  // Modo dinero: ignorado.
+  comision: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativo")
+    .optional(),
+  // Modo dinero: importe TOTAL gastado en la compra (no por unidad).
+  // Modo participaciones: ignorado; el coste = participaciones * precio + comision.
   importeInvertido: z
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),

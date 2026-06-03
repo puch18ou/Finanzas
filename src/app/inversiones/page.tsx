@@ -558,16 +558,14 @@ export default function InversionesPage() {
             });
           } else {
             // Modo participaciones (Acciones/ETF/Cripto): el usuario mete
-            // participaciones + importe total -> precio por unidad derivado.
+            // participaciones + precio por unidad + comision (misma filosofia
+            // que al anadir una aportacion).
             // Modo "solo dinero" (resto): no hay participaciones; usamos el
             // importe como "unidades" a precio 1 (asi coste y valor cuadran).
             const conPart = usaParticipaciones(data.tipo);
             const part = conPart ? data.participaciones : data.importeInvertido;
-            const precioUnitario = conPart
-              ? data.participaciones > 0
-                ? data.importeInvertido / data.participaciones
-                : 0
-              : 1;
+            const precioUnitario = conPart ? (data.precioUnitario ?? 0) : 1;
+            const comisionInicial = conPart ? (data.comision ?? 0) : 0;
             // Creamos la inversion "vacia" (0); la aportacion inicial fija
             // participaciones, coste y valor actual (asi el valor actual sube
             // exactamente por el importe invertido, sin duplicar).
@@ -604,6 +602,7 @@ export default function InversionesPage() {
               fecha: data.fechaCompra ?? new Date(),
               participaciones: part,
               precioUnitario,
+              comision: comisionInicial,
               cuentaOrigenId: data.cuentaId ?? null,
             });
           }

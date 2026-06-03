@@ -92,6 +92,8 @@ export function InvestmentFormDialog({
       ticker: "",
       nombre: "",
       participaciones: 0,
+      precioUnitario: 0,
+      comision: 0,
       importeInvertido: 0,
       valorActual: 0,
       moneda: monedaLocal,
@@ -121,6 +123,8 @@ export function InvestmentFormDialog({
           ticker: initial.ticker ?? "",
           nombre: initial.nombre,
           participaciones: initial.participaciones,
+          precioUnitario: initial.precioCompra,
+          comision: 0,
           importeInvertido: initial.precioCompra * initial.participaciones,
           valorActual: usaPart
             ? initial.precioActual
@@ -146,6 +150,8 @@ export function InvestmentFormDialog({
           ticker: "",
           nombre: "",
           participaciones: 0,
+          precioUnitario: 0,
+          comision: 0,
           importeInvertido: 0,
           valorActual: 0,
           moneda: monedaLocal,
@@ -176,8 +182,24 @@ export function InvestmentFormDialog({
       });
       return;
     }
-    if (!isEdit && conParticipaciones && !(data.participaciones > 0)) {
-      setError("participaciones", {
+    if (!isEdit && conParticipaciones) {
+      if (!(data.participaciones > 0)) {
+        setError("participaciones", {
+          type: "manual",
+          message: "Debe ser mayor que 0",
+        });
+        return;
+      }
+      if (!data.precioUnitario || data.precioUnitario <= 0) {
+        setError("precioUnitario", {
+          type: "manual",
+          message: "Debe ser mayor que 0",
+        });
+        return;
+      }
+    }
+    if (!isEdit && !conParticipaciones && !(data.importeInvertido > 0)) {
+      setError("importeInvertido", {
         type: "manual",
         message: "Debe ser mayor que 0",
       });
@@ -263,40 +285,67 @@ export function InvestmentFormDialog({
             )}
           </div>
 
-          {/* Participaciones e importe: SOLO al crear. Al editar, esos valores
-              salen de las aportaciones. Las participaciones solo se piden en
-              modo participaciones (Acciones/ETF/Cripto). */}
+          {/* Participaciones / precio / comision (modo broker) o importe total
+              (modo dinero). SOLO al crear; al editar esos valores vienen de
+              las aportaciones. */}
           {!isEdit && (
-            <div className="grid grid-cols-2 gap-3">
-              {conParticipaciones && (
-                <div className="space-y-2">
-                  <Label htmlFor="inv-part">Participaciones</Label>
+            <>
+              {conParticipaciones ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="inv-part">Participaciones</Label>
+                    <Input
+                      id="inv-part"
+                      type="number"
+                      step="0.000001"
+                      {...register("participaciones", { valueAsNumber: true })}
+                      disabled={loading}
+                    />
+                    {errors.participaciones && (
+                      <p className="text-xs text-destructive">{errors.participaciones.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="inv-precio-u">Precio por unidad</Label>
+                    <Input
+                      id="inv-precio-u"
+                      type="number"
+                      step="0.000001"
+                      {...register("precioUnitario", { valueAsNumber: true })}
+                      disabled={loading}
+                    />
+                    {errors.precioUnitario && (
+                      <p className="text-xs text-destructive">{errors.precioUnitario.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="inv-comision">Comision (opcional)</Label>
+                    <Input
+                      id="inv-comision"
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      {...register("comision", { valueAsNumber: true })}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 max-w-[260px]">
+                  <Label htmlFor="inv-importe">Importe invertido (total)</Label>
                   <Input
-                    id="inv-part"
+                    id="inv-importe"
                     type="number"
-                    step="0.000001"
-                    {...register("participaciones", { valueAsNumber: true })}
+                    step="0.01"
+                    {...register("importeInvertido", { valueAsNumber: true })}
                     disabled={loading}
                   />
-                  {errors.participaciones && (
-                    <p className="text-xs text-destructive">{errors.participaciones.message}</p>
+                  {errors.importeInvertido && (
+                    <p className="text-xs text-destructive">{errors.importeInvertido.message}</p>
                   )}
                 </div>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="inv-importe">Importe invertido (total)</Label>
-                <Input
-                  id="inv-importe"
-                  type="number"
-                  step="0.01"
-                  {...register("importeInvertido", { valueAsNumber: true })}
-                  disabled={loading}
-                />
-                {errors.importeInvertido && (
-                  <p className="text-xs text-destructive">{errors.importeInvertido.message}</p>
-                )}
-              </div>
-            </div>
+            </>
           )}
 
           <div className="grid grid-cols-2 gap-3">
