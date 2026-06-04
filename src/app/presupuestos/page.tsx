@@ -45,7 +45,7 @@ import {
   filterMovementsByPeriod,
   sumMovementsByCategory,
 } from "@/lib/domain/aggregation";
-import { MESES_ES } from "@/lib/utils/dates";
+import { MESES_ES, MESES_ES_CORTO, parseObjetivoDesde } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 type Row = {
@@ -77,10 +77,25 @@ export default function PresupuestosPage() {
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
+  // Mes de inicio del acumulado dentro del anio visible. Si el objetivo de
+  // ahorro arranca en ESTE anio y su mes es <= al mes seleccionado, el
+  // acumulado empieza en ese mes (estamos en un mes posterior al objetivo).
+  // En cualquier otro caso (sin objetivo, objetivo de otro anio, o mes
+  // seleccionado anterior al objetivo) empieza en enero, como hasta ahora.
+  const desde = parseObjetivoDesde(settings?.objetivoAhorroDesde);
+  const desdeAnio = desde ? desde.getUTCFullYear() : null;
+  const desdeMes = desde ? desde.getUTCMonth() + 1 : null;
+  const startMes =
+    desdeAnio === anio && desdeMes != null && desdeMes <= mes ? desdeMes : 1;
+  const numMesesAcum = mes - startMes + 1;
+
   const rows: Row[] = useMemo(() => {
-    // Gasto del mes de referencia y gasto acumulado (enero..mes), por categoria.
+    // Gasto del mes de referencia y gasto acumulado (startMes..mes), por
+    // categoria.
     const movsMes = filterMovementsByPeriod(movements, mes, anio);
-    const movsAcum = movements.filter((m) => m.anio === anio && m.mes <= mes);
+    const movsAcum = movements.filter(
+      (m) => m.anio === anio && m.mes >= startMes && m.mes <= mes,
+    );
     const gastadoMesByCat = sumMovementsByCategory(movsMes, rates, viewCurrency);
     const gastadoAcumByCat = sumMovementsByCategory(
       movsAcum,
@@ -107,11 +122,11 @@ export default function PresupuestosPage() {
           nombre: c.nombre,
           presupuestoMes: presView,
           gastadoMes: gastadoMesByCat[c.id] ?? 0,
-          presupuestoAcum: presView * mes,
+          presupuestoAcum: presView * numMesesAcum,
           gastadoAcum: gastadoAcumByCat[c.id] ?? 0,
         };
       });
-  }, [categories, movements, mes, anio, rates, viewCurrency]);
+  }, [categories, movements, mes, anio, startMes, numMesesAcum, rates, viewCurrency]);
 
   const totals = useMemo(
     () =>
@@ -132,6 +147,8 @@ export default function PresupuestosPage() {
   }
 
   const mesNombre = MESES_ES[mes - 1] ?? "";
+  const mesInicioNombre = MESES_ES[startMes - 1] ?? "";
+  const mesInicioCorto = (MESES_ES_CORTO[startMes - 1] ?? "").toLowerCase();
 
   return (
     <div className="space-y-6">
@@ -157,8 +174,10 @@ export default function PresupuestosPage() {
         <CardHeader>
           <CardTitle>Seguimiento {anio}</CardTitle>
           <CardDescription>
-            &quot;Este mes&quot; = {mesNombre}. &quot;Acumulado&quot; = enero a{" "}
-            {mesNombre} ({mes} {mes === 1 ? "mes" : "meses"}).
+            &quot;Este mes&quot; = {mesNombre}. &quot;Acumulado&quot; ={" "}
+            {mesInicioNombre} a {mesNombre} ({numMesesAcum}{" "}
+            {numMesesAcum === 1 ? "mes" : "meses"})
+            {startMes > 1 ? " · desde tu objetivo de ahorro" : ""}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -178,7 +197,7 @@ export default function PresupuestosPage() {
                   <TableHead className="text-right">Mensual</TableHead>
                   <TableHead className="w-[260px]">Este mes ({mesNombre})</TableHead>
                   <TableHead className="w-[260px]">
-                    Acumulado (ene-{mesNombre})
+                    Acumulado ({mesInicioCorto}-{mesNombre})
                   </TableHead>
                 </TableRow>
               </TableHeader>

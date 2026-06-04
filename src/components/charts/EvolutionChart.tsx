@@ -72,6 +72,9 @@ export type EvolutionRow = {
   ingresos: number;
   gastos: number;
   ahorro: number;
+  /** Etiqueta del eje X. Si falta, se usa el nombre corto del mes. Util
+   *  para rangos multi-anio donde hay que distinguir el anio (ej "Ene 25"). */
+  label?: string;
 };
 
 type Props = {
@@ -101,7 +104,7 @@ export function EvolutionChart({ data, viewCurrency, title, description }: Props
 
   const chartData = data.map((row) => ({
     ...row,
-    mesLabel: MESES_ES_CORTO[row.mes - 1] ?? "",
+    mesLabel: row.label ?? MESES_ES_CORTO[row.mes - 1] ?? "",
   }));
 
   return (

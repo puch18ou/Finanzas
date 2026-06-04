@@ -20,7 +20,7 @@
  * ============================================================================
  */
 
-import { and, desc, eq, isNull, isNotNull, sql, or, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, lte, isNull, isNotNull, sql, or, inArray } from "drizzle-orm";
 import {
   movements,
   type Movement,
@@ -45,6 +45,8 @@ export type UpdateMovementData = Partial<CreateMovementData>;
 export type MovementFilter = {
   anio?: number;
   mes?: number;
+  anioDesde?: number;  // rango inclusivo de anios (para vistas multi-anio)
+  anioHasta?: number;
   tipo?: MovementType | MovementType[];
   cuentaId?: string;       // matchea origen O destino
   categoriaId?: string;
@@ -61,6 +63,10 @@ export class MovementRepository extends BaseRepository {
 
     if (filter.anio != null) conditions.push(eq(movements.anio, filter.anio));
     if (filter.mes != null) conditions.push(eq(movements.mes, filter.mes));
+    if (filter.anioDesde != null)
+      conditions.push(gte(movements.anio, filter.anioDesde));
+    if (filter.anioHasta != null)
+      conditions.push(lte(movements.anio, filter.anioHasta));
 
     if (filter.tipo != null) {
       if (Array.isArray(filter.tipo)) {

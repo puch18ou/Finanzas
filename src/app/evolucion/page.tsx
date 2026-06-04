@@ -37,6 +37,7 @@ import {
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
+import { parseObjetivoDesde } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 const MESES_LABEL = [
@@ -53,22 +54,73 @@ export default function EvolucionPage() {
     "evolucion:anio",
     settings?.anioActual ?? today.getFullYear(),
   );
+  // Modo del selector: por anio natural, o "desde el objetivo de ahorro"
+  // (un mes por fila desde la fecha del objetivo hasta el mes actual).
+  const [modo, setModo] = useLocalStorage<"anio" | "objetivo">(
+    "evolucion:modo",
+    "anio",
+  );
 
-  const { movements } = useMovements({ anio });
+  const desde = parseObjetivoDesde(settings?.objetivoAhorroDesde);
+  const hayObjetivoDesde = desde != null;
+  const usaObjetivo = modo === "objetivo" && desde != null;
+
+  // Lista de periodos (anio+mes) a mostrar, mas antiguo primero.
+  const periodos = useMemo<{ anio: number; mes: number }[]>(() => {
+    if (usaObjetivo && desde) {
+      const now = new Date();
+      const endKey = now.getFullYear() * 100 + (now.getMonth() + 1);
+      const list: { anio: number; mes: number }[] = [];
+      let y = desde.getUTCFullYear();
+      let m = desde.getUTCMonth() + 1;
+      while (y * 100 + m <= endKey) {
+        list.push({ anio: y, mes: m });
+        m++;
+        if (m > 12) {
+          m = 1;
+          y++;
+        }
+        if (list.length > 600) break; // backstop defensivo
+      }
+      if (list.length === 0) {
+        list.push({ anio: desde.getUTCFullYear(), mes: desde.getUTCMonth() + 1 });
+      }
+      return list;
+    }
+    return Array.from({ length: 12 }, (_, i) => ({ anio, mes: i + 1 }));
+  }, [usaObjetivo, desde, anio]);
+
+  const multiAnio = useMemo(
+    () => new Set(periodos.map((p) => p.anio)).size > 1,
+    [periodos],
+  );
+
+  // Filtro de carga: en modo objetivo cargamos el rango completo de anios.
+  const movementsFilter = useMemo(() => {
+    if (usaObjetivo && desde) {
+      return {
+        anioDesde: desde.getUTCFullYear(),
+        anioHasta: new Date().getFullYear(),
+      };
+    }
+    return { anio };
+  }, [usaObjetivo, desde, anio]);
+
+  const { movements } = useMovements(movementsFilter);
   const { data: activeRules = [] } = useActiveRecurringRules();
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
   // Previstos del mes ACTUAL real (no en meses futuros, donde no tiene
-  // sentido contar como movimiento del mes algo aun por venir). Devuelve
-  // ingresos y gastos previstos del mes actual del anio seleccionado.
-  const previstosMesActual = useMemo(() => {
-    const zero = { mes: 0, ingresos: 0, gastos: 0 };
-    if (!settings) return zero;
+  // sentido contar como movimiento del mes algo aun por venir). Se calculan
+  // para el mes/anio real del sistema y solo se aplican a ese periodo.
+  const previstosActual = useMemo(() => {
     const now = new Date();
-    if (anio !== now.getFullYear()) return zero;
-    const currentMes = now.getMonth() + 1;
+    const anioActual = now.getFullYear();
+    const mesActual = now.getMonth() + 1;
+    const zero = { anio: anioActual, mes: mesActual, ingresos: 0, gastos: 0 };
+    if (!settings) return zero;
     const nowMs = now.getTime();
     let ingresos = 0;
     let gastos = 0;
@@ -80,7 +132,7 @@ export default function EvolucionPage() {
       const esGasto =
         rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
       if (!esIngreso && !esGasto) continue;
-      const occ = monthlyOccurrenceFor(rule, anio, currentMes);
+      const occ = monthlyOccurrenceFor(rule, anioActual, mesActual);
       if (!occ) continue;
       if (occ.getTime() <= nowMs) continue;
       try {
@@ -91,29 +143,33 @@ export default function EvolucionPage() {
         // ignorar moneda no encontrada
       }
     }
-    return { mes: currentMes, ingresos, gastos };
-  }, [settings, anio, activeRules, rates, viewCurrency]);
+    return { anio: anioActual, mes: mesActual, ingresos, gastos };
+  }, [settings, activeRules, rates, viewCurrency]);
 
   const monthlyData = useMemo(() => {
     if (!settings) return [];
-    const result = [];
-    for (let mes = 1; mes <= 12; mes++) {
+    return periodos.map((p) => {
       const base = summarizeMonth({
-        mes,
-        anio,
+        mes: p.mes,
+        anio: p.anio,
         movements,
         rates,
         viewCurrency,
       });
-      const isCurrent = mes === previstosMesActual.mes;
-      const ingresoPrevisto = isCurrent ? previstosMesActual.ingresos : 0;
-      const gastoPrevisto = isCurrent ? previstosMesActual.gastos : 0;
+      const isCurrent =
+        p.anio === previstosActual.anio && p.mes === previstosActual.mes;
+      const ingresoPrevisto = isCurrent ? previstosActual.ingresos : 0;
+      const gastoPrevisto = isCurrent ? previstosActual.gastos : 0;
       const ingresos = base.ingresos + ingresoPrevisto;
       const gastos = base.gastos + gastoPrevisto;
       const ahorro = ingresos - gastos;
       const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
-      result.push({
-        mes,
+      const label = multiAnio
+        ? `${MESES_LABEL[p.mes - 1]} ${String(p.anio).slice(2)}`
+        : MESES_LABEL[p.mes - 1];
+      return {
+        anio: p.anio,
+        mes: p.mes,
         ...base,
         ingresos,
         gastos,
@@ -121,10 +177,10 @@ export default function EvolucionPage() {
         tasaAhorro,
         ingresoPrevisto,
         gastoPrevisto,
-      });
-    }
-    return result;
-  }, [settings, anio, movements, rates, viewCurrency, previstosMesActual]);
+        label,
+      };
+    });
+  }, [settings, periodos, multiAnio, movements, rates, viewCurrency, previstosActual]);
 
   const yearTotals = useMemo(() => {
     let ingresos = 0;
@@ -152,14 +208,31 @@ export default function EvolucionPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Evolucion</h1>
           <p className="text-sm text-muted-foreground">
-            Resumen mensual del anio seleccionado.
+            {usaObjetivo
+              ? "Resumen mensual desde tu objetivo de ahorro."
+              : "Resumen mensual del anio seleccionado."}
           </p>
         </div>
-        <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
-          <SelectTrigger className="w-[120px]">
+        <Select
+          value={usaObjetivo ? "objetivo" : String(anio)}
+          onValueChange={(v) => {
+            if (v === "objetivo") {
+              setModo("objetivo");
+            } else {
+              setModo("anio");
+              setAnio(Number(v));
+            }
+          }}
+        >
+          <SelectTrigger className={hayObjetivoDesde ? "w-[210px]" : "w-[120px]"}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            {hayObjetivoDesde && (
+              <SelectItem value="objetivo">
+                Desde objetivo de ahorro
+              </SelectItem>
+            )}
             {years.map((y) => (
               <SelectItem key={y} value={String(y)}>
                 {y}
@@ -171,9 +244,13 @@ export default function EvolucionPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Resumen {anio}</CardTitle>
+          <CardTitle>
+            {usaObjetivo ? "Resumen desde objetivo" : `Resumen ${anio}`}
+          </CardTitle>
           <CardDescription>
-            Totales anuales en {viewCurrency}
+            {usaObjetivo
+              ? `Totales del periodo en ${viewCurrency}`
+              : `Totales anuales en ${viewCurrency}`}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -215,8 +292,8 @@ export default function EvolucionPage() {
             </TableHeader>
             <TableBody>
               {monthlyData.map((r) => (
-                <TableRow key={r.mes}>
-                  <TableCell className="font-medium">{MESES_LABEL[r.mes - 1]}</TableCell>
+                <TableRow key={`${r.anio}-${r.mes}`}>
+                  <TableCell className="font-medium">{r.label}</TableCell>
                   <TableCell className="text-right tabular-nums text-primary">
                     {formatAmount(r.ingresos, viewCurrency)}
                     {r.ingresoPrevisto > 0 && (

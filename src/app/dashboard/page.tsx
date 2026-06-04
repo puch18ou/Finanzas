@@ -33,6 +33,13 @@ import { CategoryChart } from "@/components/charts/CategoryChart";
 import { BudgetProgress } from "@/components/dashboard/BudgetProgress";
 import { RecentMovements } from "@/components/dashboard/RecentMovements";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   buildRatesMap,
   convert,
   formatAmount,
@@ -44,6 +51,13 @@ import {
 } from "@/lib/domain/aggregation";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
+import {
+  MESES_ES,
+  parseObjetivoDesde,
+  objetivoDesdeKey,
+  periodKey,
+} from "@/lib/utils/dates";
+import { cn } from "@/lib/utils/cn";
 
 export default function DashboardPage() {
   const { settings } = useSettings();
@@ -66,6 +80,8 @@ export default function DashboardPage() {
   );
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
+  // Año completo, para el acumulado de ahorro desde la fecha del objetivo.
+  const { movements: movementsAnio } = useMovements({ anio: periodAnio });
   const { data: activeRules = [] } = useActiveRecurringRules();
 
   const categoryById = useMemo(() => {
@@ -184,6 +200,50 @@ export default function DashboardPage() {
     return { ...baseSummary, ingresos, gastos, ahorro, tasaAhorro };
   }, [baseSummary, cuotaHipotecaVista, ingresosPrevistos, gastosPrevistos]);
 
+  // Ahorro acumulado desde la fecha del objetivo de ahorro hasta el mes
+  // visto, limitado al anio visible (si el objetivo es de un anio anterior,
+  // arranca en enero). Solo cuenta cuando el mes visto es >= al mes del
+  // objetivo (objetivo ya efectivo). Coherente con el KPI de Ahorro: suma
+  // por mes y anade cuota hipoteca y previstos del mes en curso.
+  const ahorroAcumulado = useMemo(() => {
+    const desde = parseObjetivoDesde(settings?.objetivoAhorroDesde);
+    if (!settings || !desde) return null;
+    const desdeAnio = desde.getUTCFullYear();
+    const desdeMes = desde.getUTCMonth() + 1;
+    if (periodKey(periodAnio, periodMes) < periodKey(desdeAnio, desdeMes)) {
+      return null;
+    }
+    const startMes = desdeAnio === periodAnio ? desdeMes : 1;
+    let ingresos = 0;
+    let gastos = 0;
+    for (let m = startMes; m <= periodMes; m++) {
+      const s = summarizeMonth({
+        mes: m,
+        anio: periodAnio,
+        movements: movementsAnio,
+        rates,
+        viewCurrency,
+      });
+      ingresos += s.ingresos;
+      gastos += s.gastos;
+    }
+    const numMeses = periodMes - startMes + 1;
+    ingresos += ingresosPrevistos;
+    gastos += cuotaHipotecaVista * numMeses + gastosPrevistos;
+    const ahorro = ingresos - gastos;
+    return { startMes, numMeses, ingresos, gastos, ahorro };
+  }, [
+    settings,
+    periodAnio,
+    periodMes,
+    movementsAnio,
+    rates,
+    viewCurrency,
+    cuotaHipotecaVista,
+    ingresosPrevistos,
+    gastosPrevistos,
+  ]);
+
   const valorCuentas = useMemo(() => {
     let total = 0;
     for (const a of accounts) {
@@ -287,8 +347,38 @@ export default function DashboardPage() {
   }
 
   const objetivoAhorro = settings.objetivoAhorroPct;
-  const cumpleObjetivo = summary.tasaAhorro >= objetivoAhorro;
+  const objetivoImporte = settings.objetivoAhorroImporte;
+  // El objetivo solo es "efectivo" desde su fecha; antes no afirmamos
+  // cumplimiento en el mes.
+  const desdeKey = objetivoDesdeKey(settings.objetivoAhorroDesde);
+  const objetivoEfectivo =
+    desdeKey === 0 || periodKey(periodAnio, periodMes) >= desdeKey;
+  const cumpleObjetivo =
+    objetivoEfectivo && summary.tasaAhorro >= objetivoAhorro;
   const hayInversiones = investments.length > 0;
+
+  // Valores de la tarjeta de ahorro acumulado vs objetivo.
+  const monedaLocal = settings.monedaLocal ?? "EUR";
+  let objetivoImporteVista = 0;
+  try {
+    objetivoImporteVista = convert(
+      objetivoImporte,
+      monedaLocal,
+      viewCurrency,
+      rates,
+    );
+  } catch {
+    objetivoImporteVista = 0;
+  }
+  const objetivoImporteAcum = ahorroAcumulado
+    ? objetivoImporteVista * ahorroAcumulado.numMeses
+    : 0;
+  const tasaAcum =
+    ahorroAcumulado && ahorroAcumulado.ingresos > 0
+      ? ahorroAcumulado.ahorro / ahorroAcumulado.ingresos
+      : 0;
+  const mostrarAcumulado =
+    !!ahorroAcumulado && (objetivoAhorro > 0 || objetivoImporte > 0);
 
   const kpiCols = hayInversiones
     ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
@@ -383,6 +473,68 @@ export default function DashboardPage() {
           />
         )}
       </div>
+
+      {mostrarAcumulado && ahorroAcumulado && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PiggyBank className="h-4 w-4" />
+              Ahorro acumulado vs objetivo
+            </CardTitle>
+            <CardDescription>
+              {MESES_ES[ahorroAcumulado.startMes - 1]} a {MESES_ES[periodMes - 1]}{" "}
+              {periodAnio} ({ahorroAcumulado.numMeses}{" "}
+              {ahorroAcumulado.numMeses === 1 ? "mes" : "meses"}) · desde tu
+              objetivo de ahorro
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-md bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">Ahorro acumulado</p>
+              <p
+                className={cn(
+                  "text-xl font-bold tabular-nums",
+                  ahorroAcumulado.ahorro >= 0
+                    ? "text-primary"
+                    : "text-destructive",
+                )}
+              >
+                {formatAmount(ahorroAcumulado.ahorro, viewCurrency)}
+              </p>
+              {objetivoImporte > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Objetivo: {formatAmount(objetivoImporteAcum, viewCurrency)}{" "}
+                  {ahorroAcumulado.ahorro >= objetivoImporteAcum
+                    ? "✓"
+                    : `· faltan ${formatAmount(
+                        objetivoImporteAcum - ahorroAcumulado.ahorro,
+                        viewCurrency,
+                      )}`}
+                </p>
+              )}
+            </div>
+            {objetivoAhorro > 0 && (
+              <div className="rounded-md bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">Tasa acumulada</p>
+                <p
+                  className={cn(
+                    "text-xl font-bold tabular-nums",
+                    tasaAcum >= objetivoAhorro
+                      ? "text-primary"
+                      : "text-foreground",
+                  )}
+                >
+                  {(tasaAcum * 100).toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Objetivo: {(objetivoAhorro * 100).toFixed(0)}%{" "}
+                  {tasaAcum >= objetivoAhorro ? "✓" : "✗"}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryChart

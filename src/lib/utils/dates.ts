@@ -118,6 +118,41 @@ export const MESES_ES_CORTO = [
 ];
 
 /**
+ * Parsea el campo settings.objetivoAhorroDesde (Date | number ms | null)
+ * a un Date, o null si no hay fecha. La meta de ahorro solo es "efectiva"
+ * a partir de este mes; null = sin fecha (cuenta desde siempre).
+ *
+ * Ojo: la fecha se guarda como mediodia UTC del dia 1 del mes (ver
+ * /ajustes), asi que el mes/anio se leen con getUTC*, no con getMonth().
+ */
+export function parseObjetivoDesde(
+  value: Date | number | null | undefined,
+): Date | null {
+  if (value == null) return null;
+  return value instanceof Date ? value : new Date(value);
+}
+
+/**
+ * Clave comparable mes/anio: anio*100 + mes (mes 1-12). Util para comparar
+ * periodos sin construir Dates. Ej: junio 2026 -> 202606.
+ */
+export function periodKey(anio: number, mes: number): number {
+  return anio * 100 + mes;
+}
+
+/**
+ * Clave comparable del mes "efectivo desde" del objetivo de ahorro, o 0 si
+ * no hay fecha (todos los meses cuentan). Mismo formato que periodKey().
+ */
+export function objetivoDesdeKey(
+  value: Date | number | null | undefined,
+): number {
+  const d = parseObjetivoDesde(value);
+  if (!d) return 0;
+  return periodKey(d.getUTCFullYear(), d.getUTCMonth() + 1);
+}
+
+/**
  * Formatea una fecha como "15 ene 2026" o "15 enero 2026" segun el flag.
  */
 export function formatDateLong(date: Date, abbrev = true): string {
