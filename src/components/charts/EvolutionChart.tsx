@@ -31,6 +31,7 @@ import {
   Tooltip as RTooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 import {
   ChartLine,
@@ -77,11 +78,15 @@ export type EvolutionRow = {
   label?: string;
 };
 
+/** Marca un mes (por su etiqueta de eje X) donde empieza un cambio de tramo. */
+export type ChartMarker = { label: string; title?: string };
+
 type Props = {
   data: EvolutionRow[];
   viewCurrency: string;
   title: string;
   description?: string;
+  markers?: ChartMarker[];
 };
 
 /**
@@ -96,7 +101,13 @@ function tooltipNumberFormatter(viewCurrency: string) {
   };
 }
 
-export function EvolutionChart({ data, viewCurrency, title, description }: Props) {
+export function EvolutionChart({
+  data,
+  viewCurrency,
+  title,
+  description,
+  markers = [],
+}: Props) {
   const [type, setType] = useLocalStorage<EvolutionType>(
     "chart:evolutionType",
     "lines",
@@ -122,20 +133,48 @@ export function EvolutionChart({ data, viewCurrency, title, description }: Props
             No hay datos para mostrar.
           </p>
         ) : (
-          <ResponsiveContainer width="100%" height={340}>
-            {renderChart(type, chartData, viewCurrency)}
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={340}>
+              {renderChart(type, chartData, viewCurrency, markers)}
+            </ResponsiveContainer>
+            {markers.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Las lineas punteadas marcan cambios de objetivo o presupuesto.
+              </p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
 
+/** Lineas verticales de referencia en los meses con cambio de tramo. */
+function markerLines(markers: ChartMarker[]) {
+  return markers.map((m) => (
+    <ReferenceLine
+      key={m.label}
+      x={m.label}
+      stroke="var(--color-muted-foreground)"
+      strokeDasharray="3 3"
+      strokeOpacity={0.6}
+      ifOverflow="extendDomain"
+      label={{
+        value: "⏱",
+        position: "top",
+        fontSize: 11,
+      }}
+    />
+  ));
+}
+
 function renderChart(
   type: EvolutionType,
   data: (EvolutionRow & { mesLabel: string })[],
   viewCurrency: string,
+  markers: ChartMarker[],
 ) {
+  const refLines = markerLines(markers);
   const formatY = (v: number) =>
     v >= 1000
       ? formatAmount(v / 1000, viewCurrency).replace(/[.,]00/, "") + "k"
@@ -166,6 +205,7 @@ function renderChart(
           <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
           <RTooltip {...tooltipProps} />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
+          {refLines}
           <Line type="monotone" dataKey="ingresos" stroke={colors.ingresos} strokeWidth={2} dot={{ r: 3 }} name="Ingresos" />
           <Line type="monotone" dataKey="gastos" stroke={colors.gastos} strokeWidth={2} dot={{ r: 3 }} name="Gastos" />
           <Line type="monotone" dataKey="ahorro" stroke={colors.ahorro} strokeWidth={2} dot={{ r: 3 }} name="Ahorro" />
@@ -180,6 +220,7 @@ function renderChart(
           <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
           <RTooltip {...tooltipProps} />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
+          {refLines}
           <Bar dataKey="ingresos" fill={colors.ingresos} radius={[4, 4, 0, 0]} name="Ingresos" />
           <Bar dataKey="gastos" fill={colors.gastos} radius={[4, 4, 0, 0]} name="Gastos" />
         </BarChart>
@@ -193,6 +234,7 @@ function renderChart(
           <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
           <RTooltip {...tooltipProps} />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
+          {refLines}
           <Bar dataKey="gastos" stackId="a" fill={colors.gastos} name="Gastos" />
           <Bar dataKey="ingresos" stackId="a" fill={colors.ingresos} name="Ingresos" radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -216,6 +258,7 @@ function renderChart(
           <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
           <RTooltip {...tooltipProps} />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
+          {refLines}
           <Area type="monotone" dataKey="ingresos" stroke={colors.ingresos} fill="url(#gradIngresos)" name="Ingresos" />
           <Area type="monotone" dataKey="gastos" stroke={colors.gastos} fill="url(#gradGastos)" name="Gastos" />
         </AreaChart>
@@ -229,6 +272,7 @@ function renderChart(
           <YAxis fontSize={11} stroke="var(--color-muted-foreground)" tickFormatter={formatY} width={70} />
           <RTooltip {...tooltipProps} />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
+          {refLines}
           <Bar dataKey="ingresos" fill={colors.ingresos} radius={[4, 4, 0, 0]} name="Ingresos" />
           <Bar dataKey="gastos" fill={colors.gastos} radius={[4, 4, 0, 0]} name="Gastos" />
           <Line type="monotone" dataKey="ahorro" stroke={colors.ahorro} strokeWidth={2} dot={{ r: 3 }} name="Ahorro" />

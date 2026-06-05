@@ -38,6 +38,7 @@ import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
+import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
 import { tramosAncla } from "@/lib/domain/tramos";
 import { cn } from "@/lib/utils/cn";
 
@@ -51,6 +52,7 @@ export default function EvolucionPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { tramos: objetivoTramos } = useObjetivoTramos();
+  const { tramos: presupuestoTramos } = usePresupuestoTramos();
 
   const [anio, setAnio] = useLocalStorage<number>(
     "evolucion:anio",
@@ -101,6 +103,31 @@ export default function EvolucionPage() {
     () => new Set(periodos.map((p) => p.anio)).size > 1,
     [periodos],
   );
+
+  // Meses con un cambio de tramo (objetivo y/o presupuesto). Clave anio*100+mes
+  // -> texto del tipo de cambio.
+  const cambios = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    const add = (
+      a: number | null,
+      m: number | null,
+      etiqueta: string,
+    ) => {
+      if (a == null || m == null) return;
+      const k = a * 100 + m;
+      (map.get(k) ?? map.set(k, new Set()).get(k)!).add(etiqueta);
+    };
+    for (const t of objetivoTramos) add(t.desdeAnio, t.desdeMes, "objetivo");
+    for (const t of presupuestoTramos)
+      add(t.desdeAnio, t.desdeMes, "presupuesto");
+    return map;
+  }, [objetivoTramos, presupuestoTramos]);
+
+  const cambioTitulo = (anio: number, mes: number): string | null => {
+    const tipos = cambios.get(anio * 100 + mes);
+    if (!tipos || tipos.size === 0) return null;
+    return `Cambio de ${[...tipos].join(" y ")}`;
+  };
 
   // Filtro de carga: en modo objetivo cargamos el rango completo de anios.
   const movementsFilter = useMemo(() => {
@@ -280,6 +307,12 @@ export default function EvolucionPage() {
         viewCurrency={viewCurrency}
         title="Mes a mes"
         description={`Ingresos vs gastos en ${viewCurrency}`}
+        markers={monthlyData
+          .filter((r) => cambios.has(r.anio * 100 + r.mes))
+          .map((r) => ({
+            label: r.label ?? "",
+            title: cambioTitulo(r.anio, r.mes) ?? undefined,
+          }))}
       />
 
       <Card>
@@ -298,9 +331,21 @@ export default function EvolucionPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {monthlyData.map((r) => (
+              {monthlyData.map((r) => {
+                const cambio = cambioTitulo(r.anio, r.mes);
+                return (
                 <TableRow key={`${r.anio}-${r.mes}`}>
-                  <TableCell className="font-medium">{r.label}</TableCell>
+                  <TableCell className="font-medium">
+                    {r.label}
+                    {cambio && (
+                      <span
+                        className="ml-1 text-xs text-muted-foreground"
+                        title={cambio}
+                      >
+                        ⏱
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums text-primary">
                     {formatAmount(r.ingresos, viewCurrency)}
                     {r.ingresoPrevisto > 0 && (
@@ -329,7 +374,8 @@ export default function EvolucionPage() {
                     {r.ingresos > 0 ? `${(r.tasaAhorro * 100).toFixed(0)}%` : "—"}
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
