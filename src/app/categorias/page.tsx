@@ -14,12 +14,22 @@
  */
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  CalendarClock,
+} from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { resolvePresupuesto } from "@/lib/domain/tramos";
 import { CategoryFormDialog } from "@/components/forms/CategoryFormDialog";
+import { PresupuestoTramosDialog } from "@/components/forms/PresupuestoTramosDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { Button } from "@/components/ui/button";
@@ -75,10 +85,12 @@ export default function CategoriasPage() {
   );
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
+  const { tramos: presupuestoTramos } = usePresupuestoTramos();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [toDelete, setToDelete] = useState<Category | null>(null);
+  const [tramosCat, setTramosCat] = useState<Category | null>(null);
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
@@ -87,6 +99,16 @@ export default function CategoriasPage() {
     const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
     return sumMovementsByCategory(filtered, rates, viewCurrency);
   }, [movements, periodMes, periodAnio, rates, viewCurrency]);
+
+  // Cambios de presupuesto agrupados por categoria (la base vive en la propia
+  // categoria; estos son solo los cambios con fecha).
+  const tramosByCat = useMemo(() => {
+    const m: Record<string, typeof presupuestoTramos> = {};
+    for (const t of presupuestoTramos) {
+      (m[t.categoriaId] ??= []).push(t);
+    }
+    return m;
+  }, [presupuestoTramos]);
 
   const moveCategory = async (id: string, dir: -1 | 1) => {
     const idx = categories.findIndex((c) => c.id === id);
@@ -155,18 +177,28 @@ export default function CategoriasPage() {
                   <TableHead className="text-right">Gastado</TableHead>
                   <TableHead className="text-right">Presupuesto</TableHead>
                   <TableHead>Progreso</TableHead>
-                  <TableHead className="w-[150px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[200px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {categories.map((c, idx) => {
                   const gastado = gastosPorCategoria[c.id] ?? 0;
+                  // Presupuesto vigente en el periodo: base de la categoria o
+                  // el ultimo cambio con fecha <= periodo.
+                  const presup = resolvePresupuesto(
+                    tramosByCat[c.id] ?? [],
+                    c.presupuestoMensual,
+                    c.presupuestoMoneda,
+                    periodAnio,
+                    periodMes,
+                  );
+                  const tieneCambios = (tramosByCat[c.id] ?? []).length > 0;
                   let presupuestoView = 0;
-                  if (c.presupuestoMensual > 0) {
+                  if (presup.importe > 0) {
                     try {
                       presupuestoView = convert(
-                        c.presupuestoMensual,
-                        c.presupuestoMoneda,
+                        presup.importe,
+                        presup.moneda,
                         viewCurrency,
                         rates,
                       );
@@ -201,12 +233,20 @@ export default function CategoriasPage() {
                         {formatAmount(gastado, viewCurrency)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {c.presupuestoMensual > 0
+                        {presupuestoView > 0
                           ? formatAmount(presupuestoView, viewCurrency)
                           : "—"}
+                        {tieneCambios && (
+                          <span
+                            className="ml-1 text-xs text-muted-foreground"
+                            title="Tiene cambios de presupuesto con fecha"
+                          >
+                            ⏱
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="w-[200px]">
-                        {c.presupuestoMensual > 0 ? (
+                        {presupuestoView > 0 ? (
                           <div className="flex items-center gap-2">
                             <Progress
                               value={pct}
@@ -241,6 +281,16 @@ export default function CategoriasPage() {
                             className="h-8 w-8"
                           >
                             <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setTramosCat(c)}
+                            aria-label="Cambios de presupuesto"
+                            title="Cambios de presupuesto con fecha"
+                            className="h-8 w-8"
+                          >
+                            <CalendarClock className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -288,6 +338,13 @@ export default function CategoriasPage() {
             await create(data);
           }
         }}
+      />
+
+      <PresupuestoTramosDialog
+        open={!!tramosCat}
+        onOpenChange={(v) => !v && setTramosCat(null)}
+        category={tramosCat}
+        currencies={currencies}
       />
 
       <DeleteConfirmation

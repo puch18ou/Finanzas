@@ -37,7 +37,8 @@ import {
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
-import { parseObjetivoDesde } from "@/lib/utils/dates";
+import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
+import { tramosAncla } from "@/lib/domain/tramos";
 import { cn } from "@/lib/utils/cn";
 
 const MESES_LABEL = [
@@ -49,6 +50,7 @@ export default function EvolucionPage() {
   const today = new Date();
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
+  const { tramos: objetivoTramos } = useObjetivoTramos();
 
   const [anio, setAnio] = useLocalStorage<number>(
     "evolucion:anio",
@@ -61,18 +63,23 @@ export default function EvolucionPage() {
     "anio",
   );
 
-  const desde = parseObjetivoDesde(settings?.objetivoAhorroDesde);
-  const hayObjetivoDesde = desde != null;
-  const usaObjetivo = modo === "objetivo" && desde != null;
+  // Ancla = primer mes del objetivo de ahorro (primer tramo). Null si el
+  // objetivo es "desde siempre" o no hay objetivo: en ese caso no ofrecemos
+  // el modo "desde objetivo".
+  const ancla = tramosAncla(objetivoTramos);
+  const anclaAnio = ancla?.anio ?? null;
+  const anclaMes = ancla?.mes ?? null;
+  const hayObjetivoDesde = ancla != null;
+  const usaObjetivo = modo === "objetivo" && ancla != null;
 
   // Lista de periodos (anio+mes) a mostrar, mas antiguo primero.
   const periodos = useMemo<{ anio: number; mes: number }[]>(() => {
-    if (usaObjetivo && desde) {
+    if (usaObjetivo && anclaAnio != null && anclaMes != null) {
       const now = new Date();
       const endKey = now.getFullYear() * 100 + (now.getMonth() + 1);
       const list: { anio: number; mes: number }[] = [];
-      let y = desde.getUTCFullYear();
-      let m = desde.getUTCMonth() + 1;
+      let y = anclaAnio;
+      let m = anclaMes;
       while (y * 100 + m <= endKey) {
         list.push({ anio: y, mes: m });
         m++;
@@ -83,12 +90,12 @@ export default function EvolucionPage() {
         if (list.length > 600) break; // backstop defensivo
       }
       if (list.length === 0) {
-        list.push({ anio: desde.getUTCFullYear(), mes: desde.getUTCMonth() + 1 });
+        list.push({ anio: anclaAnio, mes: anclaMes });
       }
       return list;
     }
     return Array.from({ length: 12 }, (_, i) => ({ anio, mes: i + 1 }));
-  }, [usaObjetivo, desde, anio]);
+  }, [usaObjetivo, anclaAnio, anclaMes, anio]);
 
   const multiAnio = useMemo(
     () => new Set(periodos.map((p) => p.anio)).size > 1,
@@ -97,14 +104,14 @@ export default function EvolucionPage() {
 
   // Filtro de carga: en modo objetivo cargamos el rango completo de anios.
   const movementsFilter = useMemo(() => {
-    if (usaObjetivo && desde) {
+    if (usaObjetivo && anclaAnio != null) {
       return {
-        anioDesde: desde.getUTCFullYear(),
+        anioDesde: anclaAnio,
         anioHasta: new Date().getFullYear(),
       };
     }
     return { anio };
-  }, [usaObjetivo, desde, anio]);
+  }, [usaObjetivo, anclaAnio, anio]);
 
   const { movements } = useMovements(movementsFilter);
   const { data: activeRules = [] } = useActiveRecurringRules();

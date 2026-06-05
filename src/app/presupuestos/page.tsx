@@ -45,7 +45,10 @@ import {
   filterMovementsByPeriod,
   sumMovementsByCategory,
 } from "@/lib/domain/aggregation";
-import { MESES_ES, MESES_ES_CORTO, parseObjetivoDesde } from "@/lib/utils/dates";
+import { MESES_ES, MESES_ES_CORTO } from "@/lib/utils/dates";
+import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
+import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
+import { tramosAncla, resolvePresupuesto } from "@/lib/domain/tramos";
 import { cn } from "@/lib/utils/cn";
 
 type Row = {
@@ -62,6 +65,8 @@ export default function PresupuestosPage() {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
+  const { tramos: objetivoTramos } = useObjetivoTramos();
+  const { tramos: presupuestoTramos } = usePresupuestoTramos();
 
   const [anio, setAnio] = useLocalStorage<number>(
     "presup:anio",
@@ -82,12 +87,21 @@ export default function PresupuestosPage() {
   // acumulado empieza en ese mes (estamos en un mes posterior al objetivo).
   // En cualquier otro caso (sin objetivo, objetivo de otro anio, o mes
   // seleccionado anterior al objetivo) empieza en enero, como hasta ahora.
-  const desde = parseObjetivoDesde(settings?.objetivoAhorroDesde);
-  const desdeAnio = desde ? desde.getUTCFullYear() : null;
-  const desdeMes = desde ? desde.getUTCMonth() + 1 : null;
+  const ancla = tramosAncla(objetivoTramos);
+  const desdeAnio = ancla?.anio ?? null;
+  const desdeMes = ancla?.mes ?? null;
   const startMes =
     desdeAnio === anio && desdeMes != null && desdeMes <= mes ? desdeMes : 1;
   const numMesesAcum = mes - startMes + 1;
+
+  // Cambios de presupuesto con fecha, agrupados por categoria.
+  const tramosByCat = useMemo(() => {
+    const m: Record<string, typeof presupuestoTramos> = {};
+    for (const t of presupuestoTramos) {
+      (m[t.categoriaId] ??= []).push(t);
+    }
+    return m;
+  }, [presupuestoTramos]);
 
   const rows: Row[] = useMemo(() => {
     // Gasto del mes de referencia y gasto acumulado (startMes..mes), por
@@ -103,30 +117,50 @@ export default function PresupuestosPage() {
       viewCurrency,
     );
 
+    // Presupuesto resuelto y convertido a moneda vista para (anio, m).
+    const presView = (c: (typeof categories)[number], m: number): number => {
+      const p = resolvePresupuesto(
+        tramosByCat[c.id] ?? [],
+        c.presupuestoMensual,
+        c.presupuestoMoneda,
+        anio,
+        m,
+      );
+      if (p.importe <= 0) return 0;
+      try {
+        return convert(p.importe, p.moneda, viewCurrency, rates);
+      } catch {
+        return 0;
+      }
+    };
+
     return categories
-      .filter((c) => c.presupuestoMensual > 0)
+      .filter(
+        (c) =>
+          c.presupuestoMensual > 0 || (tramosByCat[c.id]?.length ?? 0) > 0,
+      )
       .map((c) => {
-        let presView = 0;
-        try {
-          presView = convert(
-            c.presupuestoMensual,
-            c.presupuestoMoneda,
-            viewCurrency,
-            rates,
-          );
-        } catch {
-          presView = 0;
-        }
+        let presupuestoAcum = 0;
+        for (let m = startMes; m <= mes; m++) presupuestoAcum += presView(c, m);
         return {
           categoriaId: c.id,
           nombre: c.nombre,
-          presupuestoMes: presView,
+          presupuestoMes: presView(c, mes),
           gastadoMes: gastadoMesByCat[c.id] ?? 0,
-          presupuestoAcum: presView * numMesesAcum,
+          presupuestoAcum,
           gastadoAcum: gastadoAcumByCat[c.id] ?? 0,
         };
       });
-  }, [categories, movements, mes, anio, startMes, numMesesAcum, rates, viewCurrency]);
+  }, [
+    categories,
+    tramosByCat,
+    movements,
+    mes,
+    anio,
+    startMes,
+    rates,
+    viewCurrency,
+  ]);
 
   const totals = useMemo(
     () =>

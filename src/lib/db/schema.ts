@@ -765,6 +765,98 @@ export const recurringRules = sqliteTable(
 );
 
 // ============================================================================
+//  objetivoAhorroTramos — OBJETIVO DE AHORRO CON VIGENCIA (tramos)
+// ============================================================================
+//
+//  Sustituye al valor unico de settings.objetivoAhorroPct/Importe/Desde por
+//  una linea temporal de tramos. Para un mes M, el objetivo vigente es el
+//  tramo con mayor `desde` <= M (ver domain/tramos.resolveTramo).
+//
+//  CONVENCION DE LA FECHA "DESDE"
+//  ------------------------------
+//    - desdeAnio + desdeMes = primer mes en que aplica el tramo.
+//    - desdeAnio=NULL y desdeMes=NULL = tramo BASE "desde siempre" (cuenta
+//      como -infinito; cubre todos los meses hasta el siguiente tramo). Debe
+//      haber como mucho UN tramo base.
+//
+//  Ambos objetivos (pct e importe) son opcionales por tramo: 0 = sin objetivo
+//  en esa metrica. El importe esta en la `moneda` indicada (tipicamente la
+//  moneda local del usuario).
+// ============================================================================
+export const objetivoAhorroTramos = sqliteTable(
+  "objetivo_ahorro_tramos",
+  {
+    id: text("id").primaryKey(),
+
+    desdeAnio: integer("desde_anio"),
+    desdeMes: integer("desde_mes"),
+
+    pct: real("pct").notNull().default(0),
+    importe: real("importe").notNull().default(0),
+    moneda: text("moneda")
+      .notNull()
+      .references(() => currencies.code),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("idx_objetivo_tramos_active")
+      .on(t.deletedAt)
+      .where(sql`${t.deletedAt} IS NULL`),
+    check(
+      "objetivo_tramos_mes_valido",
+      sql`${t.desdeMes} IS NULL OR ${t.desdeMes} BETWEEN 1 AND 12`,
+    ),
+  ],
+);
+
+// ============================================================================
+//  presupuestoTramos — PRESUPUESTO DE CATEGORIA CON VIGENCIA (tramos)
+// ============================================================================
+//
+//  Sustituye al valor unico de categories.presupuestoMensual/Moneda por una
+//  linea temporal por categoria. Para un mes M, el presupuesto vigente de una
+//  categoria es el tramo con mayor `desde` <= M (misma resolucion que el
+//  objetivo de ahorro). Util cuando cambia el alquiler, una suscripcion, etc.
+//
+//    - desdeAnio + desdeMes = primer mes en que aplica el tramo.
+//    - desdeAnio=NULL y desdeMes=NULL = tramo BASE "desde siempre".
+// ============================================================================
+export const presupuestoTramos = sqliteTable(
+  "presupuesto_tramos",
+  {
+    id: text("id").primaryKey(),
+
+    categoriaId: text("categoria_id")
+      .notNull()
+      .references(() => categories.id),
+
+    desdeAnio: integer("desde_anio"),
+    desdeMes: integer("desde_mes"),
+
+    importe: real("importe").notNull().default(0),
+    moneda: text("moneda")
+      .notNull()
+      .references(() => currencies.code),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("idx_presupuesto_tramos_cat")
+      .on(t.categoriaId)
+      .where(sql`${t.deletedAt} IS NULL`),
+    check(
+      "presupuesto_tramos_mes_valido",
+      sql`${t.desdeMes} IS NULL OR ${t.desdeMes} BETWEEN 1 AND 12`,
+    ),
+  ],
+);
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -815,3 +907,9 @@ export type NewInvestmentContribution =
 
 export type RecurringRule = typeof recurringRules.$inferSelect;
 export type NewRecurringRule = typeof recurringRules.$inferInsert;
+
+export type ObjetivoAhorroTramo = typeof objetivoAhorroTramos.$inferSelect;
+export type NewObjetivoAhorroTramo = typeof objetivoAhorroTramos.$inferInsert;
+
+export type PresupuestoTramo = typeof presupuestoTramos.$inferSelect;
+export type NewPresupuestoTramo = typeof presupuestoTramos.$inferInsert;

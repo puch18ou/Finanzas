@@ -2,16 +2,14 @@
 
 /**
  * ============================================================================
- *  src/components/metas/SavingsRateCard.tsx — Meta de tasa de ahorro (Lote 14b)
+ *  src/components/metas/SavingsRateCard.tsx — Meta de tasa de ahorro
  * ============================================================================
  *
- *  Sigue el objetivo de ahorro mensual, por dos metricas (las dos opcionales):
- *    - Porcentaje de ingresos (settings.objetivoAhorroPct).
- *    - Importe fijo €/mes (settings.objetivoAhorroImporte), en moneda local.
+ *  Sigue el objetivo de ahorro mensual (% de ingresos y/o importe fijo/mes),
+ *  que ahora vive como TRAMOS con vigencia (ver Ajustes). Para cada mes se
+ *  resuelve el tramo vigente y se compara con el ahorro de ese mes.
  *
- *  Para cada metrica con objetivo > 0 muestra: el valor de este mes, la media
- *  de los ultimos 12 meses, y una tira de cumplimiento mes a mes. Los importes
- *  y el ahorro se calculan en MONEDA LOCAL.
+ *  Los importes y el ahorro se calculan en MONEDA LOCAL.
  * ============================================================================
  */
 
@@ -20,6 +18,7 @@ import Link from "next/link";
 import { PiggyBank, Settings as SettingsIcon } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useMovements } from "@/hooks/useMovements";
+import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import {
   Card,
   CardContent,
@@ -28,8 +27,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { buildRatesMap, formatAmount } from "@/lib/domain/currency";
+import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
+import { resolveTramo, tramosAncla } from "@/lib/domain/tramos";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
@@ -39,6 +39,7 @@ export function SavingsRateCard() {
   const today = new Date();
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
+  const { tramos } = useObjetivoTramos();
 
   const currentYear = today.getFullYear();
   const { movements: movsThisYear } = useMovements({ anio: currentYear });
@@ -52,25 +53,14 @@ export function SavingsRateCard() {
     [movsThisYear, movsPrevYear],
   );
 
-  const desdeKeyMemo = settings?.objetivoAhorroDesde
-    ? (() => {
-        const d =
-          settings.objetivoAhorroDesde instanceof Date
-            ? settings.objetivoAhorroDesde
-            : new Date(settings.objetivoAhorroDesde);
-        return d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1);
-      })()
-    : 0;
-
-  const data = useMemo(() => {
-    // Ultimos 12 meses (mas antiguo primero).
+  // Ultimos 12 meses (mas antiguo primero) con su resumen en moneda local.
+  const summaries = useMemo(() => {
     const months: { anio: number; mes: number }[] = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(currentYear, today.getMonth() - i, 1);
       months.push({ anio: d.getFullYear(), mes: d.getMonth() + 1 });
     }
-
-    const summaries = months.map((m) => ({
+    return months.map((m) => ({
       ...m,
       ...summarizeMonth({
         mes: m.mes,
@@ -80,75 +70,101 @@ export function SavingsRateCard() {
         viewCurrency: monedaLocal,
       }),
     }));
-
-    // Para la media solo consideramos los meses CON DATOS y EFECTIVOS (a
-    // partir de objetivoAhorroDesde). Si no hay fecha desde, todos los
-    // meses con datos cuentan.
-    const conDatos = summaries.filter(
-      (s) =>
-        (s.ingresos > 0 || s.gastos > 0) &&
-        (desdeKeyMemo === 0 || s.anio * 100 + s.mes >= desdeKeyMemo),
-    );
-    const sumIngresos = conDatos.reduce((a, s) => a + s.ingresos, 0);
-    const sumAhorro = conDatos.reduce((a, s) => a + s.ahorro, 0);
-    const avgTasa = sumIngresos > 0 ? sumAhorro / sumIngresos : 0;
-    const avgImporte = conDatos.length > 0 ? sumAhorro / conDatos.length : 0;
-
-    return { summaries, avgTasa, avgImporte, mesesConDatos: conDatos.length };
-  }, [allMovements, rates, monedaLocal, currentYear, today, desdeKeyMemo]);
+  }, [allMovements, rates, monedaLocal, currentYear, today]);
 
   if (!settings) return null;
 
-  const objetivoPct = settings.objetivoAhorroPct;
-  const objetivoImporte = settings.objetivoAhorroImporte;
-  const hayObjetivo = objetivoPct > 0 || objetivoImporte > 0;
+  // Importe del objetivo (de un tramo) convertido a moneda local.
+  const importeLocal = (amount: number, moneda: string) => {
+    if (amount <= 0) return 0;
+    try {
+      return convert(amount, moneda, monedaLocal, rates);
+    } catch {
+      return 0;
+    }
+  };
 
-  // Mes/año "efectivo desde" como numero comparable (anio*100 + mes). Si no
-  // hay fecha, todos los meses son efectivos.
-  const desde = settings.objetivoAhorroDesde
-    ? settings.objetivoAhorroDesde instanceof Date
-      ? settings.objetivoAhorroDesde
-      : new Date(settings.objetivoAhorroDesde)
-    : null;
-  const desdeKey = desde ? desde.getUTCFullYear() * 100 + (desde.getUTCMonth() + 1) : 0;
-  const isEffective = (anio: number, mes: number) =>
-    !desde || anio * 100 + mes >= desdeKey;
+  const objetivoPctMes = (anio: number, mes: number) =>
+    resolveTramo(tramos, anio, mes)?.pct ?? 0;
+  const objetivoImporteMes = (anio: number, mes: number) => {
+    const tr = resolveTramo(tramos, anio, mes);
+    return tr ? importeLocal(tr.importe, tr.moneda) : 0;
+  };
 
-  const esteMes = data.summaries[data.summaries.length - 1]!;
-  const esteMesEffective = isEffective(esteMes.anio, esteMes.mes);
+  const hayPctEnAlgunTramo = tramos.some((t) => t.pct > 0);
+  const hayImporteEnAlgunTramo = tramos.some((t) => t.importe > 0);
+  const hayObjetivo = hayPctEnAlgunTramo || hayImporteEnAlgunTramo;
 
-  const pctCells: Cell[] = data.summaries.map((s) => {
-    const effective = isEffective(s.anio, s.mes);
+  // Objetivo vigente este mes (para los textos de cabecera y "este mes").
+  const esteMes = summaries[summaries.length - 1]!;
+  const objetivoPctVigente = objetivoPctMes(esteMes.anio, esteMes.mes);
+  const objetivoImporteVigente = objetivoImporteMes(esteMes.anio, esteMes.mes);
+
+  // Tira de cumplimiento por % de ingresos.
+  const pctCells: Cell[] = summaries.map((s) => {
+    const obj = objetivoPctMes(s.anio, s.mes);
     const tiene = s.ingresos > 0;
+    const efectivo = obj > 0;
     return {
       label: MESES_ES_CORTO[s.mes - 1] ?? "",
-      state: !effective || !tiene ? "none" : s.tasaAhorro >= objetivoPct ? "ok" : "bad",
-      title: !effective
-        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: fuera de objetivo`
+      state:
+        !efectivo || !tiene ? "none" : s.tasaAhorro >= obj ? "ok" : "bad",
+      title: !efectivo
+        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin objetivo`
         : tiene
-          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${(s.tasaAhorro * 100).toFixed(0)}%`
+          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${(s.tasaAhorro * 100).toFixed(0)}% (obj. ${(obj * 100).toFixed(0)}%)`
           : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
     };
   });
 
-  const importeCells: Cell[] = data.summaries.map((s) => {
-    const effective = isEffective(s.anio, s.mes);
+  // Tira de cumplimiento por importe.
+  const importeCells: Cell[] = summaries.map((s) => {
+    const obj = objetivoImporteMes(s.anio, s.mes);
     const tiene = s.ingresos > 0 || s.gastos > 0;
+    const efectivo = obj > 0;
     return {
       label: MESES_ES_CORTO[s.mes - 1] ?? "",
-      state: !effective || !tiene ? "none" : s.ahorro >= objetivoImporte ? "ok" : "bad",
-      title: !effective
-        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: fuera de objetivo`
+      state: !efectivo || !tiene ? "none" : s.ahorro >= obj ? "ok" : "bad",
+      title: !efectivo
+        ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin objetivo`
         : tiene
-          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${formatAmount(s.ahorro, monedaLocal)}`
+          ? `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: ${formatAmount(s.ahorro, monedaLocal)} (obj. ${formatAmount(obj, monedaLocal)})`
           : `${MESES_ES_CORTO[s.mes - 1]} ${s.anio}: sin datos`,
     };
   });
+
+  // Medias sobre los meses CON DATOS y con objetivo vigente (efectivos).
+  const pctMonths = summaries.filter(
+    (s) => s.ingresos > 0 && objetivoPctMes(s.anio, s.mes) > 0,
+  );
+  const sumIngresosPct = pctMonths.reduce((a, s) => a + s.ingresos, 0);
+  const sumAhorroPct = pctMonths.reduce((a, s) => a + s.ahorro, 0);
+  const avgTasa = sumIngresosPct > 0 ? sumAhorroPct / sumIngresosPct : 0;
+
+  const impMonths = summaries.filter(
+    (s) =>
+      (s.ingresos > 0 || s.gastos > 0) && objetivoImporteMes(s.anio, s.mes) > 0,
+  );
+  const avgImporte =
+    impMonths.length > 0
+      ? impMonths.reduce((a, s) => a + s.ahorro, 0) / impMonths.length
+      : 0;
 
   const cumplidosPct = pctCells.filter((c) => c.state === "ok").length;
   const totalPct = pctCells.filter((c) => c.state !== "none").length;
   const cumplidosImp = importeCells.filter((c) => c.state === "ok").length;
   const totalImp = importeCells.filter((c) => c.state !== "none").length;
+
+  const esteMesPctOk =
+    objetivoPctVigente > 0 &&
+    esteMes.ingresos > 0 &&
+    esteMes.tasaAhorro >= objetivoPctVigente;
+  const esteMesImpOk =
+    objetivoImporteVigente > 0 &&
+    (esteMes.ingresos > 0 || esteMes.gastos > 0) &&
+    esteMes.ahorro >= objetivoImporteVigente;
+
+  const ancla = tramosAncla(tramos);
 
   return (
     <Card>
@@ -161,8 +177,8 @@ export function SavingsRateCard() {
           <CardDescription>
             Objetivo de ahorro mensual y su cumplimiento (ultimos 12 meses, en{" "}
             {monedaLocal})
-            {desde
-              ? `. Efectivo desde ${MESES_ES_CORTO[desde.getUTCMonth()]} ${desde.getUTCFullYear()}.`
+            {ancla
+              ? `. Efectivo desde ${MESES_ES_CORTO[ancla.mes - 1]} ${ancla.anio}.`
               : "."}
           </CardDescription>
         </div>
@@ -184,47 +200,49 @@ export function SavingsRateCard() {
           </p>
         ) : (
           <>
-            {objetivoPct > 0 && (
+            {hayPctEnAlgunTramo && (
               <MetricBlock
                 titulo="% de ingresos"
-                objetivo={`${(objetivoPct * 100).toFixed(0)}%`}
+                objetivo={
+                  objetivoPctVigente > 0
+                    ? `${(objetivoPctVigente * 100).toFixed(0)}%`
+                    : "sin objetivo este mes"
+                }
                 esteMesTexto={
-                  !esteMesEffective
+                  objetivoPctVigente <= 0
                     ? "no efectivo"
                     : esteMes.ingresos > 0
                       ? `${(esteMes.tasaAhorro * 100).toFixed(0)}%`
                       : "sin datos"
                 }
-                esteMesOk={
-                  esteMesEffective &&
-                  esteMes.ingresos > 0 &&
-                  esteMes.tasaAhorro >= objetivoPct
-                }
-                mediaTexto={`${(data.avgTasa * 100).toFixed(0)}%`}
-                mediaOk={data.avgTasa >= objetivoPct}
+                esteMesOk={esteMesPctOk}
+                mediaTexto={`${(avgTasa * 100).toFixed(0)}%`}
+                mediaOk={objetivoPctVigente > 0 && avgTasa >= objetivoPctVigente}
                 cumplidos={cumplidosPct}
                 total={totalPct}
                 cells={pctCells}
               />
             )}
-            {objetivoImporte > 0 && (
+            {hayImporteEnAlgunTramo && (
               <MetricBlock
                 titulo={`Importe (${monedaLocal}/mes)`}
-                objetivo={formatAmount(objetivoImporte, monedaLocal)}
+                objetivo={
+                  objetivoImporteVigente > 0
+                    ? formatAmount(objetivoImporteVigente, monedaLocal)
+                    : "sin objetivo este mes"
+                }
                 esteMesTexto={
-                  !esteMesEffective
+                  objetivoImporteVigente <= 0
                     ? "no efectivo"
                     : esteMes.ingresos > 0 || esteMes.gastos > 0
                       ? formatAmount(esteMes.ahorro, monedaLocal)
                       : "sin datos"
                 }
-                esteMesOk={
-                  esteMesEffective &&
-                  (esteMes.ingresos > 0 || esteMes.gastos > 0) &&
-                  esteMes.ahorro >= objetivoImporte
+                esteMesOk={esteMesImpOk}
+                mediaTexto={formatAmount(avgImporte, monedaLocal)}
+                mediaOk={
+                  objetivoImporteVigente > 0 && avgImporte >= objetivoImporteVigente
                 }
-                mediaTexto={formatAmount(data.avgImporte, monedaLocal)}
-                mediaOk={data.avgImporte >= objetivoImporte}
                 cumplidos={cumplidosImp}
                 total={totalImp}
                 cells={importeCells}

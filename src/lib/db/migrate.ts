@@ -23,6 +23,8 @@ import migration0015 from "../../../drizzle/0015_remove_oro_tipo.sql?raw";
 import migration0016 from "../../../drizzle/0016_investment_interes.sql?raw";
 import migration0017 from "../../../drizzle/0017_investment_contributions_comision.sql?raw";
 import migration0018 from "../../../drizzle/0018_settings_objetivo_ahorro_desde.sql?raw";
+import migration0019 from "../../../drizzle/0019_objetivo_ahorro_tramos.sql?raw";
+import migration0020 from "../../../drizzle/0020_presupuesto_tramos.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -44,6 +46,8 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0016_investment_interes", sql: migration0016 },
   { name: "0017_investment_contributions_comision", sql: migration0017 },
   { name: "0018_settings_objetivo_ahorro_desde", sql: migration0018 },
+  { name: "0019_objetivo_ahorro_tramos", sql: migration0019 },
+  { name: "0020_presupuesto_tramos", sql: migration0020 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

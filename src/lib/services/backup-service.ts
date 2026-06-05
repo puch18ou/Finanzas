@@ -23,12 +23,14 @@ import {
   mortgage,
   otherDebts,
   movements,
+  objetivoAhorroTramos,
+  presupuestoTramos,
 } from "@/lib/db/schema";
 import { computeNetImpactByAccount } from "@/lib/domain/accounts";
 import { buildRatesMap } from "@/lib/domain/currency";
 import type { Currency } from "@/lib/db/schema";
 
-const BACKUP_VERSION = 4;
+const BACKUP_VERSION = 6;
 const APP_ID = "finanzas";
 
 export type BackupFile = {
@@ -47,6 +49,12 @@ export type BackupFile = {
     movements: unknown[];
     // v4: aportaciones de inversiones. Ausente en backups v<=3.
     investmentContributions?: unknown[];
+    // v5: tramos del objetivo de ahorro. Ausente en backups v<=4 (se
+    // reconstruyen desde settings al importar).
+    objetivoAhorroTramos?: unknown[];
+    // v6: cambios de presupuesto por categoria. Ausente en backups v<=5 (el
+    // presupuesto base vive en categories, asi que no hace falta reconstruir).
+    presupuestoTramos?: unknown[];
     // Compatibilidad con formatos anteriores (ignorados al importar)
     monthlyIncomes?: unknown[];
     expenses?: unknown[];
@@ -60,6 +68,7 @@ export class BackupService {
   async exportAll(): Promise<BackupFile> {
     const [
       curs, sets, cats, accs, invs, invContribs, gls, mort, debts, movs,
+      objTramos, presTramos,
     ] = await Promise.all([
       this.db.select().from(currencies),
       this.db.select().from(settings),
@@ -71,6 +80,8 @@ export class BackupService {
       this.db.select().from(mortgage),
       this.db.select().from(otherDebts),
       this.db.select().from(movements),
+      this.db.select().from(objetivoAhorroTramos),
+      this.db.select().from(presupuestoTramos),
     ]);
 
     return {
@@ -88,6 +99,8 @@ export class BackupService {
         mortgage: mort,
         otherDebts: debts,
         movements: movs,
+        objetivoAhorroTramos: objTramos,
+        presupuestoTramos: presTramos,
       },
     };
   }
@@ -221,6 +234,8 @@ export class BackupService {
     );
 
     // Vaciar en orden inverso de dependencias
+    await this.db.delete(objetivoAhorroTramos);
+    await this.db.delete(presupuestoTramos);
     await this.db.delete(investmentContributions);
     await this.db.delete(movements);
     await this.db.delete(investments);
@@ -254,7 +269,66 @@ export class BackupService {
             backup.data.investments as Array<Record<string, unknown>>,
           );
     await this.insertBatch(investmentContributions, convert(contribRows));
+
+    // Tramos del objetivo de ahorro: v5 trae el array. En backups v<=4 los
+    // reconstruimos desde la fila de settings importada (como hace el seed).
+    const tramoRows =
+      backup.version >= 5 && backup.data.objetivoAhorroTramos
+        ? (backup.data.objetivoAhorroTramos as Array<Record<string, unknown>>)
+        : this.seedObjetivoTramosFromSettings(
+            backup.data.settings as Array<Record<string, unknown>>,
+          );
+    await this.insertBatch(objetivoAhorroTramos, convert(tramoRows));
+
+    // Cambios de presupuesto por categoria: v6 trae el array. En backups v<=5
+    // no existe (el presupuesto base ya esta en categories), asi que se queda
+    // vacio.
+    if (backup.version >= 6 && backup.data.presupuestoTramos) {
+      await this.insertBatch(
+        presupuestoTramos,
+        convert(backup.data.presupuestoTramos as Array<Record<string, unknown>>),
+      );
+    }
     // monthlyIncomes en backups antiguos: IGNORADO (tabla deprecated en uso)
+  }
+
+  /**
+   * Reconstruye el tramo base del objetivo de ahorro desde la fila de settings
+   * (para importar backups v<=4 que aun no tenian tramos). Mismo criterio que
+   * el seed: un unico tramo con el pct/importe de settings y `desde` = el mes
+   * de objetivo_ahorro_desde (o null = "desde siempre").
+   */
+  private seedObjetivoTramosFromSettings(
+    settingsRows: Array<Record<string, unknown>>,
+  ): Array<Record<string, unknown>> {
+    const s = settingsRows[0];
+    if (!s) return [];
+    const pct = typeof s.objetivoAhorroPct === "number" ? s.objetivoAhorroPct : 0;
+    const importe =
+      typeof s.objetivoAhorroImporte === "number" ? s.objetivoAhorroImporte : 0;
+    if (pct <= 0 && importe <= 0) return [];
+
+    const rawDesde = s.objetivoAhorroDesde;
+    let desde: Date | null = null;
+    if (rawDesde instanceof Date) desde = rawDesde;
+    else if (typeof rawDesde === "string" || typeof rawDesde === "number") {
+      const d = new Date(rawDesde);
+      desde = isNaN(d.getTime()) ? null : d;
+    }
+
+    return [
+      {
+        id: crypto.randomUUID(),
+        desdeAnio: desde ? desde.getUTCFullYear() : null,
+        desdeMes: desde ? desde.getUTCMonth() + 1 : null,
+        pct,
+        importe,
+        moneda: (s.monedaLocal as string) ?? "EUR",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      },
+    ];
   }
 
   /**

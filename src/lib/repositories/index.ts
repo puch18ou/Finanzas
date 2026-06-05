@@ -17,6 +17,8 @@ import { MortgageRepository } from "./mortgage-repository";
 import { OtherDebtRepository } from "./other-debt-repository";
 import { MovementRepository } from "./movement-repository";
 import { RecurringRuleRepository } from "./recurring-rule-repository";
+import { ObjetivoAhorroTramoRepository } from "./objetivo-ahorro-tramo-repository";
+import { PresupuestoTramoRepository } from "./presupuesto-tramo-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
 import { RecurringService } from "@/lib/services/recurring-service";
@@ -36,6 +38,8 @@ export interface Repositories {
   otherDebts: OtherDebtRepository;
   movements: MovementRepository;
   recurringRules: RecurringRuleRepository;
+  objetivoTramos: ObjetivoAhorroTramoRepository;
+  presupuestoTramos: PresupuestoTramoRepository;
   trash: TrashService;
   backup: BackupService;
   recurringService: RecurringService;
@@ -65,6 +69,8 @@ export function createRepositories(db: DrizzleDb): Repositories {
     otherDebts: new OtherDebtRepository(db),
     movements: new MovementRepository(db),
     recurringRules,
+    objetivoTramos: new ObjetivoAhorroTramoRepository(db),
+    presupuestoTramos: new PresupuestoTramoRepository(db),
     trash: new TrashService(db),
     backup: new BackupService(db),
     recurringService,
@@ -118,6 +124,14 @@ export type {
   RecurringRuleType,
   RecurringRuleOrigen,
 } from "./recurring-rule-repository";
+export type {
+  CreateObjetivoAhorroTramoData,
+  UpdateObjetivoAhorroTramoData,
+} from "./objetivo-ahorro-tramo-repository";
+export type {
+  CreatePresupuestoTramoData,
+  UpdatePresupuestoTramoData,
+} from "./presupuesto-tramo-repository";
 export type {
   TrashItem,
   TrashItemType,

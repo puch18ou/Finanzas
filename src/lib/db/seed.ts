@@ -168,17 +168,78 @@ async function seedSettings(): Promise<boolean> {
 }
 
 /**
+ * Backfill del objetivo de ahorro a la tabla de tramos. Idempotente: solo
+ * actua si la tabla de tramos esta vacia. Convierte el valor unico actual de
+ * settings (pct/importe/desde) en un primer tramo:
+ *
+ *   - desde = objetivo_ahorro_desde (mes/anio en UTC) o NULL = "desde siempre".
+ *   - pct/importe = los de settings; moneda = moneda local (el importe esta
+ *     en moneda local).
+ *
+ * Si no hay objetivo (pct e importe a 0) no crea nada. Debe ejecutarse DESPUES
+ * de seedSettings para que el singleton exista.
+ */
+async function seedObjetivoTramos(): Promise<number> {
+  const db = await getDb();
+  const now = Date.now();
+
+  const existing = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.objetivoAhorroTramos);
+  if ((existing[0]?.count ?? 0) > 0) {
+    return 0;
+  }
+
+  const settingsRow = await db.select().from(schema.settings).limit(1);
+  const s = settingsRow[0];
+  if (!s) return 0;
+
+  const pct = s.objetivoAhorroPct ?? 0;
+  const importe = s.objetivoAhorroImporte ?? 0;
+  if (pct <= 0 && importe <= 0) {
+    return 0;
+  }
+
+  const desde =
+    s.objetivoAhorroDesde instanceof Date
+      ? s.objetivoAhorroDesde
+      : s.objetivoAhorroDesde != null
+        ? new Date(s.objetivoAhorroDesde)
+        : null;
+
+  await db.insert(schema.objetivoAhorroTramos).values({
+    id: crypto.randomUUID(),
+    desdeAnio: desde ? desde.getUTCFullYear() : null,
+    desdeMes: desde ? desde.getUTCMonth() + 1 : null,
+    pct,
+    importe,
+    moneda: s.monedaLocal,
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+    deletedAt: null,
+  });
+
+  return 1;
+}
+
+/**
  * Punto de entrada: ejecuta todos los seeds en orden.
  * Devuelve un resumen util para la pantalla de diagnostico.
+ *
+ * Nota: los tramos de PRESUPUESTO no se siembran. El presupuesto base vive en
+ * categories.presupuestoMensual ("desde siempre"); presupuesto_tramos solo
+ * guarda los cambios con fecha (ver domain/tramos.resolvePresupuesto).
  */
 export async function runSeed(): Promise<{
   currencies: number;
   categories: number;
   settingsCreated: boolean;
+  objetivoTramos: number;
 }> {
   const currencies = await seedCurrencies();
   const categories = await seedCategories();
   const settingsCreated = await seedSettings();
+  const objetivoTramos = await seedObjetivoTramos();
 
-  return { currencies, categories, settingsCreated };
+  return { currencies, categories, settingsCreated, objetivoTramos };
 }
