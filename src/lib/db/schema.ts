@@ -315,6 +315,12 @@ export const investments = sqliteTable(
       mode: "timestamp_ms",
     }),
 
+    // Fase cotizaciones: ultima vez que se actualizo precioActual desde una
+    // API de cotizacion (NULL = nunca, o solo manual).
+    ultimaActualizacionPrecio: integer("ultima_actualizacion_precio", {
+      mode: "timestamp_ms",
+    }),
+
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

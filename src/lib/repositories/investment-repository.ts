@@ -96,11 +96,21 @@ export class InvestmentRepository extends BaseRepository {
   }
 
   /**
-   * Atajo: solo actualiza el precio actual. Pensado para edicion inline
-   * y para una futura integracion con API de cotizaciones.
+   * Atajo: solo actualiza el precio actual (edicion manual inline).
    */
   async updatePrice(id: string, nuevoPrecio: number): Promise<Investment> {
     return this.update(id, { precioActual: nuevoPrecio });
+  }
+
+  /**
+   * Actualiza el precio desde una API de cotizacion y registra la marca de
+   * tiempo de la actualizacion.
+   */
+  async updateQuote(id: string, nuevoPrecio: number): Promise<Investment> {
+    return this.update(id, {
+      precioActual: nuevoPrecio,
+      ultimaActualizacionPrecio: now(),
+    });
   }
 
   async softDelete(id: string): Promise<void> {

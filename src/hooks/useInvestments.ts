@@ -10,6 +10,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { fetchQuote } from "@/lib/services/quote-service";
+import { convert, type RatesMap } from "@/lib/domain/currency";
+import type { Investment } from "@/lib/db/schema";
 import type {
   CreateInvestmentData,
   UpdateInvestmentData,
@@ -58,6 +61,37 @@ export function useInvestments() {
     },
     onError: (e) => {
       toast.error(`No se pudo actualizar el precio: ${e instanceof Error ? e.message : "error"}`);
+    },
+  });
+
+  // Actualiza el precio desde la API de cotizacion. Sin toasts: los gestiona
+  // quien lo llama (la pagina hace uno por activo o un resumen para "todas").
+  // Si la cotizacion viene en otra moneda que el activo, la convierte con los
+  // tipos de cambio (que pasa la pagina). Lanza si no hay ticker o si no hay
+  // tipo de cambio para la conversion.
+  const refreshQuoteMutation = useMutation({
+    mutationFn: async ({ inv, rates }: { inv: Investment; rates: RatesMap }) => {
+      if (!inv.ticker || !inv.ticker.trim()) {
+        throw new Error("Esta inversion no tiene ticker.");
+      }
+      const q = await fetchQuote(inv.ticker);
+      let precio = q.precio;
+      let convertidoDe: string | null = null;
+      if (q.moneda !== inv.moneda) {
+        try {
+          precio = convert(q.precio, q.moneda, inv.moneda, rates);
+        } catch {
+          throw new Error(
+            `No hay tipo de cambio ${q.moneda}→${inv.moneda}. Anade la moneda en Monedas.`,
+          );
+        }
+        convertidoDe = q.moneda;
+      }
+      await repos.investments.updateQuote(inv.id, precio);
+      return { precio, moneda: inv.moneda, convertidoDe };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVESTMENTS_KEY });
     },
   });
 
@@ -112,6 +146,8 @@ export function useInvestments() {
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     updatePrice: updatePriceMutation.mutateAsync,
+    refreshQuote: refreshQuoteMutation.mutateAsync,
+    isRefreshingQuote: refreshQuoteMutation.isPending,
     remove: deleteMutation.mutateAsync,
     archive: archiveMutation.mutateAsync,
     unarchive: unarchiveMutation.mutateAsync,

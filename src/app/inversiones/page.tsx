@@ -23,7 +23,9 @@ import {
   TrendingUp,
   TrendingDown,
   Banknote,
+  DownloadCloud,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useInvestmentContributions } from "@/hooks/useInvestmentContributions";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -90,6 +92,8 @@ export default function InversionesPage() {
     create,
     update,
     updatePrice,
+    refreshQuote,
+    isRefreshingQuote,
     remove,
     archive,
     unarchive,
@@ -174,6 +178,51 @@ export default function InversionesPage() {
     setValueFor(null);
   };
 
+  // ¿Se puede cotizar por API? Solo activos por participaciones y con ticker.
+  const cotizable = (inv: Investment) =>
+    !!inv.ticker && inv.ticker.trim() !== "" && usaParticipaciones(inv.tipo);
+
+  const handleRefreshQuote = async (inv: Investment) => {
+    try {
+      const r = await refreshQuote({ inv, rates });
+      toast.success(
+        `${inv.nombre}: ${formatAmount(r.precio, r.moneda)}/ud${
+          r.convertidoDe ? ` (de ${r.convertidoDe})` : ""
+        }`,
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "No se pudo actualizar la cotizacion",
+      );
+    }
+  };
+
+  // Actualiza todas las posiciones cotizables (activas) y muestra un resumen.
+  const handleRefreshAll = async () => {
+    const objetivo = investments.filter(cotizable);
+    if (objetivo.length === 0) {
+      toast.info("No hay posiciones con ticker para cotizar.");
+      return;
+    }
+    let ok = 0;
+    const fallos: string[] = [];
+    for (const inv of objetivo) {
+      try {
+        await refreshQuote({ inv, rates });
+        ok++;
+      } catch {
+        fallos.push(inv.ticker ?? inv.nombre);
+      }
+    }
+    if (fallos.length === 0) {
+      toast.success(`${ok} cotizaciones actualizadas`);
+    } else {
+      toast.warning(
+        `${ok} actualizadas · ${fallos.length} fallaron: ${fallos.join(", ")}`,
+      );
+    }
+  };
+
   // Tipos que tienen al menos una inversion, en el orden del catalogo.
   const tiposPresentes = TIPOS_INVERSION.filter((t) =>
     investments.some((inv) => inv.tipo === t),
@@ -207,7 +256,7 @@ export default function InversionesPage() {
             <TableHead className="text-right">Valor actual</TableHead>
             <TableHead className="text-right">P/L</TableHead>
             <TableHead className="text-right">En {viewCurrency}</TableHead>
-            <TableHead className="w-[80px] text-right">Acciones</TableHead>
+            <TableHead className="w-[190px] text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -324,11 +373,30 @@ export default function InversionesPage() {
                       </>
                     ) : (
                       <>
+                        {cotizable(inv) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRefreshQuote(inv)}
+                            disabled={isRefreshingQuote}
+                            aria-label="Actualizar cotizacion"
+                            title={
+                              inv.ultimaActualizacionPrecio
+                                ? `Cotización (API) · última: ${new Date(
+                                    inv.ultimaActualizacionPrecio,
+                                  ).toLocaleString("es-ES")}`
+                                : "Actualizar cotización (API)"
+                            }
+                          >
+                            <DownloadCloud className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => openValueUpdate(inv)}
                           aria-label="Actualizar valor"
+                          title="Actualizar valor a mano"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </Button>
@@ -399,6 +467,21 @@ export default function InversionesPage() {
             />
             Mostrar archivadas
           </Label>
+          {investments.some(cotizable) && (
+            <Button
+              variant="outline"
+              onClick={handleRefreshAll}
+              disabled={isRefreshingQuote}
+            >
+              <DownloadCloud
+                className={cn(
+                  "mr-2 h-4 w-4",
+                  isRefreshingQuote && "animate-pulse",
+                )}
+              />
+              Actualizar cotizaciones
+            </Button>
+          )}
           <Button
             onClick={() => {
               setEditing(null);
