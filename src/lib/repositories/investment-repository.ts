@@ -103,12 +103,15 @@ export class InvestmentRepository extends BaseRepository {
   }
 
   /**
-   * Actualiza el precio desde una API de cotizacion y registra la marca de
-   * tiempo de la actualizacion.
+   * Actualiza datos de cotizacion (precioActual y/o el VL de referencia) y
+   * registra la marca de tiempo de la actualizacion.
    */
-  async updateQuote(id: string, nuevoPrecio: number): Promise<Investment> {
+  async updateQuote(
+    id: string,
+    patch: { precioActual?: number; ultimaCotizacionNav?: number },
+  ): Promise<Investment> {
     return this.update(id, {
-      precioActual: nuevoPrecio,
+      ...patch,
       ultimaActualizacionPrecio: now(),
     });
   }

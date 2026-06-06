@@ -178,18 +178,31 @@ export default function InversionesPage() {
     setValueFor(null);
   };
 
-  // ¿Se puede cotizar por API? Solo activos por participaciones y con ticker.
+  // ¿Se puede cotizar por API? Cualquier activo con ticker, salvo la cuenta
+  // remunerada (que se valora por TAE, no por mercado). Los fondos "por dinero"
+  // se actualizan escalando su valor por el VL (ver useInvestments.refreshQuote).
   const cotizable = (inv: Investment) =>
-    !!inv.ticker && inv.ticker.trim() !== "" && usaParticipaciones(inv.tipo);
+    !!inv.ticker &&
+    inv.ticker.trim() !== "" &&
+    inv.tipo !== "Cuenta remunerada";
 
   const handleRefreshQuote = async (inv: Investment) => {
     try {
       const r = await refreshQuote({ inv, rates });
-      toast.success(
-        `${inv.nombre}: ${formatAmount(r.precio, r.moneda)}/ud${
-          r.convertidoDe ? ` (de ${r.convertidoDe})` : ""
-        }`,
-      );
+      const de = r.convertidoDe ? ` (de ${r.convertidoDe})` : "";
+      if (r.modo === "baseline") {
+        toast.info(
+          `${inv.nombre}: referencia de VL fijada (${formatAmount(r.valor, r.moneda)}). El valor se actualizará en las próximas sincronizaciones.`,
+        );
+      } else if (r.modo === "escalado") {
+        toast.success(
+          `${inv.nombre}: valor ajustado al VL ${formatAmount(r.valor, r.moneda)}${de}`,
+        );
+      } else {
+        toast.success(
+          `${inv.nombre}: ${formatAmount(r.valor, r.moneda)}/ud${de}`,
+        );
+      }
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "No se pudo actualizar la cotizacion",
@@ -205,22 +218,24 @@ export default function InversionesPage() {
       return;
     }
     let ok = 0;
+    let referencias = 0;
     const fallos: string[] = [];
     for (const inv of objetivo) {
       try {
-        await refreshQuote({ inv, rates });
-        ok++;
+        const r = await refreshQuote({ inv, rates });
+        if (r.modo === "baseline") referencias++;
+        else ok++;
       } catch {
         fallos.push(inv.ticker ?? inv.nombre);
       }
     }
-    if (fallos.length === 0) {
-      toast.success(`${ok} cotizaciones actualizadas`);
-    } else {
-      toast.warning(
-        `${ok} actualizadas · ${fallos.length} fallaron: ${fallos.join(", ")}`,
-      );
-    }
+    const partes = [
+      `${ok} actualizadas`,
+      referencias > 0 ? `${referencias} referencias VL fijadas` : "",
+      fallos.length > 0 ? `${fallos.length} fallaron: ${fallos.join(", ")}` : "",
+    ].filter(Boolean);
+    if (fallos.length === 0) toast.success(partes.join(" · "));
+    else toast.warning(partes.join(" · "));
   };
 
   // Tipos que tienen al menos una inversion, en el orden del catalogo.

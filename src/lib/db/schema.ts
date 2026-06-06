@@ -324,6 +324,11 @@ export const investments = sqliteTable(
       mode: "timestamp_ms",
     }),
 
+    // Para fondos "por dinero" (sin unidades): ultimo valor liquidativo (VL)
+    // visto al cotizar, en la moneda del activo. Se usa para escalar el valor
+    // por el movimiento del VL entre actualizaciones. NULL = sin referencia aun.
+    ultimaCotizacionNav: real("ultima_cotizacion_nav"),
+
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

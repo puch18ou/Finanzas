@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
 import { fetchQuote } from "@/lib/services/quote-service";
 import { convert, type RatesMap } from "@/lib/domain/currency";
+import { usaParticipaciones } from "@/lib/domain/investments";
 import type { Investment } from "@/lib/db/schema";
 import type {
   CreateInvestmentData,
@@ -75,11 +76,12 @@ export function useInvestments() {
         throw new Error("Esta inversion no tiene ticker.");
       }
       const q = await fetchQuote(inv.ticker);
-      let precio = q.precio;
+      // Precio/VL en la moneda del activo (convertido si hace falta).
+      let valor = q.precio;
       let convertidoDe: string | null = null;
       if (q.moneda !== inv.moneda) {
         try {
-          precio = convert(q.precio, q.moneda, inv.moneda, rates);
+          valor = convert(q.precio, q.moneda, inv.moneda, rates);
         } catch {
           throw new Error(
             `No hay tipo de cambio ${q.moneda}→${inv.moneda}. Anade la moneda en Monedas.`,
@@ -87,8 +89,47 @@ export function useInvestments() {
         }
         convertidoDe = q.moneda;
       }
-      await repos.investments.updateQuote(inv.id, precio);
-      return { precio, moneda: inv.moneda, convertidoDe };
+
+      if (usaParticipaciones(inv.tipo)) {
+        // Activo por unidades: el VL es el precio por unidad directo.
+        await repos.investments.updateQuote(inv.id, {
+          precioActual: valor,
+          ultimaCotizacionNav: valor,
+        });
+        return {
+          modo: "precio" as const,
+          valor,
+          moneda: inv.moneda,
+          convertidoDe,
+        };
+      }
+
+      // Fondo "por dinero" (sin unidades): escalamos el valor por el movimiento
+      // del VL desde la ultima cotizacion. La primera vez solo fija referencia.
+      const prevNav = inv.ultimaCotizacionNav;
+      if (prevNav == null || prevNav <= 0) {
+        await repos.investments.updateQuote(inv.id, {
+          ultimaCotizacionNav: valor,
+        });
+        return {
+          modo: "baseline" as const,
+          valor,
+          moneda: inv.moneda,
+          convertidoDe,
+        };
+      }
+      const factor = valor / prevNav;
+      await repos.investments.updateQuote(inv.id, {
+        precioActual: inv.precioActual * factor,
+        ultimaCotizacionNav: valor,
+      });
+      return {
+        modo: "escalado" as const,
+        valor,
+        moneda: inv.moneda,
+        convertidoDe,
+        factor,
+      };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INVESTMENTS_KEY });
