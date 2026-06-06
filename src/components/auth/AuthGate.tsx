@@ -29,6 +29,7 @@ import {
 import { QuickAddProvider } from "@/contexts/QuickAddProvider";
 import { ShortcutsProvider } from "@/contexts/ShortcutsProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { FxAutoRefresh } from "@/components/fx/FxAutoRefresh";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { ready, error, user } = useAuth();
@@ -71,6 +72,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <DatabaseProvider>
       <DatabaseReady>
+        <FxAutoRefresh />
         <QuickAddProvider>
           <ShortcutsProvider>
             <AppShell>{children}</AppShell>

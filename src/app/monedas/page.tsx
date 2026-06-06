@@ -10,7 +10,15 @@
  */
 
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Coins, Star } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  Coins,
+  Star,
+  DownloadCloud,
+} from "lucide-react";
+import { toast } from "sonner";
 import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { useSettings } from "@/hooks/useSettings";
 import { CurrencyFormDialog } from "@/components/forms/CurrencyFormDialog";
@@ -32,6 +40,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils/cn";
 import type { Currency } from "@/lib/db/schema";
 
 export default function MonedasPage() {
@@ -42,6 +51,8 @@ export default function MonedasPage() {
     create,
     update,
     remove,
+    refreshRates,
+    isRefreshingRates,
     isMutating,
   } = useCurrenciesManagement();
 
@@ -55,6 +66,25 @@ export default function MonedasPage() {
 
   const monedaVista = settings.monedaVista;
 
+  const handleRefreshRates = async () => {
+    try {
+      const r = await refreshRates({ viewCurrency: monedaVista });
+      if (r.noCubiertas.length === 0) {
+        toast.success(`${r.actualizadas} tipos de cambio actualizados`);
+      } else {
+        toast.warning(
+          `${r.actualizadas} actualizados · sin datos para: ${r.noCubiertas.join(", ")}`,
+        );
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "No se pudieron actualizar los tipos de cambio",
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between">
@@ -65,15 +95,30 @@ export default function MonedasPage() {
             de visualizacion ({monedaVista}).
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Anadir moneda
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefreshRates}
+            disabled={isRefreshingRates}
+          >
+            <DownloadCloud
+              className={cn(
+                "mr-2 h-4 w-4",
+                isRefreshingRates && "animate-pulse",
+              )}
+            />
+            Actualizar tipos
+          </Button>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Anadir moneda
+          </Button>
+        </div>
       </header>
 
       <Card>

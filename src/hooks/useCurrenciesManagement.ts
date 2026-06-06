@@ -27,6 +27,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { fetchFxRates } from "@/lib/services/fx-service";
 import type {
   CreateCurrencyData,
   UpdateCurrencyData,
@@ -73,6 +74,42 @@ export function useCurrenciesManagement() {
     },
   });
 
+  // Actualiza tipoCambioVista de todas las monedas desde el proveedor FX,
+  // referenciadas a la moneda vista. La moneda vista queda en 1. Sin toasts:
+  // los gestiona quien llama (el boton muestra resumen; el auto es silencioso).
+  // Devuelve cuantas se actualizaron y cuales no cubre el proveedor.
+  const refreshRatesMutation = useMutation({
+    mutationFn: async ({ viewCurrency }: { viewCurrency: string }) => {
+      const all = await repos.currencies.listAll();
+      const symbols = all.map((c) => c.code).filter((c) => c !== viewCurrency);
+      const rates = await fetchFxRates(viewCurrency, symbols);
+
+      let actualizadas = 0;
+      const noCubiertas: string[] = [];
+      for (const c of all) {
+        if (c.code === viewCurrency) {
+          // La moneda vista siempre vale 1 respecto a si misma.
+          if (c.tipoCambioVista !== 1) {
+            await repos.currencies.update(c.code, { tipoCambioVista: 1 });
+          }
+          continue;
+        }
+        const r = rates[c.code];
+        if (typeof r === "number" && Number.isFinite(r) && r > 0) {
+          // r = unidades de c por 1 vista  ->  tipoCambioVista = vista por 1 c
+          await repos.currencies.update(c.code, { tipoCambioVista: 1 / r });
+          actualizadas++;
+        } else {
+          noCubiertas.push(c.code);
+        }
+      }
+      return { actualizadas, noCubiertas };
+    },
+    onSuccess: () => {
+      invalidateAll();
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (code: string) => repos.currencies.delete(code),
     onSuccess: () => {
@@ -96,6 +133,8 @@ export function useCurrenciesManagement() {
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,
+    refreshRates: refreshRatesMutation.mutateAsync,
+    isRefreshingRates: refreshRatesMutation.isPending,
     isMutating:
       createMutation.isPending ||
       updateMutation.isPending ||
