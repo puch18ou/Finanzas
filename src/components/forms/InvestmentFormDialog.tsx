@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usaParticipaciones } from "@/lib/domain/investments";
-import { Calendar as CalendarIcon, Trash2 } from "lucide-react";
+import { resolveSymbolByIsin } from "@/lib/services/quote-service";
+import { Calendar as CalendarIcon, Trash2, Search } from "lucide-react";
 import {
   investmentFormSchema,
   type InvestmentFormData,
@@ -77,6 +78,8 @@ export function InvestmentFormDialog({
 }: Props) {
   const isEdit = !!initial;
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [buscandoIsin, setBuscandoIsin] = useState(false);
+  const [isinMsg, setIsinMsg] = useState<string | null>(null);
 
   const {
     register,
@@ -84,12 +87,15 @@ export function InvestmentFormDialog({
     control,
     reset,
     setError,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<InvestmentFormData>({
     resolver: zodResolver(investmentFormSchema),
     defaultValues: {
       tipo: "Acciones",
       ticker: "",
+      isin: "",
       nombre: "",
       participaciones: 0,
       precioUnitario: 0,
@@ -121,6 +127,7 @@ export function InvestmentFormDialog({
         reset({
           tipo: initial.tipo,
           ticker: initial.ticker ?? "",
+          isin: initial.isin ?? "",
           nombre: initial.nombre,
           participaciones: initial.participaciones,
           precioUnitario: initial.precioCompra,
@@ -148,6 +155,7 @@ export function InvestmentFormDialog({
         reset({
           tipo: "Acciones",
           ticker: "",
+          isin: "",
           nombre: "",
           participaciones: 0,
           precioUnitario: 0,
@@ -218,6 +226,38 @@ export function InvestmentFormDialog({
     }
   });
 
+  // Busca el simbolo de cotizacion a partir del ISIN (Yahoo) y rellena el
+  // ticker. Para fondos no cotizados (CaixaBank y similares) no habra match.
+  const handleBuscarIsin = async () => {
+    const isin = (getValues("isin") ?? "").trim();
+    if (!isin) {
+      setIsinMsg("Escribe un ISIN primero.");
+      return;
+    }
+    setBuscandoIsin(true);
+    setIsinMsg(null);
+    try {
+      const match = await resolveSymbolByIsin(isin);
+      if (!match) {
+        setIsinMsg(
+          "No encontrado (suele pasar con fondos no cotizados). Pon el ticker a mano o deja el precio manual.",
+        );
+        return;
+      }
+      setValue("ticker", match.symbol, { shouldDirty: true });
+      if (!(getValues("nombre") ?? "").trim()) {
+        setValue("nombre", match.nombre, { shouldDirty: true });
+      }
+      setIsinMsg(
+        `Encontrado: ${match.symbol} · ${match.nombre}${match.tipo ? ` (${match.tipo})` : ""}`,
+      );
+    } catch (e) {
+      setIsinMsg(e instanceof Error ? e.message : "Error buscando el ISIN.");
+    } finally {
+      setBuscandoIsin(false);
+    }
+  };
+
   // Mostramos todas las cuentas activas (no solo las de tipo "Broker"): la
   // inversion se puede vincular a cualquier cuenta del usuario.
   const cuentasDisponibles = accounts.filter((a) => a.activa);
@@ -262,14 +302,41 @@ export function InvestmentFormDialog({
               <Input
                 id="inv-ticker"
                 {...register("ticker")}
-                placeholder="AAPL, VWCE, BTC..."
+                placeholder="AAPL, ITX.MC, VWCE.DE..."
                 disabled={loading}
                 className="font-mono uppercase"
               />
               <p className="text-xs text-muted-foreground">
-                Util para futura integracion con API de cotizaciones
+                Simbolo de Yahoo para cotizar. No-US lleva sufijo de mercado
+                (.MC Madrid, .DE Xetra...).
               </p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="inv-isin">ISIN (opcional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="inv-isin"
+                {...register("isin")}
+                placeholder="IE00B4L5Y983, ES0..."
+                disabled={loading}
+                className="font-mono uppercase"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleBuscarIsin}
+                disabled={loading || buscandoIsin}
+              >
+                <Search className="mr-1 h-4 w-4" />
+                {buscandoIsin ? "Buscando..." : "Buscar"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isinMsg ??
+                "Pega el ISIN y pulsa Buscar para rellenar el ticker (si Yahoo lo tiene)."}
+            </p>
           </div>
 
           <div className="space-y-2">

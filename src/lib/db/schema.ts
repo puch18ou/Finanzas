@@ -284,6 +284,9 @@ export const investments = sqliteTable(
     // 'Accion', 'Fondo', 'ETF', 'Crypto', 'Bono', 'Otro'
     tipo: text("tipo").notNull(),
     ticker: text("ticker"),
+    // ISIN (12 caracteres). Identificador del activo; se usa para resolver el
+    // simbolo de cotizacion. Opcional.
+    isin: text("isin"),
     nombre: text("nombre").notNull(),
 
     participaciones: real("participaciones").notNull(),

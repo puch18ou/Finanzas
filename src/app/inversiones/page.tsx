@@ -292,11 +292,11 @@ export default function InversionesPage() {
                       </Badge>
                     )}
                   </div>
-                  {(inv.ticker || brokerAlias) && (
+                  {(inv.ticker || inv.isin || brokerAlias) && (
                     <div className="text-xs font-mono text-muted-foreground">
-                      {inv.ticker}
-                      {inv.ticker && brokerAlias && " · "}
-                      {brokerAlias}
+                      {[inv.ticker, inv.isin, brokerAlias]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </div>
                   )}
                 </TableCell>
@@ -625,6 +625,7 @@ export default function InversionesPage() {
               patch: {
                 tipo: data.tipo,
                 ticker: data.ticker ?? null,
+                isin: data.isin ?? null,
                 nombre: data.nombre,
                 moneda: data.moneda,
                 precioActual,
@@ -659,6 +660,7 @@ export default function InversionesPage() {
             const inv = await create({
               tipo: data.tipo,
               ticker: data.ticker ?? null,
+              isin: data.isin ?? null,
               nombre: data.nombre,
               participaciones: 0,
               precioCompra: 0,

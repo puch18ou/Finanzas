@@ -115,6 +115,9 @@ export const TIPOS_INVERSION = [
 export const investmentFormSchema = z.object({
   tipo: z.string().min(1, "Selecciona un tipo").max(40),
   ticker: z.string().max(20).nullable().optional(),
+  // ISIN (12 caracteres). Sirve para resolver el simbolo de cotizacion y como
+  // identificador del activo. Opcional.
+  isin: z.string().max(12).nullable().optional(),
   nombre: z.string().min(1, "El nombre es obligatorio").max(120),
   // Solo aplica en modo "participaciones" (Acciones/ETF/Cripto); la
   // obligatoriedad >0 se valida en el formulario segun el tipo.
