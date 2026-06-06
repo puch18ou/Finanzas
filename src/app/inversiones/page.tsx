@@ -190,13 +190,9 @@ export default function InversionesPage() {
     try {
       const r = await refreshQuote({ inv, rates });
       const de = r.convertidoDe ? ` (de ${r.convertidoDe})` : "";
-      if (r.modo === "baseline") {
-        toast.info(
-          `${inv.nombre}: referencia de VL fijada (${formatAmount(r.valor, r.moneda)}). El valor se actualizará en las próximas sincronizaciones.`,
-        );
-      } else if (r.modo === "escalado") {
+      if (r.modo === "fondo") {
         toast.success(
-          `${inv.nombre}: valor ajustado al VL ${formatAmount(r.valor, r.moneda)}${de}`,
+          `${inv.nombre}: ${formatAmount(r.valor, r.moneda)}${de} (VL ${formatAmount(r.vl, r.moneda)})`,
         );
       } else {
         toast.success(
@@ -218,24 +214,22 @@ export default function InversionesPage() {
       return;
     }
     let ok = 0;
-    let referencias = 0;
     const fallos: string[] = [];
     for (const inv of objetivo) {
       try {
-        const r = await refreshQuote({ inv, rates });
-        if (r.modo === "baseline") referencias++;
-        else ok++;
+        await refreshQuote({ inv, rates });
+        ok++;
       } catch {
         fallos.push(inv.ticker ?? inv.nombre);
       }
     }
-    const partes = [
-      `${ok} actualizadas`,
-      referencias > 0 ? `${referencias} referencias VL fijadas` : "",
-      fallos.length > 0 ? `${fallos.length} fallaron: ${fallos.join(", ")}` : "",
-    ].filter(Boolean);
-    if (fallos.length === 0) toast.success(partes.join(" · "));
-    else toast.warning(partes.join(" · "));
+    if (fallos.length === 0) {
+      toast.success(`${ok} cotizaciones actualizadas`);
+    } else {
+      toast.warning(
+        `${ok} actualizadas · ${fallos.length} fallaron: ${fallos.join(", ")}`,
+      );
+    }
   };
 
   // Tipos que tienen al menos una inversion, en el orden del catalogo.
@@ -644,6 +638,7 @@ export default function InversionesPage() {
                 nombre: data.nombre,
                 moneda: data.moneda,
                 precioActual,
+                unidadesCotizacion: data.unidadesCotizacion ?? null,
                 notas: data.notas ?? null,
                 tasaInteres: tasaInteresNueva,
                 frecuenciaInteres: ahoraTae
@@ -677,6 +672,7 @@ export default function InversionesPage() {
               ticker: data.ticker ?? null,
               isin: data.isin ?? null,
               nombre: data.nombre,
+              unidadesCotizacion: data.unidadesCotizacion ?? null,
               participaciones: 0,
               precioCompra: 0,
               precioActual: 0,

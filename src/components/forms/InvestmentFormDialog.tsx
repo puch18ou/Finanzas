@@ -102,6 +102,7 @@ export function InvestmentFormDialog({
       comision: 0,
       importeInvertido: 0,
       valorActual: 0,
+      unidadesCotizacion: null,
       moneda: monedaLocal,
       cuentaId: "",
       fechaCompra: null,
@@ -136,6 +137,7 @@ export function InvestmentFormDialog({
           valorActual: usaPart
             ? initial.precioActual
             : initial.precioActual * initial.participaciones,
+          unidadesCotizacion: initial.unidadesCotizacion ?? null,
           moneda: initial.moneda,
           cuentaId: initial.cuentaId ?? "",
           fechaCompra:
@@ -459,6 +461,30 @@ export function InvestmentFormDialog({
               />
             </div>
           </div>
+
+          {/* Solo fondos "por dinero": participaciones reales para cotizar por
+              VL (valor = unidades x VL). Los activos por unidades ya cotizan
+              con su precio por unidad. */}
+          {!conParticipaciones && (
+            <div className="space-y-2 max-w-[260px]">
+              <Label htmlFor="inv-unidades">Participaciones (unidades)</Label>
+              <Input
+                id="inv-unidades"
+                type="number"
+                step="0.000001"
+                placeholder="0"
+                {...register("unidadesCotizacion", {
+                  setValueAs: (v) =>
+                    v === "" || v == null ? null : Number(v),
+                })}
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tus unidades del fondo (CaixaBank las muestra). Necesario para
+                actualizar el valor por el VL: valor = participaciones × VL.
+              </p>
+            </div>
+          )}
 
           {/* Cuenta de origen y fecha: SOLO al crear (es la compra inicial,
               que descuenta de la cuenta). Al editar no se vuelve a descontar. */}

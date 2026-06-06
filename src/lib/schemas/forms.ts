@@ -146,6 +146,13 @@ export const investmentFormSchema = z.object({
   valorActual: z
     .number({ message: "Debe ser un numero" })
     .nonnegative("No puede ser negativo"),
+  // Solo fondos "por dinero": participaciones REALES del usuario para valorar
+  // por VL (valor = unidades * VL). Opcional.
+  unidadesCotizacion: z
+    .number({ message: "Debe ser un numero" })
+    .nonnegative("No puede ser negativo")
+    .nullable()
+    .optional(),
   moneda: z.string().min(2).max(4),
   // Requerida al CREAR (la cuenta de origen de la que sale el dinero). Al
   // editar puede faltar en inversiones antiguas, asi que la validacion de

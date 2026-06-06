@@ -104,31 +104,30 @@ export function useInvestments() {
         };
       }
 
-      // Fondo "por dinero" (sin unidades): escalamos el valor por el movimiento
-      // del VL desde la ultima cotizacion. La primera vez solo fija referencia.
-      const prevNav = inv.ultimaCotizacionNav;
-      if (prevNav == null || prevNav <= 0) {
-        await repos.investments.updateQuote(inv.id, {
-          ultimaCotizacionNav: valor,
-        });
-        return {
-          modo: "baseline" as const,
-          valor,
-          moneda: inv.moneda,
-          convertidoDe,
-        };
+      // Fondo "por dinero": valor de mercado = participaciones reales x VL.
+      // Necesita que el usuario haya indicado sus unidades (unidadesCotizacion).
+      const unidades = inv.unidadesCotizacion;
+      if (unidades == null || unidades <= 0) {
+        throw new Error(
+          "Edita el fondo e indica tus participaciones (unidades) para cotizarlo.",
+        );
       }
-      const factor = valor / prevNav;
+      if (inv.participaciones <= 0) {
+        throw new Error("El fondo no tiene importe base; no se puede cotizar.");
+      }
+      // value = participaciones(importe) * precioActual  ->  fijamos precioActual
+      // para que el valor sea exactamente unidades * VL.
+      const total = unidades * valor;
       await repos.investments.updateQuote(inv.id, {
-        precioActual: inv.precioActual * factor,
+        precioActual: total / inv.participaciones,
         ultimaCotizacionNav: valor,
       });
       return {
-        modo: "escalado" as const,
-        valor,
+        modo: "fondo" as const,
+        valor: total,
+        vl: valor,
         moneda: inv.moneda,
         convertidoDe,
-        factor,
       };
     },
     onSuccess: () => {
