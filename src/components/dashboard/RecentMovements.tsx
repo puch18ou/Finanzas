@@ -7,7 +7,13 @@
  * cualquier tipo) con icono distintivo segun el tipo.
  */
 
-import { ArrowDown, ArrowUp, ArrowLeftRight, Settings2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowLeftRight,
+  Settings2,
+  Undo2,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -122,6 +128,15 @@ function getTipoMeta(m: Movement) {
       sign: "+",
     };
   }
+  if (m.tipo === "devolucion") {
+    return {
+      icon: Undo2,
+      bg: "bg-emerald-500/10",
+      fg: "text-emerald-600 dark:text-emerald-400",
+      amount: "text-emerald-600 dark:text-emerald-400",
+      sign: "+",
+    };
+  }
   if (m.tipo === "transferencia") {
     return {
       icon: ArrowLeftRight,
@@ -145,7 +160,7 @@ function getDetail(
   categoryNames: Record<string, string>,
   accountNames: Record<string, string>,
 ): string {
-  if (m.tipo === "gasto" || m.tipo === "cuota") {
+  if (m.tipo === "gasto" || m.tipo === "cuota" || m.tipo === "devolucion") {
     return m.categoriaId ? categoryNames[m.categoriaId] ?? "?" : "Sin categoria";
   }
   if (m.tipo === "ingreso" || m.tipo === "intereses") {

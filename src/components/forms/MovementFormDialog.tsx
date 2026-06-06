@@ -62,7 +62,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils/cn";
 import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
-type FormTipo = "gasto" | "ingreso" | "transferencia" | "ajuste";
+type FormTipo = "gasto" | "ingreso" | "transferencia" | "ajuste" | "devolucion";
 
 type Props = {
   open: boolean;
@@ -171,13 +171,22 @@ export function MovementFormDialog({
       const fecha =
         initial.fecha instanceof Date ? initial.fecha : new Date(initial.fecha);
 
-      if (initial.tipo === "gasto" || initial.tipo === "cuota") {
+      if (
+        initial.tipo === "gasto" ||
+        initial.tipo === "cuota" ||
+        initial.tipo === "devolucion"
+      ) {
         gastoForm.reset({
           fecha,
           concepto: initial.concepto,
           importe: initial.importe,
           moneda: initial.moneda,
-          cuentaOrigenId: initial.cuentaOrigenId ?? "",
+          // En una devolucion la cuenta esta en destino (el dinero entra);
+          // la mostramos en el mismo campo de cuenta del formulario.
+          cuentaOrigenId:
+            (initial.tipo === "devolucion"
+              ? initial.cuentaDestinoId
+              : initial.cuentaOrigenId) ?? "",
           categoriaId: initial.categoriaId ?? "",
           notas: initial.notas ?? "",
         });
@@ -261,16 +270,19 @@ export function MovementFormDialog({
 
   const handleGastoSubmit = gastoForm.handleSubmit(async (data) => {
     const fecha = normalizeDateToUTCNoon(data.fecha);
+    const esDevolucion = formTipo === "devolucion";
     await onSubmit({
-      tipo: "gasto",
+      tipo: esDevolucion ? "devolucion" : "gasto",
       fecha,
       mes: fecha.getUTCMonth() + 1,
       anio: fecha.getUTCFullYear(),
       concepto: data.concepto,
       importe: data.importe,
       moneda: data.moneda,
-      cuentaOrigenId: data.cuentaOrigenId,
-      cuentaDestinoId: null,
+      // En una devolucion el dinero ENTRA en la cuenta -> va a destino, para
+      // que el saldo se acredite con la logica generica.
+      cuentaOrigenId: esDevolucion ? null : data.cuentaOrigenId,
+      cuentaDestinoId: esDevolucion ? data.cuentaOrigenId : null,
       categoriaId: data.categoriaId,
       categoriaTexto: null,
       notas: data.notas ?? null,
@@ -373,7 +385,7 @@ export function MovementFormDialog({
           <TabsList
             className={cn(
               "grid w-full",
-              formTipo === "ajuste" ? "grid-cols-4" : "grid-cols-3",
+              formTipo === "ajuste" ? "grid-cols-5" : "grid-cols-4",
             )}
           >
             <TabsTrigger
@@ -389,10 +401,16 @@ export function MovementFormDialog({
               Ingreso
             </TabsTrigger>
             <TabsTrigger
+              value="devolucion"
+              disabled={isEdit && formTipo !== "devolucion"}
+            >
+              Devolución
+            </TabsTrigger>
+            <TabsTrigger
               value="transferencia"
               disabled={isEdit && formTipo !== "transferencia"}
             >
-              Transferencia
+              Transfer.
             </TabsTrigger>
             {formTipo === "ajuste" && (
               <TabsTrigger value="ajuste" disabled>
@@ -402,8 +420,8 @@ export function MovementFormDialog({
           </TabsList>
         </Tabs>
 
-        {/* === GASTO === */}
-        {formTipo === "gasto" && (
+        {/* === GASTO / DEVOLUCION === */}
+        {(formTipo === "gasto" || formTipo === "devolucion") && (
           <form onSubmit={handleGastoSubmit} className="space-y-4">
             <FechaImporteMoneda
               control={gastoForm.control}
@@ -416,7 +434,11 @@ export function MovementFormDialog({
               <Input
                 id="g-concepto"
                 {...gastoForm.register("concepto")}
-                placeholder="Restaurante con amigos..."
+                placeholder={
+                  formTipo === "devolucion"
+                    ? "Devolución de una compra..."
+                    : "Restaurante con amigos..."
+                }
               />
               {gastoForm.formState.errors.concepto && (
                 <p className="text-xs text-destructive">
@@ -424,9 +446,18 @@ export function MovementFormDialog({
                 </p>
               )}
             </div>
+            {formTipo === "devolucion" && (
+              <p className="-mt-2 text-xs text-muted-foreground">
+                La devolución resta del gasto de su categoría y suma a la cuenta.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Cuenta origen</Label>
+                <Label>
+                  {formTipo === "devolucion"
+                    ? "Entra en la cuenta"
+                    : "Cuenta origen"}
+                </Label>
                 <Controller
                   control={gastoForm.control}
                   name="cuentaOrigenId"
@@ -773,6 +804,7 @@ function AjusteForm({
 
 function movementTypeToForm(tipo: MovementType): FormTipo {
   if (tipo === "gasto" || tipo === "cuota") return "gasto";
+  if (tipo === "devolucion") return "devolucion";
   if (tipo === "ingreso" || tipo === "intereses") return "ingreso";
   if (tipo === "transferencia") return "transferencia";
   if (tipo === "ajuste") return "ajuste";

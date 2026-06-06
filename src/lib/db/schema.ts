@@ -546,6 +546,7 @@ export const movements = sqliteTable(
         "ajuste",
         "intereses",
         "cuota",
+        "devolucion",
       ],
     }).notNull(),
 

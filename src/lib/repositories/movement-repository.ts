@@ -34,7 +34,8 @@ export type MovementType =
   | "transferencia"
   | "ajuste"
   | "intereses"
-  | "cuota";
+  | "cuota"
+  | "devolucion";
 
 export type CreateMovementData = Omit<
   NewMovement,

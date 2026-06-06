@@ -13,10 +13,13 @@
  *  CONCEPTOS
  *  ---------
  *    "Gastos del periodo" = movimientos con tipo ∈ {gasto, cuota}
+ *      MENOS las devoluciones (tipo 'devolucion'), que reembolsan un gasto y
+ *      por tanto RESTAN del gasto neto de su categoria (no son ingresos).
  *    "Ingresos del periodo" = movimientos con tipo ∈ {ingreso, intereses}
  *    "Transferencias y ajustes" NO se suman a ingresos ni gastos.
  *
- *  El monto siempre se trata POSITIVO. La direccion la decide el tipo.
+ *  El monto siempre se trata POSITIVO. La direccion la decide el tipo: gasto y
+ *  cuota suman a gastos; devolucion resta de gastos.
  * ============================================================================
  */
 
@@ -25,6 +28,7 @@ import { convert, type RatesMap } from "./currency";
 
 const TIPOS_GASTO = new Set(["gasto", "cuota"]);
 const TIPOS_INGRESO = new Set(["ingreso", "intereses"]);
+const TIPO_DEVOLUCION = "devolucion";
 
 export type PeriodSummary = {
   ingresos: number;
@@ -58,6 +62,12 @@ export function summarizeMonth(args: SummarizeMonthArgs): PeriodSummary {
         gastos += convert(m.importe, m.moneda, viewCurrency, rates);
       } catch {
         // Si la moneda no tiene rate, lo ignoramos
+      }
+    } else if (m.tipo === TIPO_DEVOLUCION) {
+      try {
+        gastos -= convert(m.importe, m.moneda, viewCurrency, rates);
+      } catch {
+        // ignorar
       }
     } else if (TIPOS_INGRESO.has(m.tipo)) {
       try {
@@ -95,7 +105,9 @@ export function sumMovementsByCategory(
 ): Record<string, number> {
   const result: Record<string, number> = {};
   for (const m of movements) {
-    if (!TIPOS_GASTO.has(m.tipo)) continue;
+    const esGasto = TIPOS_GASTO.has(m.tipo);
+    const esDevolucion = m.tipo === TIPO_DEVOLUCION;
+    if (!esGasto && !esDevolucion) continue;
     if (!m.categoriaId) continue;
     let value = 0;
     try {
@@ -103,7 +115,9 @@ export function sumMovementsByCategory(
     } catch {
       continue;
     }
-    result[m.categoriaId] = (result[m.categoriaId] ?? 0) + value;
+    // La devolucion reembolsa parte del gasto de la categoria: resta del neto.
+    result[m.categoriaId] =
+      (result[m.categoriaId] ?? 0) + (esDevolucion ? -value : value);
   }
   return result;
 }

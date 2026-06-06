@@ -29,6 +29,7 @@ import {
   Settings2,
   Sparkles,
   Clock,
+  Undo2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMovements } from "@/hooks/useMovements";
@@ -116,7 +117,10 @@ export default function MovimientosPage() {
   const visibleMovements = useMemo(() => {
     if (tab === "todos") return movements;
     if (tab === "gasto") {
-      return movements.filter((m) => m.tipo === "gasto" || m.tipo === "cuota");
+      return movements.filter(
+        (m) =>
+          m.tipo === "gasto" || m.tipo === "cuota" || m.tipo === "devolucion",
+      );
     }
     if (tab === "ingreso") {
       return movements.filter(
@@ -142,7 +146,8 @@ export default function MovimientosPage() {
       ajuste: 0,
     };
     for (const m of movements) {
-      if (m.tipo === "gasto" || m.tipo === "cuota") c.gasto++;
+      if (m.tipo === "gasto" || m.tipo === "cuota" || m.tipo === "devolucion")
+        c.gasto++;
       else if (m.tipo === "ingreso" || m.tipo === "intereses") c.ingreso++;
       else if (m.tipo === "transferencia") c.transferencia++;
       else if (m.tipo === "ajuste") c.ajuste++;
@@ -496,6 +501,14 @@ function renderCategoriaOCuentas(
     const cuenta = m.cuentaOrigenId ? ` · ${accById[m.cuentaOrigenId] ?? "?"}` : "";
     return `${cat}${cuenta}`;
   }
+  if (m.tipo === "devolucion") {
+    // El dinero entra en la cuenta destino; la categoria es la que compensa.
+    const cat = m.categoriaId ? catById[m.categoriaId] ?? "?" : "?";
+    const cuenta = m.cuentaDestinoId
+      ? ` · ${accById[m.cuentaDestinoId] ?? "?"}`
+      : "";
+    return `${cat}${cuenta}`;
+  }
   if (m.tipo === "ajuste") {
     const cuenta =
       (m.cuentaOrigenId ? accById[m.cuentaOrigenId] : null) ??
@@ -568,6 +581,15 @@ function getTipoMeta(tipo: MovementType) {
         icon: ArrowUp,
         className: "border-primary/30 text-primary",
         amountClass: "text-primary",
+        amountSign: "+",
+      };
+    case "devolucion":
+      return {
+        label: "Devolución",
+        icon: Undo2,
+        className:
+          "border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
+        amountClass: "text-emerald-600 dark:text-emerald-400",
         amountSign: "+",
       };
     case "transferencia":
