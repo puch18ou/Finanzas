@@ -76,7 +76,13 @@ export function useRecurringRules() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => repos.recurringRules.softDelete(id),
+    mutationFn: async (id: string) => {
+      // Retiramos tambien los movimientos que genero esta regla; si no, al
+      // recrear la regla (nuevo id) se generaria un segundo set y saldrian
+      // duplicados.
+      await repos.recurringService.softDeleteMovementsForRule(id);
+      await repos.recurringRules.softDelete(id);
+    },
     onSuccess: () => {
       invalidate();
       toast.success("Regla movida a la papelera");
