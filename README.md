@@ -193,6 +193,10 @@ categorías) y el usuario `admin` (PIN inicial `0000`, que se cambia al entrar).
 
 ## 🗺️ Roadmap (ideas)
 
+- 📱 **App de móvil (Fase 2, en marcha)** — con **Tauri Mobile** y
+  sincronización **peer-to-peer** entre tus dispositivos, sin servidor ni nube
+  (sigue siendo local-first). Cimientos ya en el repo: motor de fusión
+  *last-write-wins*, estado de sync y lápidas de borrado.
 - Cobertura de **valor liquidativo de fondos no cotizados** por ISIN.
 - Gráficos de evolución por inversión.
 - Más automatizaciones de recurrentes y conciliación.

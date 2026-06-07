@@ -552,14 +552,43 @@ en "lotes" incrementales pequeños y verificables:
 - **Multiusuario** (no previsto en el diseño original): login por PIN, una BD
   por usuario, consola admin, "mantener sesión". Ver 4.8.
 
-### Fase C — PWA con sincronización (futuro, no iniciada)
+### Fase 2 — Multi-dispositivo con sincronización P2P (en marcha)
 
-- Reemplazo del cliente SQLite (Tauri → WASM, p. ej. wa-sqlite)
-- Service Worker + manifest (PWA)
-- Backend de sync (Turso + endpoints) e implementación de repos sincronizados
-- Autenticación cloud, UI de estado de sync, resolución de conflictos
-  last-write-wins (de ahí los campos `updated_at`/`deleted_at` y los UUID en
-  cliente, ya presentes desde la Fase A), despliegue.
+> La idea original de Fase C era una PWA con un backend de sync (Turso). Se
+> **revisó** (2026-06): el objetivo pasa a ser una **app de móvil con Tauri
+> Mobile** (mismo código React/Tauri compilado a Android/iOS) y
+> **sincronización peer-to-peer sin servidor central**, para conservar el
+> caracter *local-first* (los datos siguen sin pasar por la nube). El antiguo
+> plan PWA + Turso queda descartado.
+
+**Modelo de sincronización: last-write-wins (LWW) por registro, basado en
+estado.** No hay log de operaciones: como toda tabla ya tiene `updated_at` y
+`deleted_at` y las PK son UUID de cliente (sin colisiones entre dispositivos),
+sincronizar es "intercambiar las filas cambiadas desde el último cursor y, para
+cada `id`, quedarse con la de `updated_at` mayor". Cimientos ya implementados:
+
+- **Motor de fusión puro** (`src/lib/domain/sync.ts`, con tests): `mergeTable`
+  (LWW por `id`), `compareVersions` (desempate determinista por `deviceId`, da
+  el mismo resultado en ambos pares), `collectChanges` (filas posteriores al
+  cursor) y `SYNC_TABLE_ORDER` (orden FK-seguro para aplicar cambios).
+- **Estado de sync** (`sync_state`, migración 0025): cursores
+  `last_pulled_at` / `last_pushed_at` por dispositivo-par. Es plomería **local**
+  (no se sincroniza). El `deviceId` propio vive en `localStorage`
+  (`lib/sync/device.ts`): es per-instalación, estable e independiente del
+  usuario logueado.
+- **Lápidas de borrado** (`tombstones`, migración 0026): al vaciar la papelera
+  el registro se borra físicamente, pero queda una lápida ligera
+  (`id` + tabla + fecha) que viaja por sync para que el borrado se propague en
+  vez de resucitar. Una lápida "mata" la fila viva del par solo si es
+  estrictamente más nueva; una edición concurrente posterior gana al borrado
+  (LWW). Ver `idsKilledByTombstones` / `mergeTombstones`.
+
+**Pendiente (transporte, fase siguiente):** descubrimiento de dispositivos y
+transferencia P2P (Tauri Mobile), el bucle de sync que une motor + cursores +
+lápidas, UI de estado/empareja­miento, y consideraciones de reloj (el LWW usa
+`updated_at` de pared; para 2 dispositivos personales es suficiente, un reloj
+lógico/HLC sería un refinamiento). Nota: importar un backup reescribe los
+`updated_at`, lo que invalida los cursores — habrá que resetearlos al importar.
 
 ---
 
@@ -571,7 +600,7 @@ en "lotes" incrementales pequeños y verificables:
 | Actualización de tipos de cambio | **Manual** por ahora (editable en Monedas) |
 | Backup en Fase A | **Manual**: export/import JSON (Ajustes) o copia de los `.db` |
 | Autenticación local | **Hecho**: PIN multiusuario + rol admin (ver 4.8) |
-| Autenticación Fase C (cloud) | Pendiente — antes de Fase C |
+| Sincronización móvil | **En marcha (Fase 2)**: Tauri Mobile + P2P, LWW por registro. Cimientos hechos (motor, `sync_state`, `tombstones`); transporte pendiente (ver 8) |
 | Idioma | Solo español por ahora |
 | Más de una hipoteca | La estructura lo permitiría; sin necesidad actual |
 
@@ -580,8 +609,8 @@ en "lotes" incrementales pequeños y verificables:
 ## 10. Anti-objetivos (lo que NO hacemos)
 
 - **No** hay reportes fiscales / declaración de impuestos.
-- **No** hay integración bancaria automática (open banking) en Fase A. Es candidato a Fase C pero no compromiso.
-- **No** hay app móvil nativa. Móvil = PWA en Fase C.
+- **No** hay integración bancaria automática (open banking) en Fase A. Es candidato a fase futura pero no compromiso.
+- **No** hay servidor central ni nube: en Fase 2 el móvil llega vía **Tauri Mobile** con sincronización **peer-to-peer**, manteniendo el caracter local-first (ver 8, Fase 2).
 
 > Nota: el diseño original incluía aquí "no multiusuario" y "no permisos". Se
 > revisó: ahora **sí** hay multiusuario local por PIN, con un rol `admin` para
