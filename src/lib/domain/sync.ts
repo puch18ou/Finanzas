@@ -134,10 +134,19 @@ export function mergeTable<T extends Versioned>(
       toApplyLocally.push(remote);
       continue;
     }
-    const winner = mergeRecord(local, remote, ctx);
-    if (winner === remote) {
+    const lt = toMillis(local.updatedAt);
+    const rt = toMillis(remote.updatedAt);
+    if (rt > lt) {
+      // La remota es ESTRICTAMENTE mas nueva: gana y hay que escribirla.
       byId.set(remote.id, remote);
       toApplyLocally.push(remote);
+    } else if (rt === lt && mergeRecord(local, remote, ctx) === remote) {
+      // Empate exacto de tiempo: resolvemos de forma determinista (por
+      // deviceId) para que ambos pares converjan en `merged`, pero NO lo
+      // marcamos como cambio a escribir. Asi un dato que rebota entre pares
+      // (mismo updatedAt) no provoca reescrituras-eco en cada sync. Un choque
+      // real al mismo milisegundo entre dos dispositivos es inverosimil.
+      byId.set(remote.id, remote);
     }
   }
 
