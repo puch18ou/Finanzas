@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { GlobalThemeProvider } from "@/contexts/GlobalThemeProvider";
 import { QueryProvider } from "@/contexts/QueryProvider";
 import { AuthProvider } from "@/contexts/AuthProvider";
@@ -9,6 +9,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Finanzas",
   description: "Aplicacion personal de finanzas",
+};
+
+// viewport-fit=cover: necesario para que env(safe-area-inset-*) tenga valor en
+// movil (Android/iOS), y asi la cabecera no quede bajo la barra de estado.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 /*

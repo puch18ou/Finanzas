@@ -36,6 +36,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { SidebarFooterHints } from "@/components/layout/SidebarFooterHints";
 import { useAuth } from "@/contexts/AuthProvider";
@@ -102,10 +103,19 @@ const NAV_GROUPS: NavGroup[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  // En movil, al navegar cerramos el panel para ver la pagina completa.
+  const handleNav = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border">
+      <SidebarHeader
+        className="border-b border-sidebar-border"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="flex items-center gap-2 px-2 py-1.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Coins className="h-4 w-4" />
@@ -133,7 +143,7 @@ export function AppSidebar() {
                   return (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive}>
-                        <Link href={item.url}>
+                        <Link href={item.url} onClick={handleNav}>
                           <item.icon />
                           <span>{item.title}</span>
                         </Link>
