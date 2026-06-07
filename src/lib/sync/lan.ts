@@ -11,11 +11,14 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
+import { setActiveDbPath } from "@/lib/db/client";
+import { runMigrations } from "@/lib/db/migrate";
 import { createSyncSession } from "./session-factory";
 import {
   requestToWire,
   type ExchangeRequest,
   type ExchangeResponse,
+  type PullResponse,
   type PullStats,
 } from "@/lib/domain/sync-session";
 
@@ -67,7 +70,7 @@ export async function syncWithServer(address: string): Promise<PullStats> {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestToWire(req)),
+      body: JSON.stringify({ kind: "exchange", req: requestToWire(req) }),
     });
     if (!res.ok) {
       throw new Error(`El PC respondio ${res.status}. ¿Servidor encendido?`);
@@ -78,4 +81,60 @@ export async function syncWithServer(address: string): Promise<PullStats> {
     }
     return data as ExchangeResponse;
   });
+}
+
+// -- Aprovisionamiento: traer un usuario del PC a un dispositivo nuevo --------
+
+/** Metadatos del usuario que devuelve el PC al aprovisionar (sin PIN). */
+export interface ProvisionUser {
+  username: string;
+  role: "user" | "admin";
+  mustChangePin: boolean;
+}
+
+export interface ProvisionResult {
+  user: ProvisionUser;
+  /** Snapshot completo de la BD del usuario (forma wire). */
+  snapshot: PullResponse;
+}
+
+/**
+ * Pide al PC el usuario `username` (verificando el PIN) y su snapshot de datos.
+ * Lanza si el PIN es incorrecto o el servidor no responde.
+ */
+export async function provisionFromServer(
+  address: string,
+  username: string,
+  pin: string,
+): Promise<ProvisionResult> {
+  const res = await fetch(toUrl(address), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "provision", username, pin }),
+  });
+  if (!res.ok) {
+    throw new Error(`El PC respondio ${res.status}. ¿Servidor encendido?`);
+  }
+  const data = (await res.json()) as ProvisionResult | { error: string };
+  if (data && typeof data === "object" && "error" in data) {
+    throw new Error(String((data as { error: string }).error));
+  }
+  return data as ProvisionResult;
+}
+
+/**
+ * Inicializa la BD de un usuario recien creado en este dispositivo con el
+ * snapshot traido del PC: fija la ruta, aplica migraciones (crea las tablas) y
+ * vuelca todos los datos. Como la BD esta vacia, applyPayload los inserta tal
+ * cual; el seed posterior (al loguear) se salta porque ya hay datos.
+ */
+export async function initProvisionedDb(
+  dbFile: string,
+  snapshot: PullResponse,
+  peerKey: string,
+): Promise<void> {
+  setActiveDbPath(`sqlite:${dbFile}`);
+  await runMigrations();
+  const { session } = await createSyncSession();
+  await session.applyPayload(snapshot, peerKey);
 }

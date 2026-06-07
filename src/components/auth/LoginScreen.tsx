@@ -16,9 +16,10 @@
  */
 
 import { useState } from "react";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, Wifi } from "lucide-react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { createUser } from "@/lib/auth/registry";
+import { provisionFromServer, initProvisionedDb } from "@/lib/sync/lan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +47,13 @@ function rememberUser(username: string) {
   }
 }
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "connect";
+
+const DESCRIPTIONS: Record<Mode, string> = {
+  login: "Inicia sesion para continuar",
+  register: "Crea un usuario nuevo",
+  connect: "Trae tu usuario desde el PC por WiFi",
+};
 
 export function LoginScreen() {
   const [mode, setMode] = useState<Mode>("login");
@@ -57,19 +64,22 @@ export function LoginScreen() {
         <CardHeader className="flex flex-row items-start justify-between gap-2">
           <div>
             <CardTitle className="text-xl">Finanzas</CardTitle>
-            <CardDescription>
-              {mode === "login"
-                ? "Inicia sesion para continuar"
-                : "Crea un usuario nuevo"}
-            </CardDescription>
+            <CardDescription>{DESCRIPTIONS[mode]}</CardDescription>
           </div>
           <SettingsMenu />
         </CardHeader>
         <CardContent>
-          {mode === "login" ? (
-            <LoginForm onSwitch={() => setMode("register")} />
-          ) : (
+          {mode === "login" && (
+            <LoginForm
+              onSwitch={() => setMode("register")}
+              onConnect={() => setMode("connect")}
+            />
+          )}
+          {mode === "register" && (
             <RegisterForm onSwitch={() => setMode("login")} />
+          )}
+          {mode === "connect" && (
+            <ConnectForm onSwitch={() => setMode("login")} />
           )}
         </CardContent>
       </Card>
@@ -77,7 +87,13 @@ export function LoginScreen() {
   );
 }
 
-function LoginForm({ onSwitch }: { onSwitch: () => void }) {
+function LoginForm({
+  onSwitch,
+  onConnect,
+}: {
+  onSwitch: () => void;
+  onConnect: () => void;
+}) {
   const { login } = useAuth();
   const [username, setUsername] = useState(() =>
     typeof window !== "undefined"
@@ -163,6 +179,149 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
         className="block w-full text-center text-sm text-muted-foreground hover:text-foreground"
       >
         Crear un usuario nuevo
+      </button>
+
+      <button
+        type="button"
+        onClick={onConnect}
+        className="flex w-full items-center justify-center gap-1.5 text-center text-sm text-muted-foreground hover:text-foreground"
+      >
+        <Wifi className="h-3.5 w-3.5" />
+        Conectar con un PC (WiFi)
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Aprovisionamiento: trae el usuario y sus datos desde el PC (host) por WiFi.
+ * Crea el usuario local, vuelca el snapshot en su BD nueva e inicia sesion.
+ */
+function ConnectForm({ onSwitch }: { onSwitch: () => void }) {
+  const { login, refreshUsers } = useAuth();
+  const [address, setAddress] = useState(() =>
+    typeof window !== "undefined"
+      ? (window.localStorage.getItem("sync:serverAddress") ?? "")
+      : "",
+  );
+  const [username, setUsername] = useState("");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit =
+    address.trim().length > 0 &&
+    username.trim().length > 0 &&
+    pin.length >= MIN_PIN &&
+    !submitting;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    const addr = address.trim();
+    const name = username.trim();
+    try {
+      window.localStorage.setItem("sync:serverAddress", addr);
+      setStatus("Conectando con el PC…");
+      const { user, snapshot } = await provisionFromServer(addr, name, pin);
+
+      setStatus("Creando usuario y volcando datos…");
+      const local = await createUser({
+        username: name,
+        pin,
+        role: "user",
+        mustChangePin: user.mustChangePin,
+      });
+      if (!local.dbFile) throw new Error("El usuario no tiene BD de datos.");
+      await initProvisionedDb(local.dbFile, snapshot, `lan:${addr}`);
+      await refreshUsers();
+
+      setStatus("Iniciando sesion…");
+      const result = await login(name, pin);
+      if (result.ok) {
+        rememberUser(name);
+      } else {
+        setError(result.error ?? "Datos traidos, pero no se pudo entrar.");
+        setSubmitting(false);
+      }
+    } catch (err) {
+      setStatus(null);
+      setError(
+        err instanceof Error ? err.message : "No se pudo conectar con el PC.",
+      );
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="conn-addr">Direccion del PC</Label>
+        <Input
+          id="conn-addr"
+          autoFocus
+          autoComplete="off"
+          placeholder="192.168.1.40:8787"
+          className="font-mono"
+          value={address}
+          onChange={(e) => {
+            setAddress(e.target.value);
+            setError(null);
+          }}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="conn-username">Usuario (el del PC)</Label>
+        <Input
+          id="conn-username"
+          autoComplete="off"
+          placeholder="usuario"
+          value={username}
+          onChange={(e) => {
+            setUsername(e.target.value);
+            setError(null);
+          }}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="conn-pin">PIN (el del PC)</Label>
+        <Input
+          id="conn-pin"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="PIN (4-8 digitos)"
+          value={pin}
+          maxLength={MAX_PIN}
+          onChange={(e) => {
+            setPin(onlyDigits(e.target.value));
+            setError(null);
+          }}
+          aria-invalid={error ? true : undefined}
+        />
+      </div>
+
+      {status && !error && (
+        <p className="text-sm text-muted-foreground">{status}</p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <Button type="submit" className="w-full gap-2" disabled={!canSubmit}>
+        <Wifi className="h-4 w-4" />
+        {submitting ? "Conectando..." : "Traer del PC y entrar"}
+      </Button>
+
+      <button
+        type="button"
+        onClick={onSwitch}
+        className="block w-full text-center text-sm text-muted-foreground hover:text-foreground"
+      >
+        Volver
       </button>
     </form>
   );
