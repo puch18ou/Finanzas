@@ -876,6 +876,42 @@ export const presupuestoTramos = sqliteTable(
 );
 
 // ============================================================================
+//  syncState — ESTADO DE SINCRONIZACION P2P (plomeria LOCAL, no se sincroniza)
+// ============================================================================
+//
+//  Fase 2 (multi-dispositivo, sync peer-to-peer). Una fila por dispositivo-par
+//  CONOCIDO, con los "cursores" que evitan reenviar lo ya intercambiado:
+//
+//    - lastPulledAt: mayor updatedAt que YA hemos integrado de ese par. Al
+//      pedirle cambios, le pedimos solo > lastPulledAt.
+//    - lastPushedAt: mayor updatedAt que YA le hemos enviado a ese par.
+//
+//  IMPORTANTE: esta tabla NO se sincroniza (no esta en SYNC_TABLE_ORDER de
+//  domain/sync.ts). Es estado puramente local del dispositivo. La identidad de
+//  ESTE dispositivo (deviceId propio) NO vive aqui sino en localStorage
+//  (getDeviceId en lib/sync/device.ts), porque es per-instalacion y debe ser
+//  estable e independiente de que usuario tenga la sesion abierta.
+//
+//  Sin soft-delete: "olvidar" un par es borrar su fila. Sin FK: no referencia
+//  catalogos del usuario.
+// ============================================================================
+export const syncState = sqliteTable("sync_state", {
+  // deviceId (UUID) del dispositivo par.
+  peerDeviceId: text("peer_device_id").primaryKey(),
+
+  // Nombre legible opcional para la UI ("Movil de Pedro"). Informativo.
+  peerNombre: text("peer_nombre"),
+
+  // Cursores de sincronizacion (ms epoch). NULL = nunca sincronizado aun.
+  lastPulledAt: integer("last_pulled_at", { mode: "timestamp_ms" }),
+  lastPushedAt: integer("last_pushed_at", { mode: "timestamp_ms" }),
+  lastSyncAt: integer("last_sync_at", { mode: "timestamp_ms" }),
+
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -932,3 +968,6 @@ export type NewObjetivoAhorroTramo = typeof objetivoAhorroTramos.$inferInsert;
 
 export type PresupuestoTramo = typeof presupuestoTramos.$inferSelect;
 export type NewPresupuestoTramo = typeof presupuestoTramos.$inferInsert;
+
+export type SyncState = typeof syncState.$inferSelect;
+export type NewSyncState = typeof syncState.$inferInsert;

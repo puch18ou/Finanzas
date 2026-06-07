@@ -19,6 +19,7 @@ import { MovementRepository } from "./movement-repository";
 import { RecurringRuleRepository } from "./recurring-rule-repository";
 import { ObjetivoAhorroTramoRepository } from "./objetivo-ahorro-tramo-repository";
 import { PresupuestoTramoRepository } from "./presupuesto-tramo-repository";
+import { SyncStateRepository } from "./sync-state-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
 import { RecurringService } from "@/lib/services/recurring-service";
@@ -40,6 +41,7 @@ export interface Repositories {
   recurringRules: RecurringRuleRepository;
   objetivoTramos: ObjetivoAhorroTramoRepository;
   presupuestoTramos: PresupuestoTramoRepository;
+  syncState: SyncStateRepository;
   trash: TrashService;
   backup: BackupService;
   recurringService: RecurringService;
@@ -71,6 +73,7 @@ export function createRepositories(db: DrizzleDb): Repositories {
     recurringRules,
     objetivoTramos: new ObjetivoAhorroTramoRepository(db),
     presupuestoTramos: new PresupuestoTramoRepository(db),
+    syncState: new SyncStateRepository(db),
     trash: new TrashService(db),
     backup: new BackupService(db),
     recurringService,
