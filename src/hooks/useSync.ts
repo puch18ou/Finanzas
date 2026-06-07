@@ -19,14 +19,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { getDb } from "@/lib/db/client";
-import { getDeviceId } from "@/lib/sync/device";
-import { DbSyncStore } from "@/lib/sync/db-sync-store";
-import {
-  SyncSession,
-  payloadToWire,
-  type PullResponse,
-} from "@/lib/domain/sync-session";
+import { createSyncSession } from "@/lib/sync/session-factory";
+import { payloadToWire, type PullResponse } from "@/lib/domain/sync-session";
 import { downloadJson, readJsonFile } from "@/lib/services/backup-service";
 
 const BUNDLE_APP = "finanzas-sync";
@@ -55,19 +49,12 @@ function isSyncBundle(obj: unknown): obj is SyncBundle {
   );
 }
 
-async function makeSession(): Promise<{ session: SyncSession; deviceId: string }> {
-  const db = await getDb();
-  const deviceId = getDeviceId();
-  const store = new DbSyncStore(db, deviceId);
-  return { session: new SyncSession(store), deviceId };
-}
-
 export function useSync() {
   const qc = useQueryClient();
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      const { session, deviceId } = await makeSession();
+      const { session, deviceId } = await createSyncSession();
       // serve(0) = TODOS los cambios (snapshot completo).
       const payload = await session.serve(0);
       const bundle: SyncBundle = {
@@ -98,7 +85,7 @@ export function useSync() {
       if (!isSyncBundle(obj)) {
         throw new Error("El fichero no es un paquete de sincronizacion valido.");
       }
-      const { session, deviceId } = await makeSession();
+      const { session, deviceId } = await createSyncSession();
       if (obj.deviceId === deviceId) {
         throw new Error(
           "Ese paquete es de ESTE mismo dispositivo. Importa el del otro.",
