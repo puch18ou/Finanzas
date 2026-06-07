@@ -21,12 +21,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSync } from "@/hooks/useSync";
+import { useLanSync } from "@/hooks/useLanSync";
 import { getDeviceId, getDeviceName, setDeviceName } from "@/lib/sync/device";
 import {
   startSyncServer,
   stopSyncServer,
   getSyncServerStatus,
-  syncWithServer,
   type SyncServerStatus,
 } from "@/lib/sync/lan";
 import {
@@ -38,11 +38,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 const PC_ADDRESS_KEY = "sync:serverAddress";
+const AUTO_KEY = "sync:auto";
 
 export function SyncCard() {
   const { exportBundle, importBundle, isExporting, isImporting } = useSync();
+  const lanSync = useLanSync();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [deviceId, setDeviceId] = useState("");
@@ -53,13 +56,20 @@ export function SyncCard() {
 
   const [pcAddress, setPcAddress] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [autoSync, setAutoSync] = useState(true);
 
   useEffect(() => {
     setDeviceId(getDeviceId());
     setName(getDeviceName() ?? "");
     setPcAddress(localStorage.getItem(PC_ADDRESS_KEY) ?? "");
+    setAutoSync(localStorage.getItem(AUTO_KEY) !== "0");
     getSyncServerStatus().then(setServer).catch(() => setServer(null));
   }, []);
+
+  const toggleAuto = (on: boolean) => {
+    setAutoSync(on);
+    localStorage.setItem(AUTO_KEY, on ? "1" : "0");
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,7 +108,7 @@ export function SyncCard() {
     localStorage.setItem(PC_ADDRESS_KEY, addr);
     setSyncing(true);
     try {
-      const stats = await syncWithServer(addr);
+      const stats = await lanSync(addr);
       const cambios = stats.appliedRows + stats.deletedRows;
       toast.success(
         cambios === 0
@@ -204,6 +214,15 @@ export function SyncCard() {
               {syncing ? "Sincronizando..." : "Sincronizar ahora"}
             </Button>
           </div>
+          <label className="flex items-center gap-2 pt-1 text-sm">
+            <Switch checked={autoSync} onCheckedChange={toggleAuto} />
+            <span>
+              Sincronizar automaticamente
+              <span className="block text-xs text-muted-foreground">
+                al abrir la app y cada 30 s (necesita el PC encendido)
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Manual por fichero */}
