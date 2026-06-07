@@ -11,8 +11,11 @@ import { describe, it, expect } from "vitest";
 import {
   SyncSession,
   bidirectionalSync,
+  requestToWire,
   type SyncRow,
   type SyncStore,
+  type ExchangeRequest,
+  type ExchangeResponse,
 } from "@/lib/domain/sync-session";
 import { type SyncTable, type Tombstone, SYNC_TABLE_ORDER } from "@/lib/domain/sync";
 
@@ -30,11 +33,19 @@ class MemStore implements SyncStore {
     return this.deviceId;
   }
 
+  private pushCursors = new Map<string, number>();
+
   async getPullCursor(peer: string) {
     return this.cursors.get(peer) ?? 0;
   }
   async setPullCursor(peer: string, ms: number) {
     this.cursors.set(peer, ms);
+  }
+  async getPushCursor(peer: string) {
+    return this.pushCursors.get(peer) ?? 0;
+  }
+  async setPushCursor(peer: string, ms: number) {
+    this.pushCursors.set(peer, ms);
   }
 
   async getRows(table: SyncTable) {
@@ -177,5 +188,53 @@ describe("bidirectionalSync — convergencia", () => {
     for (const t of ["currencies", "accounts", "movements", "categories"] as const) {
       expect(a.snapshot(t)).toEqual(b.snapshot(t));
     }
+  });
+});
+
+describe("intercambio cliente/servidor (exchange)", () => {
+  // Simula el transporte (fichero o red) llevando la peticion del CLIENTE al
+  // SERVIDOR, serializando por el camino (Date -> ms via requestToWire + JSON).
+  function makeTransport(server: SyncSession) {
+    return async (req: ExchangeRequest): Promise<ExchangeResponse> => {
+      const wire = JSON.parse(JSON.stringify(requestToWire(req))) as ExchangeRequest;
+      const resp = await server.handleExchange(wire);
+      return JSON.parse(JSON.stringify(resp)) as ExchangeResponse;
+    };
+  }
+
+  it("cliente (movil) y servidor (PC) convergen en un intercambio", async () => {
+    const { a: pc, b: phone, sa: pcS, sb: phoneS } = pair();
+    pc.put("accounts", row("acc1", 100, "Cuenta PC"));
+    phone.put("movements", row("m1", 110, "gasto movil"));
+
+    // El movil (cliente) intercambia con el PC (servidor).
+    await phoneS.session.exchangeWith(pcS.deviceId, makeTransport(pcS.session));
+
+    expect(phone.snapshot("accounts")).toEqual(pc.snapshot("accounts"));
+    expect(pc.snapshot("movements")).toEqual(phone.snapshot("movements"));
+  });
+
+  it("un segundo intercambio sin cambios no aplica nada (cursores avanzan)", async () => {
+    const { sa: pcS, sb: phoneS, a: pc } = pair();
+    pc.put("accounts", row("acc1", 100, "X"));
+
+    await phoneS.session.exchangeWith(pcS.deviceId, makeTransport(pcS.session));
+    const second = await phoneS.session.exchangeWith(
+      pcS.deviceId,
+      makeTransport(pcS.session),
+    );
+    expect(second.appliedRows).toBe(0);
+    expect(second.deletedRows).toBe(0);
+  });
+
+  it("un borrado en el PC se propaga al movil por intercambio", async () => {
+    const { a: pc, b: phone, sa: pcS, sb: phoneS } = pair();
+    pc.put("goals", row("g1", 100, "meta"));
+    await phoneS.session.exchangeWith(pcS.deviceId, makeTransport(pcS.session));
+    expect(phone.snapshot("goals")).toHaveLength(1);
+
+    pc.purge("goals", "g1", 300);
+    await phoneS.session.exchangeWith(pcS.deviceId, makeTransport(pcS.session));
+    expect(phone.snapshot("goals")).toHaveLength(0);
   });
 });

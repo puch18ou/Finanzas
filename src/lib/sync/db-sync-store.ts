@@ -138,6 +138,34 @@ export class DbSyncStore implements SyncStore {
       });
   }
 
+  async getPushCursor(peerDeviceId: string): Promise<Millis> {
+    const rows = await this.db
+      .select({ at: syncState.lastPushedAt })
+      .from(syncState)
+      .where(eq(syncState.peerDeviceId, peerDeviceId))
+      .limit(1);
+    const at = rows[0]?.at;
+    return at instanceof Date ? at.getTime() : 0;
+  }
+
+  async setPushCursor(peerDeviceId: string, ms: Millis): Promise<void> {
+    const now = new Date();
+    const cursor = new Date(ms);
+    await this.db
+      .insert(syncState)
+      .values({
+        peerDeviceId,
+        lastPushedAt: cursor,
+        lastSyncAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: syncState.peerDeviceId,
+        set: { lastPushedAt: cursor, lastSyncAt: now, updatedAt: now },
+      });
+  }
+
   // -- Filas por tabla -------------------------------------------------------
 
   async getRows(table: SyncTable): Promise<SyncRow[]> {
