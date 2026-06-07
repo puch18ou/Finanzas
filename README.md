@@ -42,10 +42,13 @@ Sin nube, sin servidor, sin cuentas de terceros — **tus datos viven en tu máq
 
 <div align="center">
 
-<!-- Sustituye estas líneas por tus capturas reales (arrástralas a la issue/README en GitHub). -->
-| Dashboard | Inversiones | Evolución |
-|:---:|:---:|:---:|
-| _añade captura_ | _añade captura_ | _añade captura_ |
+<img src="docs/Dashboard.png" width="820" alt="Dashboard — KPIs del mes, gasto por categoría y presupuesto" />
+
+<br/><br/>
+
+| Evolución | Inversiones |
+|:---:|:---:|
+| <img src="docs/Evolucion.png" width="420" alt="Evolución mensual de ingresos vs gastos" /> | <img src="docs/Inversiones.png" width="420" alt="Cartera de inversiones con cotizaciones" /> |
 
 </div>
 
