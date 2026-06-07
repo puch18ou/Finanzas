@@ -11,7 +11,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
-import { setActiveDbPath } from "@/lib/db/client";
+import { setActiveDbPath, getRawDb } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { createSyncSession } from "./session-factory";
 import {
@@ -135,6 +135,15 @@ export async function initProvisionedDb(
 ): Promise<void> {
   setActiveDbPath(`sqlite:${dbFile}`);
   await runMigrations();
-  const { session } = await createSyncSession();
-  await session.applyPayload(snapshot, peerKey);
+  // Volcado masivo: desactivamos las FK mientras importamos para no depender
+  // del orden exacto entre tablas. El snapshot viene integro del PC, asi que
+  // la integridad se mantiene al re-activarlas.
+  const raw = await getRawDb();
+  await raw.execute("PRAGMA foreign_keys = OFF");
+  try {
+    const { session } = await createSyncSession();
+    await session.applyPayload(snapshot, peerKey);
+  } finally {
+    await raw.execute("PRAGMA foreign_keys = ON");
+  }
 }

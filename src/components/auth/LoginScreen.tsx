@@ -39,6 +39,18 @@ const LAST_USER_KEY = "auth:lastUsername";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "").slice(0, MAX_PIN);
 
+/** Texto de error incluyendo la cadena de `.cause` (Drizzle/Tauri la anidan). */
+function fullError(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let i = 0; i < 4 && cur != null; i++) {
+    const msg = cur instanceof Error ? cur.message : String(cur);
+    if (msg && !parts.includes(msg)) parts.push(msg);
+    cur = cur instanceof Error ? (cur as { cause?: unknown }).cause : undefined;
+  }
+  return parts.join(" — ");
+}
+
 function rememberUser(username: string) {
   try {
     window.localStorage.setItem(LAST_USER_KEY, username);
@@ -249,9 +261,9 @@ function ConnectForm({ onSwitch }: { onSwitch: () => void }) {
       }
     } catch (err) {
       setStatus(null);
-      setError(
-        err instanceof Error ? err.message : "No se pudo conectar con el PC.",
-      );
+      // Mostramos el error con su CAUSA (Drizzle envuelve el error real de
+      // SQLite en .cause; los rechazos de Tauri suelen ser string).
+      setError(fullError(err) || "No se pudo conectar con el PC.");
       setSubmitting(false);
     }
   }

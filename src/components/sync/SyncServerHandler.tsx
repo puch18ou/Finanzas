@@ -13,19 +13,21 @@
  * cuando el servidor esta encendido (lo controla la tarjeta de Ajustes).
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  createSyncSession,
-  serveSnapshotForDbFile,
-} from "@/lib/sync/session-factory";
+import { useAuth } from "@/contexts/AuthProvider";
+import { createSyncSession } from "@/lib/sync/session-factory";
 import { payloadToWire, type ExchangeRequest } from "@/lib/domain/sync-session";
 import { verifyLogin } from "@/lib/auth/registry";
 
 export function SyncServerHandler() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  // Ref para leer el usuario actual dentro del listener sin re-registrarlo.
+  const userRef = useRef(user);
+  userRef.current = user;
 
   useEffect(() => {
     let active = true;
@@ -44,19 +46,29 @@ export function SyncServerHandler() {
         };
 
         if (msg.kind === "provision") {
-          // Aprovisionar un dispositivo nuevo: verificar PIN y servir su BD.
-          const user = await verifyLogin(msg.username ?? "", msg.pin ?? "");
-          if (!user || !user.dbFile) {
+          // Aprovisionar un dispositivo nuevo: verificar PIN y servir el
+          // snapshot. Solo se puede traer el usuario que tiene la sesion
+          // ABIERTA en el PC: asi servimos desde la sesion activa (la via
+          // probada) y es mas seguro.
+          const verified = await verifyLogin(msg.username ?? "", msg.pin ?? "");
+          const current = userRef.current;
+          if (!verified || !verified.dbFile) {
             respBody = JSON.stringify({
               error: "Usuario o PIN incorrecto en el PC.",
             });
+          } else if (!current || current.username !== verified.username) {
+            respBody = JSON.stringify({
+              error:
+                "Abre la sesion de ese usuario en el PC antes de traerlo al movil.",
+            });
           } else {
-            const snapshot = await serveSnapshotForDbFile(user.dbFile);
+            const { session } = await createSyncSession();
+            const snapshot = await session.serve(0);
             respBody = JSON.stringify({
               user: {
-                username: user.username,
-                role: user.role,
-                mustChangePin: user.mustChangePin,
+                username: verified.username,
+                role: verified.role,
+                mustChangePin: verified.mustChangePin,
               },
               snapshot: payloadToWire(snapshot),
             });
