@@ -19,3 +19,7 @@ tauri-plugin-sql = { version = "2.3", features = ["sqlite"] }
 tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Sync P2P (Fase 2, Lote I): mini-servidor HTTP en el PC (host) + IP local.
+tiny_http = "0.12"
+local-ip-address = "0.6"
