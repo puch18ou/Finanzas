@@ -122,15 +122,17 @@ export function mergeTable<T extends Versioned>(
   locals: T[],
   remotes: T[],
   ctx: MergeContext,
+  keyOf: (row: T) => string = byIdKey,
 ): TableMergeResult<T> {
   const byId = new Map<string, T>();
-  for (const row of locals) byId.set(row.id, row);
+  for (const row of locals) byId.set(keyOf(row), row);
 
   const toApplyLocally: T[] = [];
   for (const remote of remotes) {
-    const local = byId.get(remote.id);
+    const k = keyOf(remote);
+    const local = byId.get(k);
     if (!local) {
-      byId.set(remote.id, remote);
+      byId.set(k, remote);
       toApplyLocally.push(remote);
       continue;
     }
@@ -138,7 +140,7 @@ export function mergeTable<T extends Versioned>(
     const rt = toMillis(remote.updatedAt);
     if (rt > lt) {
       // La remota es ESTRICTAMENTE mas nueva: gana y hay que escribirla.
-      byId.set(remote.id, remote);
+      byId.set(k, remote);
       toApplyLocally.push(remote);
     } else if (rt === lt && mergeRecord(local, remote, ctx) === remote) {
       // Empate exacto de tiempo: resolvemos de forma determinista (por
@@ -146,7 +148,7 @@ export function mergeTable<T extends Versioned>(
       // marcamos como cambio a escribir. Asi un dato que rebota entre pares
       // (mismo updatedAt) no provoca reescrituras-eco en cada sync. Un choque
       // real al mismo milisegundo entre dos dispositivos es inverosimil.
-      byId.set(remote.id, remote);
+      byId.set(k, remote);
     }
   }
 
@@ -207,6 +209,31 @@ export const SYNC_TABLE_ORDER = [
 
 export type SyncTable = (typeof SYNC_TABLE_ORDER)[number];
 
+/**
+ * Campo que actua de CLAVE PRIMARIA en cada tabla. Casi todas usan `id`
+ * (UUID), pero `currencies` usa `code` (EUR, SGD...). El motor de fusion debe
+ * agrupar por esta clave: si usara siempre `id`, las monedas (sin `id`)
+ * colapsarian todas en una sola.
+ */
+export const PK_FIELD: Record<SyncTable, string> = {
+  currencies: "code",
+  settings: "id",
+  categories: "id",
+  accounts: "id",
+  investments: "id",
+  goals: "id",
+  mortgage: "id",
+  other_debts: "id",
+  movements: "id",
+  investment_contributions: "id",
+  recurring_rules: "id",
+  objetivo_ahorro_tramos: "id",
+  presupuesto_tramos: "id",
+};
+
+/** Accesor de clave por defecto (`id`). */
+const byIdKey = (row: { id?: unknown }): string => String(row.id);
+
 // ============================================================================
 //  LAPIDAS DE BORRADO (tombstones)
 // ============================================================================
@@ -245,15 +272,17 @@ export function mergeTombstones(
 export function idsKilledByTombstones<T extends Versioned>(
   rows: T[],
   tombstones: Tombstone[],
+  keyOf: (row: T) => string = byIdKey,
 ): string[] {
   const byId = new Map<string, Millis>();
   for (const t of tombstones) byId.set(t.id, toMillis(t.updatedAt));
 
   const out: string[] = [];
   for (const row of rows) {
-    const killed = byId.get(row.id);
+    const key = keyOf(row);
+    const killed = byId.get(key);
     if (killed !== undefined && killed > toMillis(row.updatedAt)) {
-      out.push(row.id);
+      out.push(key);
     }
   }
   return out;

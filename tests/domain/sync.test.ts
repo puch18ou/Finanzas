@@ -91,6 +91,22 @@ describe("mergeTable", () => {
     expect(res.toApplyLocally).toHaveLength(0);
   });
 
+  it("keyOf: agrupa por clave distinta de id (currencies usa code)", () => {
+    // Filas SIN id (como currencies): clave = code. Sin keyOf colapsarian.
+    const locals: never[] = [];
+    const remotes = [
+      { code: "EUR", updatedAt: 100 },
+      { code: "SGD", updatedAt: 100 },
+      { code: "USD", updatedAt: 100 },
+    ] as unknown as Row[];
+    const res = mergeTable(locals, remotes, ctxL, (r) =>
+      String((r as unknown as { code: string }).code),
+    );
+    // Las 3 sobreviven (no colapsan en una sola clave undefined).
+    expect(res.merged).toHaveLength(3);
+    expect(res.toApplyLocally).toHaveLength(3);
+  });
+
   it("un tombstone remoto mas nuevo gana (borrado se propaga)", () => {
     const local = { id: "a", updatedAt: 1, deletedAt: null as number | null };
     const remote = { id: "a", updatedAt: 5, deletedAt: 5 as number | null };

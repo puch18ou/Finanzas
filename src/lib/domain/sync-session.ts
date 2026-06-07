@@ -36,6 +36,7 @@ import {
   type Tombstone,
   type SyncTable,
   SYNC_TABLE_ORDER,
+  PK_FIELD,
   collectChanges,
   mergeTable,
   mergeTombstones,
@@ -142,13 +143,16 @@ export class SyncSession {
       remoteDeviceId,
     };
 
-    // 1. Upsert de filas que ganan, en orden FK-seguro (padres antes).
+    // 1. Upsert de filas que ganan, en orden FK-seguro (padres antes). Cada
+    //    tabla se agrupa por SU clave primaria (currencies usa `code`, no `id`).
     let appliedRows = 0;
     for (const table of SYNC_TABLE_ORDER) {
       const remoteRows = payload.tables[table];
       if (!remoteRows || remoteRows.length === 0) continue;
+      const pk = PK_FIELD[table];
+      const keyOf = (r: SyncRow) => String(r[pk]);
       const localRows = await this.store.getRows(table);
-      const { toApplyLocally } = mergeTable(localRows, remoteRows, ctx);
+      const { toApplyLocally } = mergeTable(localRows, remoteRows, ctx, keyOf);
       if (toApplyLocally.length > 0) {
         await this.store.applyRows(table, toApplyLocally);
         appliedRows += toApplyLocally.length;
@@ -176,10 +180,12 @@ export class SyncSession {
     const allTombs = await this.store.getTombstones();
     if (allTombs.length > 0) {
       for (const table of [...SYNC_TABLE_ORDER].reverse()) {
+        const pk = PK_FIELD[table];
         const rows = await this.store.getRows(table);
         const kill = idsKilledByTombstones(
           rows,
           allTombs.filter((t) => t.tabla === table),
+          (r) => String(r[pk]),
         );
         if (kill.length > 0) {
           await this.store.deleteRows(table, kill);
