@@ -16,10 +16,15 @@
  */
 
 import { useState } from "react";
-import { LogIn, UserPlus, Wifi } from "lucide-react";
+import { LogIn, UserPlus, Wifi, QrCode } from "lucide-react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { createUser } from "@/lib/auth/registry";
-import { provisionFromServer, initProvisionedDb } from "@/lib/sync/lan";
+import {
+  provisionFromServer,
+  initProvisionedDb,
+  decodePairing,
+} from "@/lib/sync/lan";
+import { QrScanner } from "@/components/sync/QrScanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -221,12 +226,26 @@ function ConnectForm({ onSwitch }: { onSwitch: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const canSubmit =
     address.trim().length > 0 &&
     username.trim().length > 0 &&
     pin.length >= MIN_PIN &&
     !submitting;
+
+  function handleScan(text: string) {
+    setScanning(false);
+    const info = decodePairing(text);
+    if (info) {
+      setAddress(info.address);
+      setUsername(info.username);
+      setError(null);
+      window.localStorage.setItem("sync:serverAddress", info.address);
+    } else {
+      setError("El QR no es de Finanzas. Escribe la direccion a mano.");
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,11 +289,30 @@ function ConnectForm({ onSwitch }: { onSwitch: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {scanning && (
+        <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
+      )}
+
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full gap-2"
+        onClick={() => setScanning(true)}
+      >
+        <QrCode className="h-4 w-4" />
+        Escanear el QR del PC
+      </Button>
+
+      <div className="relative text-center">
+        <span className="bg-card px-2 text-xs text-muted-foreground">
+          o escribelo a mano
+        </span>
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="conn-addr">Direccion del PC</Label>
         <Input
           id="conn-addr"
-          autoFocus
           autoComplete="off"
           placeholder="192.168.1.40:8787"
           className="font-mono"

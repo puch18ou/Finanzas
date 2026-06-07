@@ -20,13 +20,19 @@ import {
   Wifi,
 } from "lucide-react";
 import { toast } from "sonner";
+import { QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useSync } from "@/hooks/useSync";
 import { useLanSync } from "@/hooks/useLanSync";
+import { useAuth } from "@/contexts/AuthProvider";
+import { QrScanner } from "@/components/sync/QrScanner";
 import { getDeviceId, getDeviceName, setDeviceName } from "@/lib/sync/device";
 import {
   startSyncServer,
   stopSyncServer,
   getSyncServerStatus,
+  encodePairing,
+  decodePairing,
   type SyncServerStatus,
 } from "@/lib/sync/lan";
 import {
@@ -46,6 +52,7 @@ const AUTO_KEY = "sync:auto";
 export function SyncCard() {
   const { exportBundle, importBundle, isExporting, isImporting } = useSync();
   const lanSync = useLanSync();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [deviceId, setDeviceId] = useState("");
@@ -57,6 +64,19 @@ export function SyncCard() {
   const [pcAddress, setPcAddress] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
+  const [scanning, setScanning] = useState(false);
+
+  const handleScan = (text: string) => {
+    setScanning(false);
+    const info = decodePairing(text);
+    if (info) {
+      setPcAddress(info.address);
+      localStorage.setItem(PC_ADDRESS_KEY, info.address);
+      toast.success(`PC detectado: ${info.address}`);
+    } else {
+      toast.error("Ese QR no es de Finanzas.");
+    }
+  };
 
   useEffect(() => {
     setDeviceId(getDeviceId());
@@ -138,6 +158,10 @@ export function SyncCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {scanning && (
+          <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
+        )}
+
         {/* Nombre del dispositivo */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
@@ -188,6 +212,19 @@ export function SyncCard() {
               </span>
             )}
           </div>
+          {server && user && (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <div className="rounded-lg bg-white p-3">
+                <QRCodeSVG
+                  value={encodePairing(`${server[0]}:${server[1]}`, user.username)}
+                  size={160}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Escanea este QR desde el movil para conectarte sin teclear.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Cliente: conectar a un servidor (el movil) */}
@@ -197,9 +234,18 @@ export function SyncCard() {
             Conectar con el PC
           </div>
           <p className="text-xs text-muted-foreground">
-            En el <strong>movil</strong>: escribe la direccion que muestra el PC
-            y pulsa sincronizar.
+            En el <strong>movil</strong>: escanea el QR del PC (o escribe la
+            direccion) y pulsa sincronizar.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScanning(true)}
+            className="gap-2"
+          >
+            <QrCode className="h-4 w-4" />
+            Escanear QR del PC
+          </Button>
           <div className="flex flex-wrap items-center gap-2">
             <Input
               value={pcAddress}

@@ -28,6 +28,32 @@ export const DEFAULT_SYNC_PORT = 8787;
 /** Estado del servidor: [ip, puerto] o null si esta parado. */
 export type SyncServerStatus = [string, number] | null;
 
+// -- Emparejamiento por QR ---------------------------------------------------
+
+/** Datos que viajan en el QR (NO el PIN, eso se teclea siempre). */
+export interface PairingInfo {
+  address: string;
+  username: string;
+}
+
+/** Codifica los datos de emparejamiento para meterlos en un QR. */
+export function encodePairing(address: string, username: string): string {
+  return JSON.stringify({ v: 1, a: address, u: username });
+}
+
+/** Decodifica el texto de un QR escaneado. Devuelve null si no es valido. */
+export function decodePairing(text: string): PairingInfo | null {
+  try {
+    const o = JSON.parse(text) as { a?: unknown; u?: unknown };
+    if (typeof o.a === "string" && typeof o.u === "string" && o.a.includes(":")) {
+      return { address: o.a, username: o.u };
+    }
+  } catch {
+    // texto no-JSON
+  }
+  return null;
+}
+
 // -- Lado SERVIDOR (PC) ------------------------------------------------------
 
 export async function startSyncServer(
