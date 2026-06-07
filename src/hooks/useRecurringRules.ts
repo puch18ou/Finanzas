@@ -34,8 +34,14 @@ export function useRecurringRules() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateRecurringRuleData) =>
-      repos.recurringRules.create(data),
+    mutationFn: async (data: CreateRecurringRuleData) => {
+      const created = await repos.recurringRules.create(data);
+      // Genera ya los movimientos pendientes (p. ej. una regla con inicio en
+      // enero creada en junio backfillea enero..mayo). Idempotente; las
+      // ocurrencias futuras del mes en curso quedan como "previstos".
+      await repos.recurringService.generatePendingUpToCurrentMonth();
+      return created;
+    },
     onSuccess: () => {
       invalidate();
       toast.success("Regla creada");
@@ -53,6 +59,9 @@ export function useRecurringRules() {
       // Si el rango [fechaInicio, fechaFin] se ha estrechado, limpiamos los
       // movements ya generados que ahora queden fuera (huerfanos).
       await repos.recurringService.softDeleteMovementsOutsideRange(updated);
+      // Si se ha ampliado hacia atras (p. ej. fechaInicio a un mes anterior),
+      // generamos los movimientos que ahora caen dentro del rango.
+      await repos.recurringService.generatePendingUpToCurrentMonth();
       return updated;
     },
     onSuccess: () => {
