@@ -912,6 +912,38 @@ export const syncState = sqliteTable("sync_state", {
 });
 
 // ============================================================================
+//  tombstones — LAPIDAS DE BORRADO (Fase 2, para que los borrados se propaguen)
+// ============================================================================
+//
+//  Cuando el usuario VACIA la papelera, el registro se borra fisicamente de su
+//  tabla (libera la fila pesada y la papelera sigue funcionando igual). Pero en
+//  un mundo multi-dispositivo eso resucitaria el registro desde el otro
+//  dispositivo en la siguiente sync. Para evitarlo, al borrar definitivamente
+//  dejamos aqui una LAPIDA ligera: solo el id, la tabla de origen y cuando se
+//  borro. La sync la trata como "este id esta muerto desde T": si el otro
+//  dispositivo tiene la fila viva con un updatedAt anterior, la borra.
+//
+//  El `id` es el del registro borrado (UUID, unico entre tablas, sirve de PK).
+//  `updatedAt` = momento del borrado (lo que usa el LWW). A diferencia del
+//  resto, SI se sincroniza, pero por un canal aparte (no esta en
+//  SYNC_TABLE_ORDER, que es para upserts de entidades).
+//
+//  GC futuro: una lapida puede purgarse cuando ya se ha confirmado en todos
+//  los pares conocidos (no implementado todavia).
+// ============================================================================
+export const tombstones = sqliteTable(
+  "tombstones",
+  {
+    id: text("id").primaryKey(),
+    tabla: text("tabla").notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("idx_tombstones_updated").on(t.updatedAt)],
+);
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -971,3 +1003,6 @@ export type NewPresupuestoTramo = typeof presupuestoTramos.$inferInsert;
 
 export type SyncState = typeof syncState.$inferSelect;
 export type NewSyncState = typeof syncState.$inferInsert;
+
+export type Tombstone = typeof tombstones.$inferSelect;
+export type NewTombstone = typeof tombstones.$inferInsert;

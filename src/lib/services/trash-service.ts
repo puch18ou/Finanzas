@@ -11,12 +11,15 @@ import {
   categories,
   accounts,
   investments,
+  investmentContributions,
   goals,
   mortgage,
   otherDebts,
   movements,
 } from "@/lib/db/schema";
+import type { SyncTable } from "@/lib/domain/sync";
 import { InvestmentContributionService } from "./investment-contribution-service";
+import { TombstoneRepository } from "@/lib/repositories/tombstone-repository";
 
 export type TrashItemType =
   | "movements"
@@ -39,9 +42,16 @@ export type TrashCounts = Record<TrashItemType, number>;
 
 export class TrashService {
   private contributionService: InvestmentContributionService;
+  private tombstones: TombstoneRepository;
 
   constructor(private db: DrizzleDb) {
     this.contributionService = new InvestmentContributionService(db);
+    this.tombstones = new TombstoneRepository(db);
+  }
+
+  /** Mapea el tipo de papelera al nombre de tabla que entiende la sync. */
+  private syncTableFor(type: TrashItemType): SyncTable {
+    return type === "otherDebts" ? "other_debts" : type;
   }
 
   async counts(): Promise<TrashCounts> {
@@ -183,13 +193,25 @@ export class TrashService {
   }
 
   async hardDelete(type: TrashItemType, id: string): Promise<void> {
-    // Inversiones: borra antes sus aportaciones (FK).
+    // Inversiones: borra antes sus aportaciones (FK) y deja lapida de ambas.
     if (type === "investments") {
+      const contribs = await this.db
+        .select({ id: investmentContributions.id })
+        .from(investmentContributions)
+        .where(eq(investmentContributions.investmentId, id));
       await this.contributionService.hardDeleteInvestment(id);
+      await this.tombstones.recordMany(
+        contribs.map((c) => c.id),
+        "investment_contributions",
+      );
+      await this.tombstones.record(id, "investments");
       return;
     }
     const table = this.tableFor(type);
     await this.db.delete(table).where(eq(table.id, id));
+    // Lapida para que el borrado se propague por sync (no resucite en otro
+    // dispositivo).
+    await this.tombstones.record(id, this.syncTableFor(type));
   }
 
   async emptyAll(): Promise<void> {
@@ -199,8 +221,20 @@ export class TrashService {
       .from(investments)
       .where(isNotNull(investments.deletedAt));
     for (const inv of deletedInvs) {
+      const contribs = await this.db
+        .select({ id: investmentContributions.id })
+        .from(investmentContributions)
+        .where(eq(investmentContributions.investmentId, inv.id));
       await this.contributionService.hardDeleteInvestment(inv.id);
+      await this.tombstones.recordMany(
+        contribs.map((c) => c.id),
+        "investment_contributions",
+      );
     }
+    await this.tombstones.recordMany(
+      deletedInvs.map((i) => i.id),
+      "investments",
+    );
 
     const types: TrashItemType[] = [
       "movements",
@@ -212,7 +246,15 @@ export class TrashService {
     ];
     for (const t of types) {
       const table = this.tableFor(t);
+      const rows = await this.db
+        .select({ id: table.id })
+        .from(table)
+        .where(isNotNull(table.deletedAt));
       await this.db.delete(table).where(isNotNull(table.deletedAt));
+      await this.tombstones.recordMany(
+        rows.map((r) => r.id),
+        this.syncTableFor(t),
+      );
     }
   }
 

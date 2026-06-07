@@ -9,8 +9,11 @@ import {
   mergeRecord,
   mergeTable,
   collectChanges,
+  mergeTombstones,
+  idsKilledByTombstones,
   SYNC_TABLE_ORDER,
   type MergeContext,
+  type Tombstone,
 } from "@/lib/domain/sync";
 
 type Row = { id: string; updatedAt: number; v?: string };
@@ -114,6 +117,36 @@ describe("collectChanges", () => {
   it("cursor = mayor updatedAt enviado", () => {
     const res = collectChanges([r("a", 100), r("b", 50)], 0);
     expect(res.cursor).toBe(100);
+  });
+});
+
+describe("tombstones", () => {
+  const tomb = (id: string, updatedAt: number, tabla = "movements"): Tombstone => ({
+    id,
+    tabla,
+    updatedAt,
+  });
+
+  it("idsKilledByTombstones: mata la fila si la lapida es mas nueva", () => {
+    const rows = [r("a", 5), r("b", 10)];
+    const tombs = [tomb("a", 8), tomb("b", 3)];
+    // 'a' tiene lapida (8) > su updatedAt (5) => muere.
+    // 'b' se edito (10) despues de su lapida (3) => sobrevive.
+    expect(idsKilledByTombstones(rows, tombs)).toEqual(["a"]);
+  });
+
+  it("idsKilledByTombstones: sin lapida no mata", () => {
+    expect(idsKilledByTombstones([r("a", 5)], [])).toEqual([]);
+  });
+
+  it("idsKilledByTombstones: empate exacto no mata (no es estrictamente posterior)", () => {
+    expect(idsKilledByTombstones([r("a", 5)], [tomb("a", 5)])).toEqual([]);
+  });
+
+  it("mergeTombstones: LWW por id como cualquier tabla", () => {
+    const res = mergeTombstones([tomb("a", 1)], [tomb("a", 5), tomb("b", 2)], ctxL);
+    expect(res.toApplyLocally.map((t) => t.id).sort()).toEqual(["a", "b"]);
+    expect(res.merged.find((t) => t.id === "a")?.updatedAt).toBe(5);
   });
 });
 

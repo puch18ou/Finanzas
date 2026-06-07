@@ -197,3 +197,55 @@ export const SYNC_TABLE_ORDER = [
 ] as const;
 
 export type SyncTable = (typeof SYNC_TABLE_ORDER)[number];
+
+// ============================================================================
+//  LAPIDAS DE BORRADO (tombstones)
+// ============================================================================
+//
+//  Cuando un registro se borra definitivamente (vaciar papelera), su fila
+//  desaparece pero queda una lapida {id, tabla, updatedAt=cuando se borro}. La
+//  lapida viaja por sync y "mata" la fila viva del mismo id en el otro
+//  dispositivo, SIEMPRE que la lapida sea mas nueva que el ultimo cambio de esa
+//  fila. Si la fila se edito DESPUES del borrado (edicion concurrente que gana
+//  al delete), sobrevive — es el LWW habitual.
+// ============================================================================
+
+/** Una lapida es un registro versionado con la tabla de origen. */
+export interface Tombstone extends Versioned {
+  tabla: string;
+}
+
+/**
+ * Fusiona el conjunto local de lapidas con las recibidas de un par (LWW por id,
+ * igual que cualquier tabla). Reutiliza `mergeTable`.
+ */
+export function mergeTombstones(
+  locals: Tombstone[],
+  remotes: Tombstone[],
+  ctx: MergeContext,
+): TableMergeResult<Tombstone> {
+  return mergeTable(locals, remotes, ctx);
+}
+
+/**
+ * Dada una lista de filas vivas y las lapidas conocidas, devuelve los `id` que
+ * deben BORRARSE en local: aquellos con una lapida cuyo momento es
+ * estrictamente posterior al `updatedAt` de la fila. Si la fila es mas nueva
+ * que su lapida, sobrevive (no se devuelve).
+ */
+export function idsKilledByTombstones<T extends Versioned>(
+  rows: T[],
+  tombstones: Tombstone[],
+): string[] {
+  const byId = new Map<string, Millis>();
+  for (const t of tombstones) byId.set(t.id, toMillis(t.updatedAt));
+
+  const out: string[] = [];
+  for (const row of rows) {
+    const killed = byId.get(row.id);
+    if (killed !== undefined && killed > toMillis(row.updatedAt)) {
+      out.push(row.id);
+    }
+  }
+  return out;
+}
