@@ -32,6 +32,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { FxAutoRefresh } from "@/components/fx/FxAutoRefresh";
 import { SyncServerHandler } from "@/components/sync/SyncServerHandler";
 import { AutoSync } from "@/components/sync/AutoSync";
+import { CurrentPeriodSync } from "@/components/system/CurrentPeriodSync";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { ready, error, user } = useAuth();
@@ -77,6 +78,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <FxAutoRefresh />
         <SyncServerHandler />
         <AutoSync />
+        <CurrentPeriodSync />
         <QuickAddProvider>
           <ShortcutsProvider>
             <AppShell>{children}</AppShell>
