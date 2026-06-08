@@ -48,11 +48,15 @@ export function MobileApp() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/20">
+      {/* Fondo opaco (negro) detras de la barra de estado del movil, al 66%
+          de la zona segura (queda mas ajustado). */}
+      <div
+        className="shrink-0 bg-black"
+        style={{ height: "calc(env(safe-area-inset-top) * 0.66)" }}
+      />
+
       {/* Contenido de la pantalla activa */}
-      <main
-        className="flex-1 overflow-y-auto"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
+      <main className="flex-1 overflow-y-auto">
         {tab === "inicio" && <MobileHome />}
         {tab === "movimientos" && <MobileMovements />}
         {tab === "cuentas" && <MobileAccounts />}
