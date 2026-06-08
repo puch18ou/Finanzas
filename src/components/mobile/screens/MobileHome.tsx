@@ -10,8 +10,12 @@ import {
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useAccountBalances } from "@/hooks/useAccounts";
 import { useMovements } from "@/hooks/useMovements";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
+import { useInvestments } from "@/hooks/useInvestments";
 import { buildRatesMap, convert } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
+import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { summarizePortfolio } from "@/lib/domain/investments";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -25,6 +29,9 @@ export function MobileHome() {
   const { data: currencies = [] } = useCurrencies();
   const { accounts, balances } = useAccountBalances();
 
+  const { data: activeRules = [] } = useActiveRecurringRules();
+  const { investments } = useInvestments();
+
   const view = settings?.monedaVista ?? "EUR";
   const now = new Date();
   const mes = settings?.mesActual ?? now.getMonth() + 1;
@@ -32,11 +39,48 @@ export function MobileHome() {
   const { movements } = useMovements({ anio, mes });
 
   const rates = buildRatesMap(currencies);
-  const summary = summarizeMonth({ mes, anio, movements, rates, viewCurrency: view });
-  const patrimonio = accounts.reduce(
+  const base = summarizeMonth({ mes, anio, movements, rates, viewCurrency: view });
+
+  // Previstos: recurrentes que aun no han ocurrido este mes (solo si el mes
+  // mostrado es el actual). Asi ingresos y gastos reflejan tambien lo futuro.
+  let prevIngresos = 0;
+  let prevGastos = 0;
+  const isCurrentMonth =
+    anio === now.getFullYear() && mes === now.getMonth() + 1;
+  if (isCurrentMonth) {
+    const nowMs = now.getTime();
+    for (const rule of activeRules) {
+      if (rule.origenAutomatico === "investment") continue;
+      const esIngreso =
+        rule.tipoMovimiento === "ingreso" || rule.tipoMovimiento === "intereses";
+      const esGasto =
+        rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+      if (!esIngreso && !esGasto) continue;
+      const occ = monthlyOccurrenceFor(rule, anio, mes);
+      if (!occ || occ.getTime() <= nowMs) continue;
+      try {
+        const importe = convert(rule.importe, rule.moneda, view, rates);
+        if (esIngreso) prevIngresos += importe;
+        else prevGastos += importe;
+      } catch {
+        // moneda sin tipo de cambio, ignorar
+      }
+    }
+  }
+
+  const ingresos = base.ingresos + prevIngresos;
+  const gastos = base.gastos + prevGastos;
+  const ahorro = ingresos - gastos;
+  const tasaAhorro = ingresos > 0 ? ahorro / ingresos : 0;
+  const summary = { ingresos, gastos, ahorro, tasaAhorro };
+
+  // Patrimonio = saldo de cuentas + valor actual de la cartera (inversiones).
+  const valorCuentas = accounts.reduce(
     (s, a) => s + convert(balances.get(a.id) ?? 0, a.moneda, view, rates),
     0,
   );
+  const portfolio = summarizePortfolio(investments, rates, view);
+  const patrimonio = valorCuentas + portfolio.valorActualVista;
 
   const recientes = [...movements]
     .sort((a, b) => +new Date(b.fecha) - +new Date(a.fecha))
@@ -74,8 +118,15 @@ export function MobileHome() {
             <Landmark className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Saldo total de cuentas</p>
+            <p className="text-xs text-muted-foreground">
+              Patrimonio (cuentas + inversiones)
+            </p>
             <p className="text-xl font-semibold">{formatMoney(patrimonio, view)}</p>
+            {portfolio.valorActualVista > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Cartera: {formatMoney(portfolio.valorActualVista, view)}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

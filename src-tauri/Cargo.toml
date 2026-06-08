@@ -10,6 +10,12 @@ rust-version = "1.77"
 name = "finanzas_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Quita los simbolos de debug del binario. Reduce MUCHISIMO el tamano del .so
+# de Android (de ~200MB a ~30MB) sin afectar la funcionalidad, y hace la
+# instalacion en el movil mucho mas rapida.
+[profile.dev]
+strip = true
+
 [build-dependencies]
 tauri-build = { version = "2.3", features = [] }
 
