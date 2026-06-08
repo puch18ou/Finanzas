@@ -7,7 +7,7 @@
  * las paginas.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   SidebarInset,
   SidebarProvider,
@@ -16,8 +16,14 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./AppSidebar";
 import { QuickAddFab } from "./QuickAddFab";
+import { MobileApp } from "@/components/mobile/MobileApp";
+import { isMobileApp } from "@/lib/utils/platform";
 
 export function AppShell({ children }: { children: ReactNode }) {
+  // En movil mostramos la UI propia de pestañas (no el sidebar de escritorio).
+  const [mobile] = useState(isMobileApp);
+  if (mobile) return <MobileApp />;
+
   return (
     <SidebarProvider>
       <AppSidebar />
