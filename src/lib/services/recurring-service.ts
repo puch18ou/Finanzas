@@ -33,7 +33,7 @@
  */
 
 import { and, eq, isNull, inArray } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import { autoGenId } from "@/lib/domain/auto-id";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
 import { movements, recurringRules } from "@/lib/db/schema";
 import type {
@@ -197,7 +197,10 @@ export class RecurringService {
       const concepto = c.rule.nombre;
 
       const newMov: NewMovement = {
-        id: nanoid(),
+        // ID DETERMINISTA (misma clave que el dedup `regla:anio:mes`): asi la
+        // misma ocurrencia tiene el mismo PK en todos los dispositivos y el
+        // sync no la duplica.
+        id: autoGenId("rmov", c.rule.id, `${c.anio}-${c.mes}`),
         tipo: c.rule.tipoMovimiento,
         fecha,
         concepto,

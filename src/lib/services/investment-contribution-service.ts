@@ -40,6 +40,7 @@ import {
   periodsBetween,
 } from "@/lib/domain/recurring";
 import { extractPeriod } from "@/lib/utils/dates";
+import { autoGenId } from "@/lib/domain/auto-id";
 
 export type AddContributionArgs = {
   investmentId: string;
@@ -405,7 +406,13 @@ export class InvestmentContributionService {
       precioUnitario = 1;
     }
 
+    // IDs DETERMINISTAS (misma clave que el dedup de ocurrencias): la misma
+    // aportacion periodica tiene el mismo PK en todos los dispositivos, asi el
+    // sync no duplica ni el movimiento ni la fila de aportacion.
+    const occKey = occurrenceKey(rule.frecuencia, fecha);
+
     const mov = await this.movements.create({
+      id: autoGenId("cmov", rule.id, occKey),
       tipo: "transferencia",
       fecha,
       concepto: `Aportacion periodica a ${investment.nombre}`,
@@ -424,6 +431,7 @@ export class InvestmentContributionService {
     });
 
     await this.contributions.create({
+      id: autoGenId("contrib", rule.id, occKey),
       investmentId,
       fecha,
       participaciones,

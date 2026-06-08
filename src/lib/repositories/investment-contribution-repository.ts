@@ -20,7 +20,11 @@ import { BaseRepository, newId, now } from "./base";
 export type CreateContributionData = Omit<
   NewInvestmentContribution,
   "id" | "createdAt" | "updatedAt" | "deletedAt"
->;
+> & {
+  // Opcional: id explicito (DETERMINISTA) para aportaciones periodicas
+  // auto-generadas, para que no se dupliquen al sincronizar entre dispositivos.
+  id?: string;
+};
 
 export type UpdateContributionData = Partial<
   Omit<CreateContributionData, "investmentId" | "esRetirada">
@@ -63,7 +67,7 @@ export class InvestmentContributionRepository extends BaseRepository {
 
   async create(data: CreateContributionData): Promise<InvestmentContribution> {
     const ts = now();
-    const id = newId();
+    const id = data.id ?? newId();
     await this.db.insert(investmentContributions).values({
       ...data,
       id,

@@ -40,7 +40,12 @@ export type MovementType =
 export type CreateMovementData = Omit<
   NewMovement,
   "id" | "createdAt" | "updatedAt" | "deletedAt"
->;
+> & {
+  // Opcional: id explicito (DETERMINISTA) para filas auto-generadas, de modo
+  // que la misma ocurrencia periodica tenga el mismo PK en todos los
+  // dispositivos y el sync no la duplique. Ver lib/domain/auto-id.ts.
+  id?: string;
+};
 export type UpdateMovementData = Partial<CreateMovementData>;
 
 export type MovementFilter = {
@@ -131,7 +136,7 @@ export class MovementRepository extends BaseRepository {
 
   async create(data: CreateMovementData): Promise<Movement> {
     const ts = now();
-    const id = newId();
+    const id = data.id ?? newId();
 
     // Denormalizamos mes/anio si no vienen ya (el caller deberia mandarlos,
     // pero por defensa los recalculamos desde fecha).
