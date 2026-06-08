@@ -48,10 +48,11 @@ export function MobileApp() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/20">
-      {/* Fondo opaco (negro) detras de la barra de estado del movil, al 66%
-          de la zona segura (queda mas ajustado). */}
+      {/* Fondo opaco detras de la barra de estado del movil, al 66% de la
+          zona segura. Usa el color de fondo del tema (claro/oscuro), igual
+          que la barra de pestañas de abajo. */}
       <div
-        className="shrink-0 bg-black"
+        className="shrink-0 bg-background"
         style={{ height: "calc(env(safe-area-inset-top) * 0.66)" }}
       />
 
