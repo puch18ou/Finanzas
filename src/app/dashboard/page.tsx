@@ -9,7 +9,7 @@
  * como movement tipo "ingreso" si quiere verlo en el Dashboard.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Wallet,
   TrendingDown,
@@ -27,7 +27,6 @@ import { useOtherDebts } from "@/hooks/useOtherDebts";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -68,14 +67,12 @@ export default function DashboardPage() {
   const { debts } = useOtherDebts();
 
   const today = new Date();
-  const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
-    "dashboard:anio",
-    settings?.anioActual ?? today.getFullYear(),
-  );
-  const [periodMes, setPeriodMes] = useLocalStorage<number>(
-    "dashboard:mes",
-    settings?.mesActual ?? today.getMonth() + 1,
-  );
+  // Arrancamos SIEMPRE en el mes real actual (no lo persistimos en
+  // localStorage: el usuario quiere ver el mes en curso cada vez que abre la
+  // app, no el ultimo que dejo seleccionado). El selector de periodo sigue
+  // permitiendo navegar a otros meses durante la sesion.
+  const [periodAnio, setPeriodAnio] = useState<number>(today.getFullYear());
+  const [periodMes, setPeriodMes] = useState<number>(today.getMonth() + 1);
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
   // Año completo, para el acumulado de ahorro desde la fecha del objetivo.
