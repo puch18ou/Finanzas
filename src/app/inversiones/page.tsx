@@ -80,6 +80,8 @@ import {
   summarizePortfolio,
   usaParticipaciones,
 } from "@/lib/domain/investments";
+import type { RatesMap } from "@/lib/domain/currency";
+import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { cn } from "@/lib/utils/cn";
 
 export default function InversionesPage() {
@@ -100,6 +102,7 @@ export default function InversionesPage() {
     isMutating,
   } = useInvestments();
   const { add: addContribution } = useInvestmentContributions();
+  const { refreshRates } = useCurrenciesManagement();
   const repos = useRepos();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -186,9 +189,23 @@ export default function InversionesPage() {
     inv.ticker.trim() !== "" &&
     inv.tipo !== "Cuenta remunerada";
 
+  // Refresca los tipos de cambio (BCE) y devuelve el mapa YA actualizado. Asi
+  // la conversion del precio (p.ej. oro USD->EUR) usa el tipo de HOY y no uno
+  // viejo de la tabla (que descuadraba el valor). Si no hay red, usa los
+  // tipos locales como respaldo.
+  const getFreshRates = async (): Promise<RatesMap> => {
+    try {
+      const res = await refreshRates({ viewCurrency });
+      return res?.ratesMap ?? rates;
+    } catch {
+      return rates;
+    }
+  };
+
   const handleRefreshQuote = async (inv: Investment) => {
     try {
-      const r = await refreshQuote({ inv, rates });
+      const useRates = await getFreshRates();
+      const r = await refreshQuote({ inv, rates: useRates });
       const de = r.convertidoDe ? ` (de ${r.convertidoDe})` : "";
       if (r.modo === "fondo") {
         toast.success(
@@ -213,11 +230,13 @@ export default function InversionesPage() {
       toast.info("No hay posiciones con ticker para cotizar.");
       return;
     }
+    // Tipos de cambio frescos una sola vez para todo el lote.
+    const useRates = await getFreshRates();
     let ok = 0;
     const fallos: string[] = [];
     for (const inv of objetivo) {
       try {
-        await refreshQuote({ inv, rates });
+        await refreshQuote({ inv, rates: useRates });
         ok++;
       } catch {
         fallos.push(inv.ticker ?? inv.nombre);

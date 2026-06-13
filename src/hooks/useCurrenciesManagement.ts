@@ -86,24 +86,31 @@ export function useCurrenciesManagement() {
 
       let actualizadas = 0;
       const noCubiertas: string[] = [];
+      // Mapa de tipos YA actualizado, para usarlo al instante (p.ej. al cotizar
+      // un activo en otra moneda) sin esperar al refetch de react-query.
+      const ratesMap: Record<string, number> = {};
       for (const c of all) {
         if (c.code === viewCurrency) {
           // La moneda vista siempre vale 1 respecto a si misma.
           if (c.tipoCambioVista !== 1) {
             await repos.currencies.update(c.code, { tipoCambioVista: 1 });
           }
+          ratesMap[c.code] = 1;
           continue;
         }
         const r = rates[c.code];
         if (typeof r === "number" && Number.isFinite(r) && r > 0) {
           // r = unidades de c por 1 vista  ->  tipoCambioVista = vista por 1 c
-          await repos.currencies.update(c.code, { tipoCambioVista: 1 / r });
+          const tcv = 1 / r;
+          await repos.currencies.update(c.code, { tipoCambioVista: tcv });
+          ratesMap[c.code] = tcv;
           actualizadas++;
         } else {
           noCubiertas.push(c.code);
+          ratesMap[c.code] = c.tipoCambioVista; // sin cobertura: dejamos el actual
         }
       }
-      return { actualizadas, noCubiertas };
+      return { actualizadas, noCubiertas, ratesMap };
     },
     onSuccess: () => {
       invalidateAll();
