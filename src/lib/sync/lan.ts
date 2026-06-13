@@ -93,11 +93,20 @@ export async function syncWithServer(address: string): Promise<PullStats> {
   const peerKey = `lan:${address.trim()}`;
 
   return session.exchangeWith(peerKey, async (req: ExchangeRequest) => {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "exchange", req: requestToWire(req) }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "exchange", req: requestToWire(req) }),
+      });
+    } catch {
+      // El fetch falla (no llega al PC): mensaje claro y accionable en vez del
+      // error de red crudo.
+      throw new Error(
+        `No se pudo conectar con el PC (${address}). Comprueba que la app de escritorio este abierta con el servidor ENCENDIDO, que ambos esten en la MISMA WiFi y que la direccion/QR sea la actual (la IP del PC puede cambiar).`,
+      );
+    }
     if (!res.ok) {
       throw new Error(`El PC respondio ${res.status}. ¿Servidor encendido?`);
     }
