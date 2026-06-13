@@ -69,6 +69,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      - uses: android-actions/setup-android@v3
       - name: Instalar plataforma Android 36
         run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: npm ci
@@ -80,9 +81,10 @@ jobs:
           echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > "$RUNNER_TEMP/finanzas.jks"
           echo "storeFile=$RUNNER_TEMP/finanzas.jks" >> keystore.properties
       - name: Compilar APK de release (firmado)
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
-        run: npx tauri android build --apk --target aarch64
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          echo "NDK_HOME=$NDK_HOME"
+          npx tauri android build --apk --target aarch64
       - name: Subir APK a la release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
