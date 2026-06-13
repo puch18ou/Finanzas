@@ -37,7 +37,12 @@ import { convert, type RatesMap } from "./currency";
  * En modo dinero, internamente guardamos participaciones = importe (euros) y
  * precio por unidad = 1, de modo que toda la logica de coste/valor sigue igual.
  */
-const TIPOS_CON_PARTICIPACIONES = new Set(["Acciones", "ETF", "Cripto"]);
+const TIPOS_CON_PARTICIPACIONES = new Set([
+  "Acciones",
+  "ETF",
+  "Cripto",
+  "Materias primas", // oro, plata... precio por unidad (p.ej. onza)
+]);
 
 export function usaParticipaciones(tipo: string): boolean {
   return TIPOS_CON_PARTICIPACIONES.has(tipo);

@@ -104,6 +104,7 @@ export const TIPOS_INVERSION = [
   "ETF",
   "Fondo",
   "Cripto",
+  "Materias primas",
   "Bono",
   "Plan pensiones",
   "Inmueble",
