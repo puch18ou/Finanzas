@@ -29,3 +29,9 @@ serde_json = "1"
 # Sync P2P (Fase 2, Lote I): mini-servidor HTTP en el PC (host) + IP local.
 tiny_http = "0.12"
 local-ip-address = "0.6"
+
+# Auto-update: SOLO escritorio (el plugin updater de Tauri no soporta Android/
+# iOS). En movil usamos un flujo asistido propio (aviso + descarga).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

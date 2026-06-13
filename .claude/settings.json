@@ -32,7 +32,14 @@
       "Bash(curl -s -A \"Mozilla/5.0\" \"https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1d&range=1d\")",
       "Bash(curl -s \"https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD\")",
       "Bash(sed -n '/TIPOS_CON_PARTICIPACIONES =/,/]/p' src/lib/domain/investments.ts)",
-      "Bash(sed -n '/TIPOS_CON_PARTICIPACIONES =/,/]\\)/p' src/lib/schemas/forms.ts)"
+      "Bash(sed -n '/TIPOS_CON_PARTICIPACIONES =/,/]\\)/p' src/lib/schemas/forms.ts)",
+      "Bash(tee /tmp/desktop-build7.log)",
+      "Bash(tee /tmp/desktop-build8.log)",
+      "Bash(npm install *)",
+      "Bash(mkdir -p \"C:/Users/punki/.tauri\")",
+      "Read(//c/Users/punki/.tauri/**)",
+      "Bash(awk '{print $5, $NF}')",
+      "Bash(cargo check *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
