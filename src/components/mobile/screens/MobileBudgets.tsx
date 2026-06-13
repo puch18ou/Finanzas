@@ -5,8 +5,10 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
 import { useMovements } from "@/hooks/useMovements";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { buildRatesMap, convert } from "@/lib/domain/currency";
 import { sumMovementsByCategory } from "@/lib/domain/aggregation";
+import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import { resolvePresupuesto } from "@/lib/domain/tramos";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +18,7 @@ export function MobileBudgets() {
   const { data: currencies = [] } = useCurrencies();
   const { categories } = useCategories();
   const { tramos } = usePresupuestoTramos();
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
   const view = settings?.monedaVista ?? "EUR";
   const now = new Date();
@@ -25,6 +28,29 @@ export function MobileBudgets() {
 
   const rates = buildRatesMap(currencies);
   const gastoPorCat = sumMovementsByCategory(movements, rates, view);
+
+  // Sumamos tambien los gastos PREVISTOS del mes (recurrentes que aun no han
+  // ocurrido), por categoria, para que el consumo refleje lo que falta por
+  // pagar. Solo si el mes mostrado es el actual.
+  const isCurrentMonth = anio === now.getFullYear() && mes === now.getMonth() + 1;
+  if (isCurrentMonth) {
+    const nowMs = now.getTime();
+    for (const rule of activeRules) {
+      if (rule.origenAutomatico === "investment") continue;
+      const esGasto =
+        rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+      if (!esGasto || !rule.categoriaId) continue;
+      const occ = monthlyOccurrenceFor(rule, anio, mes);
+      if (!occ || occ.getTime() <= nowMs) continue;
+      try {
+        const importe = convert(rule.importe, rule.moneda, view, rates);
+        gastoPorCat[rule.categoriaId] =
+          (gastoPorCat[rule.categoriaId] ?? 0) + importe;
+      } catch {
+        // moneda sin tipo de cambio, ignorar
+      }
+    }
+  }
 
   const filas = categories
     .filter((c) => !c.deletedAt)

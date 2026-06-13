@@ -379,9 +379,33 @@ export function MovementFormDialog({
         {/* Tabs de tipo (solo en creacion, en edicion estan disabled).
             La tab "Ajuste" SOLO aparece editando un ajuste, ya que se crea
             via conciliacion en /cuentas. */}
+        {/* En MOVIL: desplegable (mas compacto). Al editar va deshabilitado
+            porque un movimiento no puede cambiar de tipo (un gasto no puede
+            pasar a ingreso). En ESCRITORIO: las pestañas de siempre. */}
+        <div className="sm:hidden">
+          <Select
+            value={formTipo}
+            onValueChange={(v) => setFormTipo(v as FormTipo)}
+            disabled={isEdit}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gasto">Gasto</SelectItem>
+              <SelectItem value="ingreso">Ingreso</SelectItem>
+              <SelectItem value="devolucion">Devolución</SelectItem>
+              <SelectItem value="transferencia">Transferencia</SelectItem>
+              {formTipo === "ajuste" && (
+                <SelectItem value="ajuste">Ajuste</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
         <Tabs
           value={formTipo}
           onValueChange={(v) => setFormTipo(v as FormTipo)}
+          className="hidden sm:block"
         >
           <TabsList
             className={cn(
@@ -816,8 +840,10 @@ function movementTypeToForm(tipo: MovementType): FormTipo {
 function FechaImporteMoneda({ control, register, currencies, errors }: any) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   return (
-    <div className="grid grid-cols-[1fr_120px_100px] gap-3">
-      <div className="space-y-2">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_120px_100px]">
+      {/* En movil la fecha ocupa toda la fila y debajo van Importe + Moneda
+          (asi la moneda no queda apretada a la derecha). */}
+      <div className="col-span-2 space-y-2 sm:col-span-1">
         <Label>Fecha</Label>
         <Controller
           control={control}
