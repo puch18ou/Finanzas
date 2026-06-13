@@ -33,6 +33,7 @@ import { FxAutoRefresh } from "@/components/fx/FxAutoRefresh";
 import { SyncServerHandler } from "@/components/sync/SyncServerHandler";
 import { AutoSync } from "@/components/sync/AutoSync";
 import { UpdateChecker } from "@/components/system/UpdateChecker";
+import { MobileUpdateChecker } from "@/components/system/MobileUpdateChecker";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { ready, error, user } = useAuth();
@@ -79,6 +80,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <SyncServerHandler />
         <AutoSync />
         <UpdateChecker />
+        <MobileUpdateChecker />
         <QuickAddProvider>
           <ShortcutsProvider>
             <AppShell>{children}</AppShell>

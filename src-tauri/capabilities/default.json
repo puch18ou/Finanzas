@@ -10,6 +10,7 @@
     "sql:allow-execute",
     "sql:allow-select",
     "sql:allow-close",
+    "opener:default",
     {
       "identifier": "http:default",
       "allow": [
@@ -19,6 +20,7 @@
         { "url": "https://stooq.com/*" },
         { "url": "https://api.frankfurter.dev/*" },
         { "url": "https://api.frankfurter.app/*" },
+        { "url": "https://api.github.com/*" },
         { "url": "http://10.138.1.156:8787/*" },
         { "url": "http://192.168.*.*:*/*" },
         { "url": "http://10.*.*.*:*/*" },
