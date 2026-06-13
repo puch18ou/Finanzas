@@ -41,7 +41,12 @@
       "Bash(awk '{print $5, $NF}')",
       "Bash(cargo check *)",
       "PowerShell(Get-Content C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-updater.key -Raw | Set-Clipboard; \"Clave copiada al portapapeles \\(\" + \\(Get-Content C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-updater.key -Raw\\).Length + \" caracteres\\). Lista para pegar.\")",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Bash(cp C:/Users/punki/Documents/Pedro/Finanzas/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk C:/Users/punki/Desktop/Finanzas-0.1.1.apk)",
+      "Read(//c/Users/punki/Desktop/**)",
+      "Bash(awk '{print int\\($5/1024/1024\\)\"MB\", $NF}')",
+      "Bash(gh release *)",
+      "Bash(curl -sL \"https://github.com/puch18ou/Finanzas/releases/latest/download/latest.json\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"

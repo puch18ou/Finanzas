@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { LogOut, Sun, Moon, Monitor } from "lucide-react";
 import { MobileScreen } from "../MobileScreen";
 import { SyncCard } from "@/components/sync/SyncCard";
@@ -17,6 +18,14 @@ const THEMES: { value: ThemeValue; label: string; icon: typeof Sun }[] = [
 export function MobileSettings() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useGlobalTheme();
+
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    import("@tauri-apps/api/app")
+      .then(({ getVersion }) => getVersion())
+      .then(setVersion)
+      .catch(() => {});
+  }, []);
 
   return (
     <MobileScreen title="Ajustes">
@@ -45,6 +54,12 @@ export function MobileSettings() {
         <LogOut className="h-4 w-4" />
         Cerrar sesion{user ? ` (${user.username})` : ""}
       </Button>
+
+      {version && (
+        <p className="pt-1 text-center text-xs text-muted-foreground">
+          Finanzas v{version}
+        </p>
+      )}
     </MobileScreen>
   );
 }
