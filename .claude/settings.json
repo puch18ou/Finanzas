@@ -53,7 +53,8 @@
       "Bash(xargs -I{} ls -la \"{}\")",
       "Bash('C:/Program Files/Android/Android Studio/jbr/bin/keytool.exe' -printcert -jarfile C:/Users/punki/Documents/Pedro/Finanzas/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk)",
       "Read(//c/Users/punki/AppData/Local/Android/Sdk/build-tools/**)",
-      "Read(//c/Users/punki/AppData/Local/Android/Sdk/platforms/**)"
+      "Read(//c/Users/punki/AppData/Local/Android/Sdk/platforms/**)",
+      "PowerShell($b64 = [Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-android.jks\"\\)\\); $b64 | Set-Clipboard; \"Keystore en base64 copiado al portapapeles \\(\" + $b64.Length + \" caracteres\\).\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
