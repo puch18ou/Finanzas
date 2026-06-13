@@ -39,7 +39,8 @@
       "Bash(mkdir -p \"C:/Users/punki/.tauri\")",
       "Read(//c/Users/punki/.tauri/**)",
       "Bash(awk '{print $5, $NF}')",
-      "Bash(cargo check *)"
+      "Bash(cargo check *)",
+      "PowerShell(Get-Content C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-updater.key -Raw | Set-Clipboard; \"Clave copiada al portapapeles \\(\" + \\(Get-Content C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-updater.key -Raw\\).Length + \" caracteres\\). Lista para pegar.\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
