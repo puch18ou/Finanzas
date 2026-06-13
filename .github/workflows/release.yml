@@ -1,0 +1,50 @@
+name: Release escritorio
+
+# Publica una release firmada al subir un tag de version (vX.Y.Z).
+# tauri-action compila, FIRMA, crea la release de GitHub y genera el
+# manifiesto latest.json que lee el updater de la app.
+#
+# Requisitos (Settings -> Secrets and variables -> Actions del repo):
+#   - TAURI_SIGNING_PRIVATE_KEY: contenido del fichero ~/.tauri/finanzas-updater.key
+#   - TAURI_SIGNING_PRIVATE_KEY_PASSWORD: vacio (la clave no tiene password)
+#
+# Para publicar:  bump de "version" en tauri.conf.json + package.json,
+#                 commit, y luego:  git tag v0.1.1 && git push origin v0.1.1
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Finanzas ${{ github.ref_name }}"
+          releaseBody: "Actualizacion automatica del escritorio."
+          releaseDraft: false
+          prerelease: false
