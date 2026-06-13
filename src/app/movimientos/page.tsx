@@ -41,7 +41,6 @@ import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
 import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import type { RecurringRule } from "@/lib/db/schema";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
@@ -90,13 +89,10 @@ export default function MovimientosPage() {
     queryFn: () => repos.investmentContributions.listAll(),
   });
 
-  const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
-    "mov:anio",
-    settings?.anioActual ?? today.getFullYear(),
-  );
-  const [periodMes, setPeriodMes] = useLocalStorage<number | null>(
-    "mov:mes",
-    settings?.mesActual ?? today.getMonth() + 1,
+  // Siempre el mes ACTUAL al arrancar (no se persiste).
+  const [periodAnio, setPeriodAnio] = useState<number>(today.getFullYear());
+  const [periodMes, setPeriodMes] = useState<number | null>(
+    today.getMonth() + 1,
   );
 
   const [tab, setTab] = useState<TabKey>("todos");

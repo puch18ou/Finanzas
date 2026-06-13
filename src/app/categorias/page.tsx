@@ -26,7 +26,6 @@ import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { resolvePresupuesto } from "@/lib/domain/tramos";
 import { CategoryFormDialog } from "@/components/forms/CategoryFormDialog";
 import { PresupuestoTramosDialog } from "@/components/forms/PresupuestoTramosDialog";
@@ -75,14 +74,9 @@ export default function CategoriasPage() {
     isMutating,
   } = useCategories();
 
-  const [periodAnio, setPeriodAnio] = useLocalStorage<number>(
-    "categorias:anio",
-    settings?.anioActual ?? today.getFullYear(),
-  );
-  const [periodMes, setPeriodMes] = useLocalStorage<number>(
-    "categorias:mes",
-    settings?.mesActual ?? today.getMonth() + 1,
-  );
+  // Siempre el mes ACTUAL al arrancar (no se persiste).
+  const [periodAnio, setPeriodAnio] = useState<number>(today.getFullYear());
+  const [periodMes, setPeriodMes] = useState<number>(today.getMonth() + 1);
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
   const { tramos: presupuestoTramos } = usePresupuestoTramos();

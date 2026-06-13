@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { MobileScreen } from "../MobileScreen";
 import { useMovementEditor } from "../MobileMovementEditor";
 import { movementKind, movKindColor, movKindSign } from "../movement-display";
-import { useSettings } from "@/hooks/useSettings";
 import { useMovements } from "@/hooks/useMovements";
 import { useCategories } from "@/hooks/useCategories";
 import { formatMoney } from "@/lib/utils/money";
@@ -20,13 +19,12 @@ const MESES = [
 ];
 
 export function MobileMovements() {
-  const { settings } = useSettings();
   const { categories } = useCategories();
   const editor = useMovementEditor();
 
   const now = new Date();
-  const baseMes = settings?.mesActual ?? now.getMonth() + 1;
-  const baseAnio = settings?.anioActual ?? now.getFullYear();
+  const baseMes = now.getMonth() + 1;
+  const baseAnio = now.getFullYear();
 
   const [offset, setOffset] = useState(0);
   // mes/anio objetivo aplicando el desplazamiento.

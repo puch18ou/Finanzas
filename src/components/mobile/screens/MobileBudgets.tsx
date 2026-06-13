@@ -22,8 +22,8 @@ export function MobileBudgets() {
 
   const view = settings?.monedaVista ?? "EUR";
   const now = new Date();
-  const mes = settings?.mesActual ?? now.getMonth() + 1;
-  const anio = settings?.anioActual ?? now.getFullYear();
+  const mes = now.getMonth() + 1;
+  const anio = now.getFullYear();
   const { movements } = useMovements({ anio, mes });
 
   const rates = buildRatesMap(currencies);

@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -iE '\\\\.\\(png|jpg|jpeg|webp|gif\\)$')",
+      "Bash(rustup target *)",
+      "Bash(NDK_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\ndk\\\\30.0.14904198\" JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ANDROID_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\" npx tauri android init)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe kill-server *)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe start-server *)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe devices *)",
+      "PowerShell(Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -match 'Android|ADB|Xiaomi|Mi |Redmi|POCO|Composite|Unknown' -or $_.Status -ne 'OK' } | Select-Object Status, Class, FriendlyName, InstanceId | Format-Table -AutoSize -Wrap)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe version *)",
+      "Bash(NDK_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\ndk\\\\30.0.14904198\" JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ANDROID_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\" npx tauri android dev)",
+      "Bash(tee /tmp/android-dev.log)",
+      "PowerShell(Start-Process \"ms-settings:developers\"; \"Estado actual de Developer Mode \\(1 = activado\\):\"; \\(Get-ItemProperty -Path \"HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\AppModelUnlock\" -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue\\).AllowDevelopmentWithoutDevLicense)",
+      "Bash(tee /tmp/android-dev2.log)",
+      "Bash(tee /tmp/android-dev3.log)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe reverse *)",
+      "Bash(echo \"--- reverse activos ---\")",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe logcat *)",
+      "Bash(NDK_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\ndk\\\\30.0.14904198\" JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ANDROID_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\" npx tauri android build --debug --target aarch64 --apk)",
+      "Bash(tee /tmp/android-build.log)",
+      "PowerShell(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match 'cargo|rustc|node|java|gradle' } | Select-Object Id, ProcessName, @{N='RAM\\(MB\\)';E={[int]\\($_.WorkingSet64/1MB\\)}}, StartTime | Sort-Object ProcessName | Format-Table -AutoSize)",
+      "Bash(tee /tmp/android-build2.log)",
+      "Bash(tee /tmp/android-build3.log)",
+      "Bash(tee /tmp/android-build7.log)",
+      "Bash(C:/Users/punki/AppData/Local/Android/Sdk/platform-tools/adb.exe shell *)",
+      "Bash(tee /tmp/desktop-build.log)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://query1.finance.yahoo.com/v8/finance/chart/0P00000JRF.F?interval=1d&range=5d&includePrePost=true\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1m&range=1d&includePrePost=true\")",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1d&range=1d\")",
+      "Bash(curl -s \"https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD\")",
+      "Bash(sed -n '/TIPOS_CON_PARTICIPACIONES =/,/]/p' src/lib/domain/investments.ts)",
+      "Bash(sed -n '/TIPOS_CON_PARTICIPACIONES =/,/]\\)/p' src/lib/schemas/forms.ts)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
+    ]
+  }
+}

@@ -56,7 +56,7 @@ export default function EvolucionPage() {
 
   const [anio, setAnio] = useLocalStorage<number>(
     "evolucion:anio",
-    settings?.anioActual ?? today.getFullYear(),
+    today.getFullYear(),
   );
   // Modo del selector: por anio natural, o "desde el objetivo de ahorro"
   // (un mes por fila desde la fecha del objetivo hasta el mes actual).

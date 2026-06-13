@@ -62,21 +62,6 @@ import { SecurityCard } from "@/components/auth/SecurityCard";
 
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
-const MESES = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
-
 /**
  * Helper: ignora cambios a string vacio. Util para envolver setStateXxx
  * en los onValueChange de Select. Si Radix dispara con "" por una carrera
@@ -101,10 +86,6 @@ export default function AjustesPage() {
 
   const [monedaLocal, setMonedaLocal] = useState("EUR");
   const [monedaVista, setMonedaVista] = useState("EUR");
-  const [anioActual, setAnioActual] = useState<number>(
-    new Date().getFullYear(),
-  );
-  const [mesActual, setMesActual] = useState<number>(new Date().getMonth() + 1);
   const [tieneHipoteca, setTieneHipoteca] = useState(false);
   const [monedaHipoteca, setMonedaHipoteca] = useState("");
   const [patrimonioInicial, setPatrimonioInicial] = useState<number>(0);
@@ -122,8 +103,6 @@ export default function AjustesPage() {
     if (!settings) return;
     setMonedaLocal(settings.monedaLocal);
     setMonedaVista(settings.monedaVista);
-    setAnioActual(settings.anioActual);
-    setMesActual(settings.mesActual);
     setTieneHipoteca(settings.tieneHipoteca);
     setMonedaHipoteca(settings.monedaHipoteca ?? "");
     setPatrimonioInicial(settings.patrimonioInicial);
@@ -159,8 +138,6 @@ export default function AjustesPage() {
       await update({
         monedaLocal,
         monedaVista,
-        anioActual,
-        mesActual,
         tieneHipoteca,
         monedaHipoteca: tieneHipoteca ? emptyToNull(monedaHipoteca) : null,
         patrimonioInicial,
@@ -191,10 +168,6 @@ export default function AjustesPage() {
   ) {
     return <p className="text-sm text-muted-foreground">Cargando ajustes...</p>;
   }
-
-  const currentYear = new Date().getFullYear();
-  const years: number[] = [];
-  for (let y = currentYear + 1; y >= currentYear - 5; y--) years.push(y);
 
   return (
     <div className="space-y-6">
@@ -246,53 +219,6 @@ export default function AjustesPage() {
                   {currencies.map((c) => (
                     <SelectItem key={c.code} value={c.code}>
                       {c.code} — {c.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Periodo activo</CardTitle>
-            <CardDescription>
-              Mes y anio por defecto al abrir pantallas de gastos e ingresos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="anio">Anio</Label>
-              <Select
-                value={String(anioActual)}
-                onValueChange={(v) => v && setAnioActual(Number(v))}
-              >
-                <SelectTrigger id="anio">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mes">Mes</Label>
-              <Select
-                value={String(mesActual)}
-                onValueChange={(v) => v && setMesActual(Number(v))}
-              >
-                <SelectTrigger id="mes">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MESES.map((m, idx) => (
-                    <SelectItem key={idx} value={String(idx + 1)}>
-                      {m}
                     </SelectItem>
                   ))}
                 </SelectContent>

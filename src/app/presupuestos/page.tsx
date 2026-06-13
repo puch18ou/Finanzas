@@ -22,7 +22,6 @@ import { Wallet } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import {
   Card,
@@ -68,14 +67,10 @@ export default function PresupuestosPage() {
   const { tramos: objetivoTramos } = useObjetivoTramos();
   const { tramos: presupuestoTramos } = usePresupuestoTramos();
 
-  const [anio, setAnio] = useLocalStorage<number>(
-    "presup:anio",
-    today.getFullYear(),
-  );
-  const [mes, setMes] = useLocalStorage<number>(
-    "presup:mes",
-    today.getMonth() + 1,
-  );
+  // Siempre el mes ACTUAL al arrancar (no se persiste): el periodo activo es
+  // siempre el mes en curso. El selector permite navegar durante la sesion.
+  const [anio, setAnio] = useState<number>(today.getFullYear());
+  const [mes, setMes] = useState<number>(today.getMonth() + 1);
 
   const { movements } = useMovements({ anio });
 
