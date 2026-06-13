@@ -363,12 +363,13 @@ export function MovementFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto p-4 sm:max-w-lg sm:p-6">
+      <DialogContent className="max-h-[85vh] gap-3 overflow-y-auto p-4 sm:max-w-lg sm:gap-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Editar movimiento" : "Nuevo movimiento"}
           </DialogTitle>
-          <DialogDescription>
+          {/* Descripcion solo en pantallas grandes: en movil ocupa espacio. */}
+          <DialogDescription className="hidden sm:block">
             {isEdit
               ? "Modifica los datos del movimiento."
               : "Registra un gasto, un ingreso o una transferencia entre cuentas."}

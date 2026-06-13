@@ -143,7 +143,6 @@ export function MobileHome() {
             <CardContent className="divide-y p-0">
               {recientes.map((m) => {
                 const kind = movementKind(m.tipo);
-                const importe = convert(m.importe, m.moneda, view, rates);
                 return (
                   <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
                     <div className="min-w-0 flex-1">
@@ -157,7 +156,7 @@ export function MobileHome() {
                     </div>
                     <span className={`shrink-0 text-sm font-semibold ${movKindColor(kind)}`}>
                       {movKindSign(kind)}
-                      {formatMoney(importe, view)}
+                      {formatMoney(m.importe, m.moneda)}
                     </span>
                   </div>
                 );

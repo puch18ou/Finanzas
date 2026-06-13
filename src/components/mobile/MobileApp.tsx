@@ -6,7 +6,8 @@
  * Sustituye al AppShell de escritorio cuando la app corre en movil. En vez de
  * un sidebar, una barra de PESTAÑAS abajo (estilo app nativa) con un set
  * reducido de pantallas, pensadas para pantalla pequeña y dedo. Un boton ➕
- * flotante abre el "añadir rapido" (gasto/ingreso).
+ * flotante abre el editor de movimientos (crea gasto / ingreso / devolucion /
+ * transferencia).
  *
  * Reutiliza los mismos hooks de datos que el escritorio; solo cambia la
  * presentacion.
@@ -21,7 +22,10 @@ import {
   Settings,
   Plus,
 } from "lucide-react";
-import { useQuickAdd } from "@/contexts/QuickAddProvider";
+import {
+  MobileMovementEditorProvider,
+  useMovementEditor,
+} from "./MobileMovementEditor";
 import { MobileHome } from "./screens/MobileHome";
 import { MobileMovements } from "./screens/MobileMovements";
 import { MobileAccounts } from "./screens/MobileAccounts";
@@ -43,8 +47,16 @@ const TABS: {
 ];
 
 export function MobileApp() {
+  return (
+    <MobileMovementEditorProvider>
+      <MobileShell />
+    </MobileMovementEditorProvider>
+  );
+}
+
+function MobileShell() {
   const [tab, setTab] = useState<TabId>("inicio");
-  const quickAdd = useQuickAdd();
+  const editor = useMovementEditor();
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/20">
@@ -65,12 +77,12 @@ export function MobileApp() {
         {tab === "ajustes" && <MobileSettings />}
       </main>
 
-      {/* Boton flotante: añadir rapido (no en Ajustes) */}
+      {/* Boton flotante: nuevo movimiento (cualquier tipo). No en Ajustes. */}
       {tab !== "ajustes" && (
         <button
           type="button"
-          onClick={quickAdd.open}
-          aria-label="Añadir movimiento"
+          onClick={editor.openCreate}
+          aria-label="Nuevo movimiento"
           className="absolute right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95"
           style={{ bottom: "calc(env(safe-area-inset-bottom) + 4.75rem)" }}
         >
