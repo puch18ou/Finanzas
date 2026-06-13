@@ -38,9 +38,12 @@ const yahooProvider: QuoteProvider = {
     if (!sym) throw new Error("Ticker vacio");
 
     const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+    // interval=1m + includePrePost: la serie incluye PRE-mercado y AFTER-HOURS,
+    // asi cogemos el ultimo precio negociado (mas actual), no solo el cierre de
+    // la sesion regular (que es lo que devuelve regularMarketPrice).
     const url =
       `https://query1.finance.yahoo.com/v8/finance/chart/` +
-      `${encodeURIComponent(sym)}?interval=1d&range=1d`;
+      `${encodeURIComponent(sym)}?interval=1m&range=1d&includePrePost=true`;
 
     const res = await tauriFetch(url, { method: "GET" });
     if (!res.ok) {
@@ -48,9 +51,25 @@ const yahooProvider: QuoteProvider = {
     }
 
     const json = (await res.json()) as YahooChartResponse;
-    const meta = json?.chart?.result?.[0]?.meta;
-    let precio = meta?.regularMarketPrice;
+    const result = json?.chart?.result?.[0];
+    const meta = result?.meta;
     let moneda = meta?.currency;
+
+    // Precio MAS RECIENTE: ultimo cierre no nulo de la serie (incluye
+    // after-hours / pre-market). Si no hay serie, respaldo al precio de la
+    // sesion regular.
+    let precio: number | undefined;
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (Array.isArray(closes)) {
+      for (let i = closes.length - 1; i >= 0; i--) {
+        const c = closes[i];
+        if (typeof c === "number" && Number.isFinite(c) && c > 0) {
+          precio = c;
+          break;
+        }
+      }
+    }
+    if (precio == null) precio = meta?.regularMarketPrice;
 
     if (typeof precio !== "number" || !Number.isFinite(precio) || precio <= 0) {
       throw new Error(`No se encontro precio para "${sym}"`);
@@ -126,6 +145,11 @@ type YahooChartResponse = {
       meta?: {
         regularMarketPrice?: number;
         currency?: string;
+      };
+      indicators?: {
+        quote?: Array<{
+          close?: Array<number | null>;
+        }>;
       };
     }>;
     error?: unknown;
