@@ -34,8 +34,22 @@ next-env.d.ts
 
 # Rust / Tauri
 src-tauri/target/
-src-tauri/gen/
 src-tauri/Cargo.lock
+
+# gen/ se regenera, PERO committeamos gen/android (manifest con permiso de
+# CAMARA + config de firma) para que el CI compile reproducible y no se pierda
+# al reinicializar. Ignoramos artefactos de build y secretos de firma.
+src-tauri/gen/apple/
+src-tauri/gen/schemas/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/.idea/
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/app/.cxx/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/keystore.properties
+src-tauri/gen/android/*.jks
+src-tauri/gen/android/**/*.keystore
 
 # SQLite
 *.db

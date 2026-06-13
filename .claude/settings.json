@@ -46,7 +46,14 @@
       "Read(//c/Users/punki/Desktop/**)",
       "Bash(awk '{print int\\($5/1024/1024\\)\"MB\", $NF}')",
       "Bash(gh release *)",
-      "Bash(curl -sL \"https://github.com/puch18ou/Finanzas/releases/latest/download/latest.json\")"
+      "Bash(curl -sL \"https://github.com/puch18ou/Finanzas/releases/latest/download/latest.json\")",
+      "Bash('C:/Program Files/Android/Android Studio/jbr/bin/keytool.exe' -genkeypair -v -keystore C:/Users/punki/.tauri/finanzas-android.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storepass finanzas-android-2026 -keypass finanzas-android-2026 -dname 'CN=Finanzas, OU=Personal, O=Pedro, L=Singapore, C=SG')",
+      "Bash(NDK_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\ndk\\\\30.0.14904198\" JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ANDROID_HOME=\"C:\\\\Users\\\\punki\\\\AppData\\\\Local\\\\Android\\\\Sdk\" npx tauri android build --target aarch64 --apk)",
+      "Bash(tee /tmp/android-release.log)",
+      "Bash(xargs -I{} ls -la \"{}\")",
+      "Bash('C:/Program Files/Android/Android Studio/jbr/bin/keytool.exe' -printcert -jarfile C:/Users/punki/Documents/Pedro/Finanzas/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk)",
+      "Read(//c/Users/punki/AppData/Local/Android/Sdk/build-tools/**)",
+      "Read(//c/Users/punki/AppData/Local/Android/Sdk/platforms/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
