@@ -31,6 +31,7 @@ import migration0023 from "../../../drizzle/0023_investment_ultima_cotizacion_na
 import migration0024 from "../../../drizzle/0024_investment_unidades_cotizacion.sql?raw";
 import migration0025 from "../../../drizzle/0025_sync_state.sql?raw";
 import migration0026 from "../../../drizzle/0026_tombstones.sql?raw";
+import migration0027 from "../../../drizzle/0027_patrimonio_snapshots.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -69,6 +70,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   },
   { name: "0025_sync_state", sql: migration0025 },
   { name: "0026_tombstones", sql: migration0026 },
+  { name: "0027_patrimonio_snapshots", sql: migration0027 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {

@@ -35,6 +35,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
+import { PatrimonioChart } from "@/components/charts/PatrimonioChart";
+import { usePatrimonioSnapshots } from "@/hooks/usePatrimonioSnapshots";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
@@ -142,6 +144,7 @@ export default function EvolucionPage() {
 
   const { movements } = useMovements(movementsFilter);
   const { data: activeRules = [] } = useActiveRecurringRules();
+  const { snapshots } = usePatrimonioSnapshots();
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
@@ -314,6 +317,8 @@ export default function EvolucionPage() {
             title: cambioTitulo(r.anio, r.mes) ?? undefined,
           }))}
       />
+
+      <PatrimonioChart snapshots={snapshots} />
 
       <Card>
         <CardHeader>

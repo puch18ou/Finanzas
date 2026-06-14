@@ -21,6 +21,7 @@ import { ObjetivoAhorroTramoRepository } from "./objetivo-ahorro-tramo-repositor
 import { PresupuestoTramoRepository } from "./presupuesto-tramo-repository";
 import { SyncStateRepository } from "./sync-state-repository";
 import { TombstoneRepository } from "./tombstone-repository";
+import { PatrimonioSnapshotRepository } from "./patrimonio-snapshot-repository";
 import { TrashService } from "@/lib/services/trash-service";
 import { BackupService } from "@/lib/services/backup-service";
 import { RecurringService } from "@/lib/services/recurring-service";
@@ -44,6 +45,7 @@ export interface Repositories {
   presupuestoTramos: PresupuestoTramoRepository;
   syncState: SyncStateRepository;
   tombstones: TombstoneRepository;
+  patrimonioSnapshots: PatrimonioSnapshotRepository;
   trash: TrashService;
   backup: BackupService;
   recurringService: RecurringService;
@@ -77,6 +79,7 @@ export function createRepositories(db: DrizzleDb): Repositories {
     presupuestoTramos: new PresupuestoTramoRepository(db),
     syncState: new SyncStateRepository(db),
     tombstones: new TombstoneRepository(db),
+    patrimonioSnapshots: new PatrimonioSnapshotRepository(db),
     trash: new TrashService(db),
     backup: new BackupService(db),
     recurringService,
@@ -144,3 +147,4 @@ export type {
   TrashCounts,
 } from "@/lib/services/trash-service";
 export type { BackupFile } from "@/lib/services/backup-service";
+export type { SnapshotData } from "./patrimonio-snapshot-repository";

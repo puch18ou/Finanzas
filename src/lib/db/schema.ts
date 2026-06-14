@@ -944,6 +944,40 @@ export const tombstones = sqliteTable(
 );
 
 // ============================================================================
+//  patrimonio_snapshots — HISTORICO DEL PATRIMONIO (una foto al dia)
+// ============================================================================
+//
+//  Guarda el valor neto y su desglose un dia concreto, para poder dibujar la
+//  evolucion REAL del patrimonio (hoy el valor de inversiones solo se conoce
+//  "ahora"; sin estas fotos no hay forma de reconstruir el pasado).
+//
+//  El `id` es DETERMINISTA por dia ("snap-YYYY-MM-DD"): re-capturar el mismo
+//  dia ACTUALIZA la fila (la ultima foto del dia gana) en vez de duplicar.
+//  `fecha` es la fecha civil del dia a mediodia UTC (ver utils/dates). Los
+//  valores estan en la moneda LOCAL (base estable), guardada en `moneda`.
+//
+//  De momento NO se sincroniza (datos derivados, locales por dispositivo). Si
+//  en el futuro interesa el historico cross-device, el id determinista y los
+//  campos updated_at/deleted_at ya dejan la puerta abierta.
+// ============================================================================
+export const patrimonioSnapshots = sqliteTable(
+  "patrimonio_snapshots",
+  {
+    id: text("id").primaryKey(),
+    fecha: integer("fecha", { mode: "timestamp_ms" }).notNull(),
+    moneda: text("moneda").notNull(),
+    valorCuentas: real("valor_cuentas").notNull(),
+    valorInversiones: real("valor_inversiones").notNull(),
+    deudaTotal: real("deuda_total").notNull(),
+    patrimonioNeto: real("patrimonio_neto").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("idx_patrimonio_snap_fecha").on(t.fecha)],
+);
+
+// ============================================================================
 //  TIPOS AUTOMATICOS — Drizzle infiere los tipos TypeScript del esquema
 // ============================================================================
 //
@@ -1006,3 +1040,6 @@ export type NewSyncState = typeof syncState.$inferInsert;
 
 export type Tombstone = typeof tombstones.$inferSelect;
 export type NewTombstone = typeof tombstones.$inferInsert;
+
+export type PatrimonioSnapshot = typeof patrimonioSnapshots.$inferSelect;
+export type NewPatrimonioSnapshot = typeof patrimonioSnapshots.$inferInsert;

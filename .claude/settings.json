@@ -58,7 +58,9 @@
       "Bash(gh workflow *)",
       "Bash(TZ=Pacific/Kiritimati node -e \"console.log\\('getMonth de May31 12:00Z =', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getMonth\\(\\), '\\(local\\) vs UTC', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getUTCMonth\\(\\)\\)\")",
       "Bash(node -e \"process.env.TZ='Pacific/Kiritimati'; console.log\\('getMonth =', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getMonth\\(\\)\\)\")",
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "Bash(grep \"\\\\.sql$\")",
+      "PowerShell(npm run typecheck)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"
