@@ -28,6 +28,7 @@ import { buildRatesMap } from "@/lib/domain/currency";
 import { computeNetWorth } from "@/lib/domain/networth";
 import { normalizeDateToUTCNoon } from "@/lib/utils/dates";
 import { PATRIMONIO_SNAPSHOTS_KEY } from "@/hooks/usePatrimonioSnapshots";
+import { recordHealthError, clearHealthError } from "@/lib/utils/health-log";
 
 export function PatrimonioSnapshotTaker() {
   const { settings } = useSettings();
@@ -69,9 +70,11 @@ export function PatrimonioSnapshotTaker() {
       .upsertForDay({ fecha, moneda, ...nw })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: PATRIMONIO_SNAPSHOTS_KEY });
+        clearHealthError("snapshot");
       })
       .catch((e) => {
         console.error("[snapshot] no se pudo guardar el patrimonio del dia", e);
+        recordHealthError("snapshot", e);
       });
   }, [
     settings,

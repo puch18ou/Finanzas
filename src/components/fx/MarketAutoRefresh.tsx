@@ -25,6 +25,7 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { useInvestments } from "@/hooks/useInvestments";
 import { buildRatesMap } from "@/lib/domain/currency";
+import { recordHealthError, clearHealthError } from "@/lib/utils/health-log";
 import type { Investment } from "@/lib/db/schema";
 
 // Mismo criterio que /inversiones: cotiza cualquier activo con ticker, salvo
@@ -57,19 +58,30 @@ export function MarketAutoRefresh() {
       try {
         const res = await refreshRates({ viewCurrency: settings.monedaVista });
         if (res?.ratesMap) useRates = res.ratesMap;
-      } catch {
-        // Silencioso: seguimos con los tipos locales como respaldo.
+        clearHealthError("fx");
+      } catch (e) {
+        // Silencioso para el usuario, pero lo registramos para la Salud.
+        recordHealthError("fx", e);
       }
 
       // 2) Cotizaciones de las posiciones cotizables, una a una y tolerante a
       //    fallos por posicion (una que falle no corta el resto).
       const cotizables = investments.filter(esCotizable);
+      const fallidas: string[] = [];
       for (const inv of cotizables) {
         try {
           await refreshQuote({ inv, rates: useRates });
         } catch {
-          // Silencioso por posicion.
+          fallidas.push(inv.ticker ?? inv.nombre);
         }
+      }
+      if (fallidas.length > 0) {
+        recordHealthError(
+          "quotes",
+          `No se pudieron cotizar: ${fallidas.join(", ")}`,
+        );
+      } else if (cotizables.length > 0) {
+        clearHealthError("quotes");
       }
     })();
   }, [settings, currencies, investments, isLoading, refreshRates, refreshQuote]);

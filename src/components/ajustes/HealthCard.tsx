@@ -22,6 +22,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { timeAgo, stalenessLevel, type StalenessLevel } from "@/lib/utils/staleness";
+import {
+  readHealthError,
+  type HealthChannel,
+} from "@/lib/utils/health-log";
 import { cn } from "@/lib/utils/cn";
 
 const DOT: Record<StalenessLevel, string> = {
@@ -79,6 +83,16 @@ export function HealthCard() {
     [syncStates],
   );
 
+  // Ultimos fallos silenciosos de los refrescos automaticos (si los hay).
+  const ERROR_LABELS: Record<HealthChannel, string> = {
+    fx: "Tipos de cambio",
+    quotes: "Cotizaciones",
+    snapshot: "Foto de patrimonio",
+  };
+  const errores = (["fx", "quotes", "snapshot"] as HealthChannel[])
+    .map((ch) => ({ ch, err: readHealthError(ch) }))
+    .filter((e) => e.err !== null);
+
   return (
     <Card>
       <CardHeader>
@@ -113,6 +127,22 @@ export function HealthCard() {
           warnDays={2}
           staleDays={10}
         />
+
+        {errores.length > 0 && (
+          <div className="mt-3 space-y-1.5 rounded-md border border-destructive/30 bg-destructive/10 p-2.5">
+            {errores.map(({ ch, err }) => (
+              <div key={ch} className="text-xs">
+                <span className="font-medium text-destructive">
+                  {ERROR_LABELS[ch]}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  · {timeAgo(new Date(err!.at))}
+                </span>
+                <div className="text-muted-foreground">{err!.message}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
