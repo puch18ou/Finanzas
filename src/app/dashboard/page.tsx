@@ -33,6 +33,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CategoryChart } from "@/components/charts/CategoryChart";
 import { BudgetProgress } from "@/components/dashboard/BudgetProgress";
 import { RecentMovements } from "@/components/dashboard/RecentMovements";
+import { CashflowCard } from "@/components/dashboard/CashflowCard";
 import {
   Card,
   CardContent,
@@ -581,6 +582,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      <CashflowCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryChart
