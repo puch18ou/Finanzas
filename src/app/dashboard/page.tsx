@@ -34,6 +34,7 @@ import { CategoryChart } from "@/components/charts/CategoryChart";
 import { BudgetProgress } from "@/components/dashboard/BudgetProgress";
 import { RecentMovements } from "@/components/dashboard/RecentMovements";
 import { CashflowCard } from "@/components/dashboard/CashflowCard";
+import { AlertsCard } from "@/components/dashboard/AlertsCard";
 import {
   Card,
   CardContent,
@@ -582,6 +583,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      <AlertsCard rows={budgetRows} viewCurrency={viewCurrency} />
 
       <CashflowCard />
 
