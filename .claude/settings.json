@@ -70,7 +70,8 @@
       "Bash(cd \"/c/Users/punki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.4.0\" *)",
       "Read(//c/Users/punki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.4.0/**)",
       "PowerShell(npx vitest run tests/services/investment-atomicity.test.ts)",
-      "PowerShell(npm run build 2>&1)"
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(npx vitest run tests/domain/category-suggest.test.ts 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"

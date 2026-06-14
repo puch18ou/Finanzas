@@ -134,6 +134,31 @@ export class MovementRepository extends BaseRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Pares (concepto, categoriaId) de movimientos recientes CON categoria, para
+   * sugerir la categoria al teclear el concepto (ver domain/category-suggest).
+   * Recientes primero, limitado para no cargar todo el historico.
+   */
+  async listCategorizedConceptos(
+    limit = 500,
+  ): Promise<Array<{ concepto: string; categoriaId: string }>> {
+    const rows = await this.db
+      .select({
+        concepto: movements.concepto,
+        categoriaId: movements.categoriaId,
+      })
+      .from(movements)
+      .where(
+        and(isNull(movements.deletedAt), isNotNull(movements.categoriaId)),
+      )
+      .orderBy(desc(movements.fecha))
+      .limit(limit);
+    return rows.filter(
+      (r): r is { concepto: string; categoriaId: string } =>
+        !!r.categoriaId && !!r.concepto,
+    );
+  }
+
   async create(data: CreateMovementData): Promise<Movement> {
     const ts = now();
     const id = data.id ?? newId();

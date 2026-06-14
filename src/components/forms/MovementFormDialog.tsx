@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
+import { useCategorySuggestion } from "@/hooks/useCategorySuggestion";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar as CalendarIcon } from "lucide-react";
 import {
@@ -361,6 +362,25 @@ export function MovementFormDialog({
     onOpenChange(false);
   });
 
+  // Categorizacion automatica: al SALIR del campo concepto (solo creando un
+  // gasto), si la categoria esta vacia, la pre-rellenamos con la mas usada para
+  // conceptos parecidos. Es una sugerencia: el usuario puede cambiarla.
+  const suggest = useCategorySuggestion();
+  const gastoConceptoReg = gastoForm.register("concepto");
+  const aplicarSugerenciaCategoria = () => {
+    if (isEdit) return;
+    const concepto = gastoForm.getValues("concepto");
+    if (!concepto?.trim()) return;
+    if (gastoForm.getValues("categoriaId")) return; // no pisar lo ya elegido
+    const cat = suggest(concepto);
+    if (cat && categories.some((c) => c.id === cat)) {
+      gastoForm.setValue("categoriaId", cat, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] gap-3 overflow-y-auto p-4 sm:max-w-lg sm:gap-4 sm:p-6">
@@ -458,7 +478,11 @@ export function MovementFormDialog({
               <Label htmlFor="g-concepto">Concepto</Label>
               <Input
                 id="g-concepto"
-                {...gastoForm.register("concepto")}
+                {...gastoConceptoReg}
+                onBlur={(e) => {
+                  gastoConceptoReg.onBlur(e);
+                  aplicarSugerenciaCategoria();
+                }}
                 placeholder={
                   formTipo === "devolucion"
                     ? "Devolución de una compra..."

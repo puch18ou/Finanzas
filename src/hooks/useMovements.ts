@@ -29,6 +29,9 @@ export function useMovements(filter: MovementFilter = {}) {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["movements"] });
     qc.invalidateQueries({ queryKey: ["trash"] });
+    // El historial de conceptos->categoria (categorizacion automatica) cambia
+    // al crear/editar/borrar gastos categorizados.
+    qc.invalidateQueries({ queryKey: ["categorySuggestHistory"] });
   };
 
   const createMutation = useMutation({
