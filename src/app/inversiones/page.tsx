@@ -83,6 +83,7 @@ import {
 import type { RatesMap } from "@/lib/domain/currency";
 import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { cn } from "@/lib/utils/cn";
+import { timeAgo, stalenessLevel } from "@/lib/utils/staleness";
 
 export default function InversionesPage() {
   const { settings } = useSettings();
@@ -350,6 +351,30 @@ export default function InversionesPage() {
                 </TableCell>
                 <TableCell className="text-right tabular-nums font-medium">
                   {formatAmount(m.valorActual, inv.moneda)}
+                  {/* Aviso de precio viejo: solo si esta envejecido y la
+                      posicion se valora por precio (no por TAE, que se
+                      revaloriza sola). */}
+                  {!(inv.tasaInteres && inv.tasaInteres > 0) &&
+                    (() => {
+                      const lvl = stalenessLevel(inv.ultimaActualizacionPrecio, {
+                        warnDays: 3,
+                        staleDays: 8,
+                      });
+                      if (lvl !== "warn" && lvl !== "stale") return null;
+                      return (
+                        <div
+                          className={cn(
+                            "text-xs font-normal",
+                            lvl === "stale"
+                              ? "text-red-500"
+                              : "text-amber-500",
+                          )}
+                          title="Precio sin actualizar; pulsa el boton de refrescar"
+                        >
+                          {timeAgo(inv.ultimaActualizacionPrecio)}
+                        </div>
+                      );
+                    })()}
                 </TableCell>
                 <TableCell
                   className={cn(
