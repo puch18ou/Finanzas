@@ -55,7 +55,10 @@
       "Read(//c/Users/punki/AppData/Local/Android/Sdk/build-tools/**)",
       "Read(//c/Users/punki/AppData/Local/Android/Sdk/platforms/**)",
       "PowerShell($b64 = [Convert]::ToBase64String\\([IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\punki\\\\.tauri\\\\finanzas-android.jks\"\\)\\); $b64 | Set-Clipboard; \"Keystore en base64 copiado al portapapeles \\(\" + $b64.Length + \" caracteres\\).\")",
-      "Bash(gh workflow *)"
+      "Bash(gh workflow *)",
+      "Bash(TZ=Pacific/Kiritimati node -e \"console.log\\('getMonth de May31 12:00Z =', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getMonth\\(\\), '\\(local\\) vs UTC', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getUTCMonth\\(\\)\\)\")",
+      "Bash(node -e \"process.env.TZ='Pacific/Kiritimati'; console.log\\('getMonth =', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getMonth\\(\\)\\)\")",
+      "PowerShell(git add -A)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"

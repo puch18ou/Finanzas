@@ -105,8 +105,9 @@ export function QuickExpenseDialog({ open, onOpenChange }: Props) {
     await create({
       tipo: "gasto",
       fecha,
-      mes: fecha.getMonth() + 1,
-      anio: fecha.getFullYear(),
+      // fecha es mediodia UTC -> leemos con getUTC* (no se desplaza al viajar)
+      mes: fecha.getUTCMonth() + 1,
+      anio: fecha.getUTCFullYear(),
       concepto: data.concepto,
       importe: data.importe,
       moneda: data.moneda,

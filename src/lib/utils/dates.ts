@@ -7,29 +7,35 @@
  *  un instante). Esto evita problemas de zona horaria que aparecerian si
  *  guardaramos timestamps con hora.
  *
- *  CONVENCION:
- *    - En BD las guardamos como integer (timestamp ms en UTC) con la hora
- *      siempre a 00:00:00 UTC.
- *    - Al leer/escribir en formularios, usamos siempre la zona LOCAL del
- *      usuario (no UTC), porque "15 de enero" para el usuario debe ser
- *      el 15 de enero, no el 14.
+ *  CONVENCION (importante para viajar entre zonas horarias):
+ *    - Una FECHA CIVIL (la fecha de un gasto, el inicio de una regla, la
+ *      fecha objetivo de una meta...) representa UN DIA DEL CALENDARIO, sin
+ *      hora. En BD se guarda como integer (timestamp ms) fijado a las
+ *      12:00:00 UTC (MEDIODIA) del dia visible. Mediodia UTC es robusto:
+ *      +-12h de offset no cambian el dia, asi que leer sus componentes con
+ *      getUTC* devuelve SIEMPRE el dia que eligio el usuario, viaje donde
+ *      viaje. => Toda fecha civil se LEE con getUTC* (ver extractPeriod /
+ *      formatDateLong).
+ *    - El "AHORA" / mes actual NO es una fecha civil guardada: es un
+ *      instante. Se lee con getters LOCALES (new Date().getMonth()...),
+ *      porque te importa el calendario del sitio donde estas fisicamente
+ *      (si en Singapur ya es 1 de junio, tu mes actual es junio aunque en
+ *      UTC siga siendo 31 de mayo).
+ *    - Los campos de auditoria/sync (createdAt, updatedAt, deletedAt) son
+ *      instantes; para MOSTRARLOS usa formatInstantLong (zona local).
  *
  *  Las funciones de este modulo encapsulan esa logica.
  * ============================================================================
  */
 
 /**
- * Convierte una fecha (Date o number ms) a "fecha pura" — es decir, un
- * Date con la hora puesta a 00:00:00 EN ZONA LOCAL.
- *
- * Util para guardar en BD: aseguramos que dos gastos del "mismo dia"
- * tengan exactamente el mismo timestamp aunque se introdujeran a horas
- * distintas.
+ * @deprecated Usa `normalizeDateToUTCNoon`. Se mantiene por compatibilidad y
+ * ahora delega en ella (mediodia UTC) para no romper la convencion de fecha
+ * civil. Antes fijaba 00:00 en zona LOCAL, lo que desplazaba el dia al
+ * guardar/leer en zonas horarias alejadas de UTC.
  */
 export function toDateOnly(input: Date | number): Date {
-  const d = typeof input === "number" ? new Date(input) : new Date(input);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return normalizeDateToUTCNoon(typeof input === "number" ? new Date(input) : input);
 }
 
 /**
@@ -53,13 +59,19 @@ export function normalizeDateToUTCNoon(d: Date): Date {
 }
 
 /**
- * Extrae { mes, anio } de una fecha. Mes 1-indexado (enero = 1).
- * Usa la zona LOCAL del usuario (no UTC).
+ * Extrae { mes, anio } de una FECHA CIVIL guardada. Mes 1-indexado (enero = 1).
+ *
+ * Lee con getUTC* porque las fechas civiles se guardan a mediodia UTC: asi el
+ * periodo no se desplaza aunque el dispositivo este en otra zona horaria.
+ *
+ * NOTA: para el "mes actual" NO uses esto sobre `new Date()` directamente
+ * (eso es un instante, no una fecha civil). El mes en que estas fisicamente
+ * se obtiene con getters LOCALES (ver currentPeriod en domain/recurring).
  */
 export function extractPeriod(date: Date): { mes: number; anio: number } {
   return {
-    mes: date.getMonth() + 1,
-    anio: date.getFullYear(),
+    mes: date.getUTCMonth() + 1,
+    anio: date.getUTCFullYear(),
   };
 }
 
@@ -126,9 +138,29 @@ export function periodKey(anio: number, mes: number): number {
 }
 
 /**
- * Formatea una fecha como "15 ene 2026" o "15 enero 2026" segun el flag.
+ * Formatea una FECHA CIVIL guardada como "15 ene 2026" o "15 enero 2026".
+ *
+ * Lee con getUTC* (las fechas civiles se guardan a mediodia UTC), de modo que
+ * el dia mostrado no se desplaza al viajar a otra zona horaria.
+ *
+ * Para mostrar un INSTANTE (createdAt/updatedAt/deletedAt) usa
+ * `formatInstantLong`, que respeta la zona local.
  */
 export function formatDateLong(date: Date, abbrev = true): string {
+  const meses = abbrev ? MESES_ES_CORTO : MESES_ES;
+  const dia = date.getUTCDate();
+  const mes = meses[date.getUTCMonth()];
+  const anio = date.getUTCFullYear();
+  return `${dia} ${mes} ${anio}`;
+}
+
+/**
+ * Formatea un INSTANTE (timestamp de auditoria/sync: createdAt, updatedAt,
+ * deletedAt) como "15 ene 2026" en la zona LOCAL del usuario. A diferencia de
+ * formatDateLong, aqui SI queremos la hora local: "borrado el 15 de enero"
+ * debe referirse al dia local en que ocurrio.
+ */
+export function formatInstantLong(date: Date, abbrev = true): string {
   const meses = abbrev ? MESES_ES_CORTO : MESES_ES;
   const dia = date.getDate();
   const mes = meses[date.getMonth()];

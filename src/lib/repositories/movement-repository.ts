@@ -140,9 +140,11 @@ export class MovementRepository extends BaseRepository {
 
     // Denormalizamos mes/anio si no vienen ya (el caller deberia mandarlos,
     // pero por defensa los recalculamos desde fecha).
+    // fecha es una fecha civil (mediodia UTC): leemos con getUTC* para que el
+    // periodo no se desplace si el dispositivo esta en otra zona horaria.
     const fecha = data.fecha instanceof Date ? data.fecha : new Date(data.fecha);
-    const mes = data.mes ?? fecha.getMonth() + 1;
-    const anio = data.anio ?? fecha.getFullYear();
+    const mes = data.mes ?? fecha.getUTCMonth() + 1;
+    const anio = data.anio ?? fecha.getUTCFullYear();
 
     await this.db.insert(movements).values({
       ...data,
@@ -164,8 +166,8 @@ export class MovementRepository extends BaseRepository {
     const updates: Partial<NewMovement> = { ...patch, updatedAt: now() };
     if (patch.fecha) {
       const fecha = patch.fecha instanceof Date ? patch.fecha : new Date(patch.fecha);
-      updates.mes = fecha.getMonth() + 1;
-      updates.anio = fecha.getFullYear();
+      updates.mes = fecha.getUTCMonth() + 1;
+      updates.anio = fecha.getUTCFullYear();
     }
 
     await this.db.update(movements).set(updates).where(eq(movements.id, id));

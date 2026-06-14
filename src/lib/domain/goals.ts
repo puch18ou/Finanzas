@@ -44,9 +44,11 @@ export type GoalProgress = {
  * pretende ser un calculo de duracion exacto.
  */
 export function monthsBetween(from: Date, to: Date): number {
-  const years = to.getFullYear() - from.getFullYear();
-  const months = to.getMonth() - from.getMonth();
-  const days = to.getDate() - from.getDate();
+  // `to` es una fecha civil (fechaObjetivo, guardada a mediodia UTC). Leemos
+  // ambos extremos con getUTC* para que el calculo no se desplace al viajar.
+  const years = to.getUTCFullYear() - from.getUTCFullYear();
+  const months = to.getUTCMonth() - from.getUTCMonth();
+  const days = to.getUTCDate() - from.getUTCDate();
 
   let total = years * 12 + months;
   if (days < 0) total -= 1;

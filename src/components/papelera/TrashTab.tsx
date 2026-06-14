@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
-import { formatDateLong } from "@/lib/utils/dates";
+import { formatInstantLong } from "@/lib/utils/dates";
 
 type Props = {
   type: TrashItemType;
@@ -71,7 +71,7 @@ export function TrashTab({ type, emptyMessage }: Props) {
                 {it.subtitle ?? "—"}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground tabular-nums">
-                {formatDateLong(it.deletedAt)}
+                {formatInstantLong(it.deletedAt)}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
