@@ -185,6 +185,15 @@ export class MovementRepository extends BaseRepository {
       .where(eq(movements.id, id));
   }
 
+  /**
+   * Borrado FISICO por id. Se usa para COMPENSAR (rollback) una operacion
+   * multi-paso que fallo: el movimiento se acababa de crear y no debe dejar
+   * rastro (ni lapida ni soft-delete), porque en realidad nunca existio.
+   */
+  async hardDelete(id: string): Promise<void> {
+    await this.db.delete(movements).where(eq(movements.id, id));
+  }
+
   async restore(id: string): Promise<void> {
     await this.db
       .update(movements)

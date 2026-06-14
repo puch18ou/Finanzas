@@ -15,6 +15,7 @@ import type {
   AddContributionArgs,
   WithdrawArgs,
   UpdateContributionArgs,
+  CreateInvestmentData,
 } from "@/lib/repositories";
 
 export const CONTRIBUTIONS_KEY = ["investmentContributions"] as const;
@@ -91,6 +92,24 @@ export function useInvestmentContributions(investmentId?: string) {
     onError: (e) =>
       toast.error(
         `No se pudo editar: ${e instanceof Error ? e.message : "error"}`,
+      ),
+  });
+
+  // Crear inversion + primera aportacion de forma ATOMICA (si la aportacion
+  // falla, no queda una inversion vacia). Sustituye al "create + add" suelto.
+  const createWithContributionMutation = useMutation({
+    mutationFn: (args: {
+      investment: CreateInvestmentData;
+      contribution: Omit<AddContributionArgs, "investmentId">;
+    }) =>
+      repos.investmentContributionService.createWithFirstContribution(
+        args.investment,
+        args.contribution,
+      ),
+    onSuccess: invalidate,
+    onError: (e) =>
+      toast.error(
+        `No se pudo crear la inversion: ${e instanceof Error ? e.message : "error"}`,
       ),
   });
 
@@ -182,6 +201,7 @@ export function useInvestmentContributions(investmentId?: string) {
     contributions: query.data ?? [],
     isLoading: query.isLoading,
     add: addMutation.mutateAsync,
+    createWithContribution: createWithContributionMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     withdraw: withdrawMutation.mutateAsync,
     remove: removeMutation.mutateAsync,
@@ -190,6 +210,7 @@ export function useInvestmentContributions(investmentId?: string) {
     cancelPlan: cancelPlanMutation.mutateAsync,
     isMutating:
       addMutation.isPending ||
+      createWithContributionMutation.isPending ||
       updateMutation.isPending ||
       withdrawMutation.isPending ||
       removeMutation.isPending ||

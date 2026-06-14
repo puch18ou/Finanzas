@@ -115,6 +115,16 @@ export class InvestmentContributionRepository extends BaseRepository {
       .where(eq(investmentContributions.id, id));
   }
 
+  /**
+   * Borrado FISICO por id. Para COMPENSAR (rollback) una operacion multi-paso
+   * que fallo: la aportacion recien creada no debe dejar rastro.
+   */
+  async hardDelete(id: string): Promise<void> {
+    await this.db
+      .delete(investmentContributions)
+      .where(eq(investmentContributions.id, id));
+  }
+
   /** Todas las aportaciones de una inversion (activas y borradas). */
   async listAllByInvestment(
     investmentId: string,

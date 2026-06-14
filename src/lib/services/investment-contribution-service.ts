@@ -23,8 +23,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { DrizzleDb } from "@/lib/db/proxy-driver";
 import { movements, recurringRules } from "@/lib/db/schema";
-import type { RecurringRule } from "@/lib/db/schema";
-import { InvestmentRepository } from "@/lib/repositories/investment-repository";
+import type { RecurringRule, Investment } from "@/lib/db/schema";
+import {
+  InvestmentRepository,
+  type CreateInvestmentData,
+} from "@/lib/repositories/investment-repository";
 import { MovementRepository } from "@/lib/repositories/movement-repository";
 import { InvestmentContributionRepository } from "@/lib/repositories/investment-contribution-repository";
 import {
@@ -90,10 +93,17 @@ export class InvestmentContributionService {
   private movements: MovementRepository;
   private contributions: InvestmentContributionRepository;
 
-  constructor(private db: DrizzleDb) {
-    this.investments = new InvestmentRepository(db);
-    this.movements = new MovementRepository(db);
-    this.contributions = new InvestmentContributionRepository(db);
+  // Repos inyectables (por defecto se crean sobre `db`). La inyeccion permite
+  // testear la compensacion/atomicidad con repos falsos.
+  constructor(
+    private db: DrizzleDb,
+    investments?: InvestmentRepository,
+    movements?: MovementRepository,
+    contributions?: InvestmentContributionRepository,
+  ) {
+    this.investments = investments ?? new InvestmentRepository(db);
+    this.movements = movements ?? new MovementRepository(db);
+    this.contributions = contributions ?? new InvestmentContributionRepository(db);
   }
 
   async addContribution(args: AddContributionArgs): Promise<void> {
@@ -111,46 +121,78 @@ export class InvestmentContributionService {
     const comision = Math.max(0, args.comision ?? 0);
     const importeMovimiento = importeComprado + comision;
 
-    // Movimiento de salida: transferencia con solo cuenta de origen (sin
-    // destino). Baja el saldo de la cuenta y es neutral a gastos/ingresos.
-    let movimientoId: string | null = null;
-    if (args.cuentaOrigenId) {
-      const { mes, anio } = extractPeriod(args.fecha);
-      const mov = await this.movements.create({
-        tipo: "transferencia",
+    // Multi-paso ATOMICO: movimiento de salida (si hay cuenta) + aportacion +
+    // recalculo. Si algo falla, se deshace lo creado (ver atomic()).
+    await this.atomic(async (onUndo) => {
+      // Movimiento de salida: transferencia con solo cuenta de origen (sin
+      // destino). Baja el saldo de la cuenta y es neutral a gastos/ingresos.
+      let movimientoId: string | null = null;
+      if (args.cuentaOrigenId) {
+        const { mes, anio } = extractPeriod(args.fecha);
+        const mov = await this.movements.create({
+          tipo: "transferencia",
+          fecha: args.fecha,
+          concepto: `Aportacion a ${investment.nombre}`,
+          importe: importeMovimiento,
+          moneda: investment.moneda,
+          cuentaOrigenId: args.cuentaOrigenId,
+          cuentaDestinoId: null,
+          categoriaId: null,
+          categoriaTexto: null,
+          mes,
+          anio,
+          notas: null,
+          esAutomatico: false,
+          origenAutomatico: null,
+          origenAutomaticoId: null,
+        });
+        movimientoId = mov.id;
+        onUndo(() => this.movements.hardDelete(mov.id));
+      }
+
+      const contrib = await this.contributions.create({
+        investmentId: args.investmentId,
         fecha: args.fecha,
-        concepto: `Aportacion a ${investment.nombre}`,
-        importe: importeMovimiento,
-        moneda: investment.moneda,
-        cuentaOrigenId: args.cuentaOrigenId,
-        cuentaDestinoId: null,
-        categoriaId: null,
-        categoriaTexto: null,
-        mes,
-        anio,
-        notas: null,
-        esAutomatico: false,
-        origenAutomatico: null,
-        origenAutomaticoId: null,
+        participaciones: args.participaciones,
+        precioUnitario: args.precioUnitario,
+        comision,
+        cuentaOrigenId: args.cuentaOrigenId ?? null,
+        movimientoId,
+        notas: args.notas ?? null,
       });
-      movimientoId = mov.id;
-    }
+      onUndo(() => this.contributions.hardDelete(contrib.id));
 
-    await this.contributions.create({
-      investmentId: args.investmentId,
-      fecha: args.fecha,
-      participaciones: args.participaciones,
-      precioUnitario: args.precioUnitario,
-      comision,
-      cuentaOrigenId: args.cuentaOrigenId ?? null,
-      movimientoId,
-      notas: args.notas ?? null,
+      await this.recomputeWithValue(
+        args.investmentId,
+        valorAntes + importeComprado,
+      );
     });
+  }
 
-    await this.recomputeWithValue(
-      args.investmentId,
-      valorAntes + importeComprado,
-    );
+  /**
+   * Crea una inversion JUNTO con su primera aportacion, de forma ATOMICA: si la
+   * aportacion falla (p.ej. el movimiento de salida no se puede crear), se
+   * deshace tambien la inversion para no dejar una posicion vacia huerfana.
+   *
+   * (addContribution ya compensa su propio movimiento/aportacion; aqui solo
+   * anadimos deshacer la inversion recien creada.)
+   */
+  async createWithFirstContribution(
+    investmentData: CreateInvestmentData,
+    contribution: Omit<AddContributionArgs, "investmentId">,
+  ): Promise<Investment> {
+    const inv = await this.investments.create(investmentData);
+    try {
+      await this.addContribution({ ...contribution, investmentId: inv.id });
+    } catch (err) {
+      try {
+        await this.investments.hardDelete(inv.id);
+      } catch (e) {
+        console.error("[atomic] fallo al deshacer la inversion:", e);
+      }
+      throw err;
+    }
+    return inv;
   }
 
   /**
@@ -200,42 +242,47 @@ export class InvestmentContributionService {
     const comision = Math.max(0, args.comision ?? 0);
     const dineroNeto = Math.max(0, dineroRecibido - comision);
 
-    // Entrada de dinero en la cuenta destino (neutral a ingresos/gastos).
+    // Multi-paso ATOMICO: entrada de dinero + fila de retirada + recalculo.
     const { mes, anio } = extractPeriod(args.fecha);
-    const mov = await this.movements.create({
-      tipo: "transferencia",
-      fecha: args.fecha,
-      concepto: `Retirada de ${inv.nombre}`,
-      importe: dineroNeto,
-      moneda: inv.moneda,
-      cuentaOrigenId: null,
-      cuentaDestinoId: args.cuentaDestinoId,
-      categoriaId: null,
-      categoriaTexto: null,
-      mes,
-      anio,
-      notas: null,
-      esAutomatico: false,
-      origenAutomatico: null,
-      origenAutomaticoId: null,
-    });
+    await this.atomic(async (onUndo) => {
+      // Entrada de dinero en la cuenta destino (neutral a ingresos/gastos).
+      const mov = await this.movements.create({
+        tipo: "transferencia",
+        fecha: args.fecha,
+        concepto: `Retirada de ${inv.nombre}`,
+        importe: dineroNeto,
+        moneda: inv.moneda,
+        cuentaOrigenId: null,
+        cuentaDestinoId: args.cuentaDestinoId,
+        categoriaId: null,
+        categoriaTexto: null,
+        mes,
+        anio,
+        notas: null,
+        esAutomatico: false,
+        origenAutomatico: null,
+        origenAutomaticoId: null,
+      });
+      onUndo(() => this.movements.hardDelete(mov.id));
 
-    await this.contributions.create({
-      investmentId: args.investmentId,
-      fecha: args.fecha,
-      participaciones: partRetirada,
-      precioUnitario,
-      comision,
-      cuentaOrigenId: args.cuentaDestinoId,
-      movimientoId: mov.id,
-      esRetirada: true,
-      notas: "Retirada",
-    });
+      const contrib = await this.contributions.create({
+        investmentId: args.investmentId,
+        fecha: args.fecha,
+        participaciones: partRetirada,
+        precioUnitario,
+        comision,
+        cuentaOrigenId: args.cuentaDestinoId,
+        movimientoId: mov.id,
+        esRetirada: true,
+        notas: "Retirada",
+      });
+      onUndo(() => this.contributions.hardDelete(contrib.id));
 
-    await this.recomputeWithValue(
-      args.investmentId,
-      Math.max(0, valorAntes - dineroRecibido),
-    );
+      await this.recomputeWithValue(
+        args.investmentId,
+        Math.max(0, valorAntes - dineroRecibido),
+      );
+    });
   }
 
   /**
@@ -411,38 +458,45 @@ export class InvestmentContributionService {
     // sync no duplica ni el movimiento ni la fila de aportacion.
     const occKey = occurrenceKey(rule.frecuencia, fecha);
 
-    const mov = await this.movements.create({
-      id: autoGenId("cmov", rule.id, occKey),
-      tipo: "transferencia",
-      fecha,
-      concepto: `Aportacion periodica a ${investment.nombre}`,
-      importe,
-      moneda: investment.moneda,
-      cuentaOrigenId: rule.cuentaOrigenId,
-      cuentaDestinoId: null,
-      categoriaId: null,
-      categoriaTexto: null,
-      mes,
-      anio,
-      notas: null,
-      esAutomatico: true,
-      origenAutomatico: null,
-      origenAutomaticoId: rule.id,
-    });
+    // ATOMICO: si fallara entre el movimiento y la aportacion, sin compensar
+    // quedaria el movimiento huerfano y la idempotencia (que dedupe por el
+    // movimiento) SALTARIA esta ocurrencia para siempre -> aportacion perdida.
+    return this.atomic(async (onUndo) => {
+      const mov = await this.movements.create({
+        id: autoGenId("cmov", rule.id, occKey),
+        tipo: "transferencia",
+        fecha,
+        concepto: `Aportacion periodica a ${investment.nombre}`,
+        importe,
+        moneda: investment.moneda,
+        cuentaOrigenId: rule.cuentaOrigenId,
+        cuentaDestinoId: null,
+        categoriaId: null,
+        categoriaTexto: null,
+        mes,
+        anio,
+        notas: null,
+        esAutomatico: true,
+        origenAutomatico: null,
+        origenAutomaticoId: rule.id,
+      });
+      onUndo(() => this.movements.hardDelete(mov.id));
 
-    await this.contributions.create({
-      id: autoGenId("contrib", rule.id, occKey),
-      investmentId,
-      fecha,
-      participaciones,
-      precioUnitario,
-      cuentaOrigenId: rule.cuentaOrigenId,
-      movimientoId: mov.id,
-      notas: APORTACION_PERIODICA_NOTA,
-    });
+      const contrib = await this.contributions.create({
+        id: autoGenId("contrib", rule.id, occKey),
+        investmentId,
+        fecha,
+        participaciones,
+        precioUnitario,
+        cuentaOrigenId: rule.cuentaOrigenId,
+        movimientoId: mov.id,
+        notas: APORTACION_PERIODICA_NOTA,
+      });
+      onUndo(() => this.contributions.hardDelete(contrib.id));
 
-    await this.recomputeWithValue(investmentId, valorAntes + importe);
-    return true;
+      await this.recomputeWithValue(investmentId, valorAntes + importe);
+      return true;
+    });
   }
 
   /**
@@ -594,6 +648,32 @@ export class InvestmentContributionService {
    * precioActual = targetValor / participaciones. Se usa al aportar/borrar para
    * que el valor actual suba/baje exactamente por el importe aportado.
    */
+  /**
+   * "Transaccion a nivel de aplicacion" para operaciones multi-paso. Como
+   * tauri-plugin-sql usa un POOL de conexiones (no una sola), un BEGIN/COMMIT
+   * repartido en varias sentencias NO es fiable; por eso compensamos a mano:
+   * cada paso registra su "deshacer" via `onUndo`, y si algo falla luego, se
+   * ejecutan los deshacer en orden inverso (best-effort) para no dejar datos a
+   * medias (p.ej. un movimiento creado sin su aportacion).
+   */
+  private async atomic<T>(
+    work: (onUndo: (undo: () => Promise<void>) => void) => Promise<T>,
+  ): Promise<T> {
+    const undos: Array<() => Promise<void>> = [];
+    try {
+      return await work((undo) => undos.push(undo));
+    } catch (err) {
+      for (let i = undos.length - 1; i >= 0; i--) {
+        try {
+          await undos[i]!();
+        } catch (e) {
+          console.error("[atomic] fallo al compensar (rollback):", e);
+        }
+      }
+      throw err;
+    }
+  }
+
   private async recomputeWithValue(
     investmentId: string,
     targetValor: number,

@@ -91,7 +91,6 @@ export default function InversionesPage() {
   const {
     investments,
     isLoading,
-    create,
     update,
     updatePrice,
     refreshQuote,
@@ -101,7 +100,8 @@ export default function InversionesPage() {
     unarchive,
     isMutating,
   } = useInvestments();
-  const { add: addContribution } = useInvestmentContributions();
+  const { add: addContribution, createWithContribution } =
+    useInvestmentContributions();
   const { refreshRates } = useCurrenciesManagement();
   const repos = useRepos();
 
@@ -686,39 +686,42 @@ export default function InversionesPage() {
               data.tasaInteres && data.tasaInteres > 0
                 ? data.tasaInteres
                 : null;
-            const inv = await create({
-              tipo: data.tipo,
-              ticker: data.ticker ?? null,
-              isin: data.isin ?? null,
-              nombre: data.nombre,
-              unidadesCotizacion: data.unidadesCotizacion ?? null,
-              participaciones: 0,
-              precioCompra: 0,
-              precioActual: 0,
-              moneda: data.moneda,
-              cuentaId: data.cuentaId ?? null,
-              fechaCompra: data.fechaCompra ?? null,
-              notas: data.notas ?? null,
-              tasaInteres: tasaInteresNueva,
-              frecuenciaInteres:
-                tasaInteresNueva != null
-                  ? (data.frecuenciaInteres ?? "mensual")
-                  : null,
-              interesCompuesto:
-                tasaInteresNueva != null
-                  ? (data.interesCompuesto ?? true)
-                  : null,
-              ultimoInteresAplicado: null,
-            });
-            // La primera compra es una aportacion: descuenta de la cuenta de
-            // origen (movimiento de salida) y deja el historial para el grafico.
-            await addContribution({
-              investmentId: inv.id,
-              fecha: data.fechaCompra ?? new Date(),
-              participaciones: part,
-              precioUnitario,
-              comision: comisionInicial,
-              cuentaOrigenId: data.cuentaId ?? null,
+            // Crear inversion + primera aportacion de forma ATOMICA: la compra
+            // inicial descuenta de la cuenta de origen (movimiento de salida) y
+            // deja el historial para el grafico. Si la aportacion fallara, no
+            // queda una inversion vacia huerfana.
+            await createWithContribution({
+              investment: {
+                tipo: data.tipo,
+                ticker: data.ticker ?? null,
+                isin: data.isin ?? null,
+                nombre: data.nombre,
+                unidadesCotizacion: data.unidadesCotizacion ?? null,
+                participaciones: 0,
+                precioCompra: 0,
+                precioActual: 0,
+                moneda: data.moneda,
+                cuentaId: data.cuentaId ?? null,
+                fechaCompra: data.fechaCompra ?? null,
+                notas: data.notas ?? null,
+                tasaInteres: tasaInteresNueva,
+                frecuenciaInteres:
+                  tasaInteresNueva != null
+                    ? (data.frecuenciaInteres ?? "mensual")
+                    : null,
+                interesCompuesto:
+                  tasaInteresNueva != null
+                    ? (data.interesCompuesto ?? true)
+                    : null,
+                ultimoInteresAplicado: null,
+              },
+              contribution: {
+                fecha: data.fechaCompra ?? new Date(),
+                participaciones: part,
+                precioUnitario,
+                comision: comisionInicial,
+                cuentaOrigenId: data.cuentaId ?? null,
+              },
             });
           }
         }}
