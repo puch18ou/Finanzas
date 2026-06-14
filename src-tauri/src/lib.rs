@@ -14,7 +14,9 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         // Plugin opener: abrir URLs en el navegador (descarga del APK en el
         // auto-update asistido de movil).
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        // Plugin FS: copias de seguridad automaticas en la carpeta de datos.
+        .plugin(tauri_plugin_fs::init());
 
     // Auto-update SOLO en escritorio (el updater de Tauri no soporta movil).
     #[cfg(desktop)]

@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
+import { LocalBackupsCard } from "@/components/backup/LocalBackupsCard";
 import { SyncCard } from "@/components/sync/SyncCard";
 import { SecurityCard } from "@/components/auth/SecurityCard";
 
@@ -442,6 +443,8 @@ export default function AjustesPage() {
       <SecurityCard />
 
       <BackupCard />
+
+      <LocalBackupsCard />
 
       <SyncCard />
     </div>

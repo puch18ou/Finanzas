@@ -31,6 +31,7 @@ import { ShortcutsProvider } from "@/contexts/ShortcutsProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { MarketAutoRefresh } from "@/components/fx/MarketAutoRefresh";
 import { PatrimonioSnapshotTaker } from "@/components/patrimonio/PatrimonioSnapshotTaker";
+import { AutoBackupRunner } from "@/components/backup/AutoBackupRunner";
 import { SyncServerHandler } from "@/components/sync/SyncServerHandler";
 import { AutoSync } from "@/components/sync/AutoSync";
 import { UpdateChecker } from "@/components/system/UpdateChecker";
@@ -79,6 +80,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <DatabaseReady>
         <MarketAutoRefresh />
         <PatrimonioSnapshotTaker />
+        <AutoBackupRunner />
         <SyncServerHandler />
         <AutoSync />
         <UpdateChecker />

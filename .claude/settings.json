@@ -60,7 +60,9 @@
       "Bash(node -e \"process.env.TZ='Pacific/Kiritimati'; console.log\\('getMonth =', new Date\\(Date.UTC\\(2026,4,31,12,0,0\\)\\).getMonth\\(\\)\\)\")",
       "PowerShell(git add -A)",
       "Bash(grep \"\\\\.sql$\")",
-      "PowerShell(npm run typecheck)"
+      "PowerShell(npm run typecheck)",
+      "WebFetch(domain:v2.tauri.app)",
+      "PowerShell(npm install @tauri-apps/plugin-fs@^2 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"

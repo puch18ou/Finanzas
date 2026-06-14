@@ -26,6 +26,9 @@ tauri-plugin-http = "2"
 # Abrir URLs en el navegador del sistema (descarga del APK en el flujo de
 # auto-update asistido de movil). Funciona en escritorio y movil.
 tauri-plugin-opener = "2"
+# Sistema de ficheros: copias de seguridad automaticas (.json.gz rotadas) en
+# la carpeta de datos de la app. Funciona en escritorio y movil.
+tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
