@@ -34,7 +34,10 @@ next-env.d.ts
 
 # Rust / Tauri
 src-tauri/target/
-src-tauri/Cargo.lock
+# Cargo.lock SE COMMITEA (es un binario): garantiza que el CI use exactamente
+# las mismas versiones que compilan en local. Sin el lock, el CI resuelve
+# dependencias frescas y puede coger combinaciones rotas (p.ej. brotli 8.0.3
+# con dos versiones de alloc-no-stdlib). NO volver a ignorarlo.
 
 # gen/ se regenera, PERO committeamos gen/android (manifest con permiso de
 # CAMARA + config de firma) para que el CI compile reproducible y no se pierda
