@@ -32,6 +32,7 @@ import { MovementRepository } from "@/lib/repositories/movement-repository";
 import { InvestmentContributionRepository } from "@/lib/repositories/investment-contribution-repository";
 import {
   APORTACION_PERIODICA_NOTA,
+  realizedGain,
   recomputeTotalsFromContributions,
   usaParticipaciones,
 } from "@/lib/domain/investments";
@@ -206,7 +207,9 @@ export class InvestmentContributionService {
    * Se registra como una fila es_retirada=1 (participaciones positivas) para que
    * el recalculo reste; el coste se reduce al coste medio (no afecta al medio).
    */
-  async withdraw(args: WithdrawArgs): Promise<void> {
+  async withdraw(
+    args: WithdrawArgs,
+  ): Promise<{ plusvaliaRealizada: number; moneda: string } | null> {
     const inv = await this.investments.getById(args.investmentId);
     if (!inv) throw new Error("La inversion no existe.");
 
@@ -234,13 +237,21 @@ export class InvestmentContributionService {
       precioUnitario = 1;
     }
 
-    if (partRetirada <= 0) return;
+    if (partRetirada <= 0) return null;
 
     // Lote 17: comision de venta reduce el dinero que entra en la cuenta;
     // el valor de la inversion baja por el bruto (lo que sale de la
     // cartera), pero a la cuenta entra el neto.
     const comision = Math.max(0, args.comision ?? 0);
     const dineroNeto = Math.max(0, dineroRecibido - comision);
+
+    // Plusvalia/minusvalia REALIZADA: dinero recibido bruto - coste (a coste
+    // medio) de las participaciones vendidas. Se guarda en la fila de retirada.
+    const plusvaliaRealizada = realizedGain(
+      dineroRecibido,
+      partRetirada,
+      inv.precioCompra,
+    );
 
     // Multi-paso ATOMICO: entrada de dinero + fila de retirada + recalculo.
     const { mes, anio } = extractPeriod(args.fecha);
@@ -271,6 +282,7 @@ export class InvestmentContributionService {
         participaciones: partRetirada,
         precioUnitario,
         comision,
+        plusvaliaRealizada,
         cuentaOrigenId: args.cuentaDestinoId,
         movimientoId: mov.id,
         esRetirada: true,
@@ -283,6 +295,8 @@ export class InvestmentContributionService {
         Math.max(0, valorAntes - dineroRecibido),
       );
     });
+
+    return { plusvaliaRealizada, moneda: inv.moneda };
   }
 
   /**

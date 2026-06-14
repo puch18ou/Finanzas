@@ -11,6 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { formatAmount } from "@/lib/domain/currency";
 import type {
   AddContributionArgs,
   WithdrawArgs,
@@ -72,9 +73,17 @@ export function useInvestmentContributions(investmentId?: string) {
   const withdrawMutation = useMutation({
     mutationFn: (args: WithdrawArgs) =>
       repos.investmentContributionService.withdraw(args),
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidate();
-      toast.success("Retirada registrada");
+      if (res && Math.abs(res.plusvaliaRealizada) >= 0.005) {
+        const pl = res.plusvaliaRealizada;
+        const label = pl >= 0 ? "plusvalia" : "minusvalia";
+        toast.success(
+          `Retirada · ${label} ${pl >= 0 ? "+" : ""}${formatAmount(pl, res.moneda)}`,
+        );
+      } else {
+        toast.success("Retirada registrada");
+      }
     },
     onError: (e) =>
       toast.error(

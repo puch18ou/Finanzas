@@ -56,6 +56,7 @@ import { formatAmount } from "@/lib/domain/currency";
 import {
   APORTACION_PERIODICA_NOTA,
   usaParticipaciones,
+  sumRealizedPL,
 } from "@/lib/domain/investments";
 import {
   formatDateOnlyString,
@@ -483,6 +484,19 @@ export function ContributionsDialog({
                         {formatAmount(c.comision ?? 0, investment!.moneda)} fee
                       </div>
                     )}
+                    {c.esRetirada && c.plusvaliaRealizada != null && (
+                      <div
+                        className={cn(
+                          "text-xs font-normal",
+                          c.plusvaliaRealizada >= 0
+                            ? "text-emerald-600 dark:text-emerald-500"
+                            : "text-destructive",
+                        )}
+                      >
+                        {c.plusvaliaRealizada >= 0 ? "+" : ""}
+                        {formatAmount(c.plusvaliaRealizada, investment!.moneda)} P/L
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {c.cuentaOrigenId ? aliasById[c.cuentaOrigenId] ?? "—" : "—"}
@@ -551,6 +565,29 @@ export function ContributionsDialog({
 
           {/* Individuales */}
           <TabsContent value="individuales" className="space-y-3">
+            {contributions.some((c) => c.esRetirada) && (
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  Plusvalias realizadas (ventas)
+                </span>
+                {(() => {
+                  const pl = sumRealizedPL(contributions);
+                  return (
+                    <span
+                      className={cn(
+                        "tabular-nums font-medium",
+                        pl >= 0
+                          ? "text-emerald-600 dark:text-emerald-500"
+                          : "text-destructive",
+                      )}
+                    >
+                      {pl >= 0 ? "+" : ""}
+                      {formatAmount(pl, investment.moneda)}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
             {renderContribList(individuales, "Aun no hay aportaciones.")}
             <div className="flex justify-between gap-2">
               <Button

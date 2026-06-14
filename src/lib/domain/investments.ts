@@ -121,6 +121,35 @@ export function calculateInvestmentMetrics(inv: Investment): InvestmentMetrics {
 }
 
 /**
+ * Plusvalia/minusvalia REALIZADA en una venta/retirada: dinero recibido
+ * (bruto, antes de comision) menos el coste de las participaciones vendidas
+ * (a coste medio). Positivo = ganancia; negativo = perdida.
+ */
+export function realizedGain(
+  dineroRecibido: number,
+  partRetirada: number,
+  costeMedio: number,
+): number {
+  return dineroRecibido - partRetirada * costeMedio;
+}
+
+/**
+ * Suma de plusvalias realizadas en las RETIRADAS de una lista de aportaciones
+ * (usa el campo cacheado `plusvaliaRealizada`; ignora aportaciones).
+ */
+export function sumRealizedPL(
+  contributions: Array<{
+    esRetirada?: boolean | null;
+    plusvaliaRealizada?: number | null;
+  }>,
+): number {
+  return contributions.reduce(
+    (s, c) => (c.esRetirada ? s + (c.plusvaliaRealizada ?? 0) : s),
+    0,
+  );
+}
+
+/**
  * Resumen de la cartera completa en moneda vista.
  */
 export type PortfolioSummary = {

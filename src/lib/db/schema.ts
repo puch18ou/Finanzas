@@ -657,6 +657,11 @@ export const investmentContributions = sqliteTable(
     // recibido en una retirada.
     comision: real("comision").notNull().default(0),
 
+    // Plusvalia/minusvalia REALIZADA en una retirada (venta): dinero recibido
+    // bruto - coste de las participaciones vendidas, en la moneda de la
+    // inversion. null en aportaciones. Ver domain/investments.realizedGain.
+    plusvaliaRealizada: real("plusvalia_realizada"),
+
     cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
     movimientoId: text("movimiento_id").references(() => movements.id),
 
