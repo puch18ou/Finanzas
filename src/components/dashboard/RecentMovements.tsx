@@ -21,8 +21,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { Movement } from "@/lib/db/schema";
 import { formatAmount } from "@/lib/domain/currency";
+import { parseTags } from "@/lib/domain/tags";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
@@ -100,6 +102,21 @@ function MovementRow({
         <p className="truncate text-xs text-muted-foreground">
           {formatDateLong(fecha)} · {detail}
         </p>
+        {m.etiquetas && (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {parseTags(m.etiquetas)
+              .slice(0, 4)
+              .map((t) => (
+                <Badge
+                  key={t}
+                  variant="secondary"
+                  className="px-1 py-0 text-[9px] font-normal"
+                >
+                  {t}
+                </Badge>
+              ))}
+          </div>
+        )}
       </div>
       <span className={cn("text-sm tabular-nums font-medium", meta.amount)}>
         {meta.sign}

@@ -67,7 +67,8 @@ import {
 } from "@/components/ui/tabs";
 import type { Movement } from "@/lib/db/schema";
 import type { MovementType, CreateMovementData } from "@/lib/repositories";
-import { formatAmount } from "@/lib/domain/currency";
+import { formatAmount, buildRatesMap, convert } from "@/lib/domain/currency";
+import { parseTags, allTags, hasTag } from "@/lib/domain/tags";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
@@ -96,6 +97,8 @@ export default function MovimientosPage() {
   );
 
   const [tab, setTab] = useState<TabKey>("todos");
+  // Filtro por etiqueta (en cliente). null = sin filtro.
+  const [tagFiltro, setTagFiltro] = useState<string | null>(null);
 
   // El filtro de tipo se aplica en cliente (mas flexible para el tab "todos")
   const filter = useMemo(
@@ -109,28 +112,41 @@ export default function MovimientosPage() {
   const { movements, isLoading, create, update, remove, isMutating } =
     useMovements(filter);
 
-  // Filtramos por tab en cliente
+  // Filtramos por tab y por etiqueta en cliente
   const visibleMovements = useMemo(() => {
-    if (tab === "todos") return movements;
+    let list = movements;
     if (tab === "gasto") {
-      return movements.filter(
+      list = list.filter(
         (m) =>
           m.tipo === "gasto" || m.tipo === "cuota" || m.tipo === "devolucion",
       );
+    } else if (tab === "ingreso") {
+      list = list.filter((m) => m.tipo === "ingreso" || m.tipo === "intereses");
+    } else if (tab === "transferencia") {
+      list = list.filter((m) => m.tipo === "transferencia");
+    } else if (tab === "ajuste") {
+      list = list.filter((m) => m.tipo === "ajuste");
     }
-    if (tab === "ingreso") {
-      return movements.filter(
-        (m) => m.tipo === "ingreso" || m.tipo === "intereses",
-      );
+    if (tagFiltro) list = list.filter((m) => hasTag(m.etiquetas, tagFiltro));
+    return list;
+  }, [movements, tab, tagFiltro]);
+
+  // Etiquetas disponibles en el periodo + total de la etiqueta filtrada.
+  const tagsDisponibles = useMemo(() => allTags(movements), [movements]);
+  const viewCurrency = settings?.monedaVista ?? "EUR";
+  const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
+  const tagTotal = useMemo(() => {
+    if (!tagFiltro) return 0;
+    let t = 0;
+    for (const m of visibleMovements) {
+      try {
+        t += convert(m.importe, m.moneda, viewCurrency, rates);
+      } catch {
+        // moneda sin tipo de cambio: la ignoramos
+      }
     }
-    if (tab === "transferencia") {
-      return movements.filter((m) => m.tipo === "transferencia");
-    }
-    if (tab === "ajuste") {
-      return movements.filter((m) => m.tipo === "ajuste");
-    }
-    return movements;
-  }, [movements, tab]);
+    return t;
+  }, [tagFiltro, visibleMovements, rates, viewCurrency]);
 
   // Contadores por tab
   const counts = useMemo(() => {
@@ -316,6 +332,32 @@ export default function MovimientosPage() {
             </TabsList>
           </Tabs>
 
+          {tagsDisponibles.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Etiquetas:</span>
+              {tagsDisponibles.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTagFiltro(tagFiltro === t ? null : t)}
+                >
+                  <Badge
+                    variant={tagFiltro === t ? "default" : "secondary"}
+                    className="cursor-pointer"
+                  >
+                    {t}
+                  </Badge>
+                </button>
+              ))}
+              {tagFiltro && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  · {visibleMovements.length} mov ·{" "}
+                  {formatAmount(tagTotal, viewCurrency)}
+                </span>
+              )}
+            </div>
+          )}
+
           {!isLoading && visibleMovements.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               No hay movimientos en este periodo.
@@ -445,7 +487,22 @@ function MovementRow({
           )}
         </Badge>
       </TableCell>
-      <TableCell className="font-medium">{m.concepto}</TableCell>
+      <TableCell className="font-medium">
+        {m.concepto}
+        {m.etiquetas && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {parseTags(m.etiquetas).map((t) => (
+              <Badge
+                key={t}
+                variant="secondary"
+                className="px-1.5 py-0 text-[10px] font-normal"
+              >
+                {t}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {renderCategoriaOCuentas(m, catById, accById, invNameByMovId)}
       </TableCell>

@@ -308,6 +308,8 @@ const baseMovementShape = {
     .positive("El importe debe ser positivo"),
   moneda: z.string().min(2).max(4),
   notas: z.string().max(500).nullable().optional(),
+  // Etiquetas: texto crudo separado por comas (se normaliza al guardar).
+  etiquetas: z.string().max(200).nullable().optional(),
 };
 
 /**

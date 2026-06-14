@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useCategorySuggestion } from "@/hooks/useCategorySuggestion";
+import { serializeTags } from "@/lib/domain/tags";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar as CalendarIcon } from "lucide-react";
 import {
@@ -119,6 +120,7 @@ export function MovementFormDialog({
       cuentaOrigenId: defaultAccountId ?? "",
       categoriaId: "",
       notas: "",
+      etiquetas: "",
     },
   });
 
@@ -132,6 +134,7 @@ export function MovementFormDialog({
       cuentaDestinoId: defaultAccountId ?? null,
       categoriaTexto: "Bonus",
       notas: "",
+      etiquetas: "",
     },
   });
 
@@ -190,6 +193,7 @@ export function MovementFormDialog({
               : initial.cuentaOrigenId) ?? "",
           categoriaId: initial.categoriaId ?? "",
           notas: initial.notas ?? "",
+          etiquetas: initial.etiquetas ?? "",
         });
       } else if (initial.tipo === "ingreso" || initial.tipo === "intereses") {
         ingresoForm.reset({
@@ -200,6 +204,7 @@ export function MovementFormDialog({
           cuentaDestinoId: initial.cuentaDestinoId ?? null,
           categoriaTexto: initial.categoriaTexto ?? "Otros",
           notas: initial.notas ?? "",
+          etiquetas: initial.etiquetas ?? "",
         });
       } else if (initial.tipo === "transferencia") {
         transferenciaForm.reset({
@@ -232,6 +237,7 @@ export function MovementFormDialog({
         cuentaOrigenId: defaultAccountId ?? "",
         categoriaId: "",
         notas: "",
+        etiquetas: "",
       });
       ingresoForm.reset({
         fecha: new Date(),
@@ -241,6 +247,7 @@ export function MovementFormDialog({
         cuentaDestinoId: defaultAccountId ?? null,
         categoriaTexto: "Bonus",
         notas: "",
+        etiquetas: "",
       });
       transferenciaForm.reset({
         fecha: new Date(),
@@ -287,6 +294,7 @@ export function MovementFormDialog({
       categoriaId: data.categoriaId,
       categoriaTexto: null,
       notas: data.notas ?? null,
+      etiquetas: serializeTags(data.etiquetas),
       esAutomatico: false,
       origenAutomatico: null,
       origenAutomaticoId: null,
@@ -309,6 +317,7 @@ export function MovementFormDialog({
       categoriaId: null,
       categoriaTexto: data.categoriaTexto,
       notas: data.notas ?? null,
+      etiquetas: serializeTags(data.etiquetas),
       esAutomatico: false,
       origenAutomatico: null,
       origenAutomaticoId: null,
@@ -559,6 +568,7 @@ export function MovementFormDialog({
               </div>
             </div>
             <Notas register={gastoForm.register} name="notas" />
+            <Etiquetas register={gastoForm.register} name="etiquetas" />
             <FooterButtons
               loading={loading}
               isEdit={isEdit}
@@ -635,6 +645,7 @@ export function MovementFormDialog({
               </div>
             </div>
             <Notas register={ingresoForm.register} name="notas" />
+            <Etiquetas register={ingresoForm.register} name="etiquetas" />
             <FooterButtons
               loading={loading}
               isEdit={isEdit}
@@ -948,6 +959,20 @@ function Notas({ register, name }: { register: any; name: string }) {
     <div className="space-y-2">
       <Label htmlFor={`${name}-input`}>Notas (opcional)</Label>
       <Textarea id={`${name}-input`} rows={1} {...register(name)} />
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function Etiquetas({ register, name }: { register: any; name: string }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`${name}-input`}>Etiquetas (opcional)</Label>
+      <Input
+        id={`${name}-input`}
+        placeholder="viaje-japon, regalo (separadas por comas)"
+        {...register(name)}
+      />
     </div>
   );
 }

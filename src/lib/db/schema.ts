@@ -587,6 +587,10 @@ export const movements = sqliteTable(
 
     notas: text("notas"),
 
+    // Etiquetas (tags) transversales, lista separada por comas y normalizada
+    // (minusculas). Una 2a dimension ademas de la categoria. Ver domain/tags.
+    etiquetas: text("etiquetas"),
+
     esAutomatico: integer("es_automatico", { mode: "boolean" })
       .notNull()
       .default(false),
