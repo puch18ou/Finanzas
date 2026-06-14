@@ -62,7 +62,9 @@
       "Bash(grep \"\\\\.sql$\")",
       "PowerShell(npm run typecheck)",
       "WebFetch(domain:v2.tauri.app)",
-      "PowerShell(npm install @tauri-apps/plugin-fs@^2 2>&1)"
+      "PowerShell(npm install @tauri-apps/plugin-fs@^2 2>&1)",
+      "PowerShell(npx vitest run tests/services/backup-rollback.test.ts)",
+      "PowerShell(npm test 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\punki\\.claude\\projects\\c--Users-punki-Documents-Pedro-Finanzas\\memory"

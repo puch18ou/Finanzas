@@ -165,9 +165,56 @@ export class BackupService {
     }
   }
 
+  /**
+   * Restaura un backup REEMPLAZANDO todos los datos. Con red de seguridad:
+   * antes de tocar nada captura el estado actual; si la restauracion falla a
+   * mitad, REVIERTE a ese estado para no dejar la BD a medio vaciar.
+   *
+   * Es una "transaccion a nivel de aplicacion": no usamos una transaccion SQL
+   * real porque tauri-plugin-sql ejecuta cada sentencia por separado (y puede
+   * usar conexiones distintas del pool), asi que un BEGIN/COMMIT no seria
+   * fiable. Como el orden de borrado ya es FK-seguro, tanto la restauracion
+   * como la reversion usan la misma ruta probada.
+   */
   async importAll(backup: BackupFile): Promise<void> {
     this.validateBackup(backup);
 
+    // Foto del estado ACTUAL para poder revertir. Si no se puede capturar,
+    // seguimos sin red (mejor intentar la restauracion que bloquearla).
+    let prev: BackupFile | null = null;
+    try {
+      prev = await this.exportAll();
+    } catch {
+      prev = null;
+    }
+
+    try {
+      await this.replaceAll(backup);
+    } catch (err) {
+      const original = err instanceof Error ? err.message : String(err);
+      if (!prev) throw err;
+      try {
+        await this.replaceAll(prev);
+      } catch (rollbackErr) {
+        const rb =
+          rollbackErr instanceof Error
+            ? rollbackErr.message
+            : String(rollbackErr);
+        throw new Error(
+          `La restauracion fallo y la reversion automatica TAMBIEN fallo. ` +
+            `Tus datos pueden haber quedado incompletos: vuelve a importar tu ` +
+            `backup manualmente. Error original: ${original}. Al revertir: ${rb}`,
+        );
+      }
+      throw new Error(
+        `La restauracion fallo y se revirtio al estado anterior (no se perdio ` +
+          `nada). Error: ${original}`,
+      );
+    }
+  }
+
+  /** Reemplaza TODO el contenido de la BD por el del backup (borra + inserta). */
+  private async replaceAll(backup: BackupFile): Promise<void> {
     const convert = (rows: unknown[]): unknown[] =>
       rows.map((row) => this.convertDates(row));
 
