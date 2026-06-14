@@ -99,7 +99,12 @@ export class InvestmentRepository extends BaseRepository {
    * Atajo: solo actualiza el precio actual (edicion manual inline).
    */
   async updatePrice(id: string, nuevoPrecio: number): Promise<Investment> {
-    return this.update(id, { precioActual: nuevoPrecio });
+    // Tambien sellamos la fecha: si el usuario fija el valor a mano, ese valor
+    // es de HOY (el indicador de "dato viejo" no debe marcarlo como antiguo).
+    return this.update(id, {
+      precioActual: nuevoPrecio,
+      ultimaActualizacionPrecio: now(),
+    });
   }
 
   /**
