@@ -23,6 +23,7 @@ import {
   mortgage,
   otherDebts,
   movements,
+  recurringRules,
   objetivoAhorroTramos,
   presupuestoTramos,
 } from "@/lib/db/schema";
@@ -30,7 +31,7 @@ import { computeNetImpactByAccount } from "@/lib/domain/accounts";
 import { buildRatesMap } from "@/lib/domain/currency";
 import type { Currency } from "@/lib/db/schema";
 
-const BACKUP_VERSION = 6;
+const BACKUP_VERSION = 7;
 const APP_ID = "finanzas";
 
 export type BackupFile = {
@@ -55,6 +56,10 @@ export type BackupFile = {
     // v6: cambios de presupuesto por categoria. Ausente en backups v<=5 (el
     // presupuesto base vive en categories, asi que no hace falta reconstruir).
     presupuestoTramos?: unknown[];
+    // v7: reglas periodicas (ingresos/gastos/cuotas/aportaciones recurrentes).
+    // Ausente en backups v<=6: al restaurar uno antiguo se PRESERVAN las reglas
+    // que ya hubiera en la BD (ver importAll).
+    recurringRules?: unknown[];
     // Compatibilidad con formatos anteriores (ignorados al importar)
     monthlyIncomes?: unknown[];
     expenses?: unknown[];
@@ -68,7 +73,7 @@ export class BackupService {
   async exportAll(): Promise<BackupFile> {
     const [
       curs, sets, cats, accs, invs, invContribs, gls, mort, debts, movs,
-      objTramos, presTramos,
+      recRules, objTramos, presTramos,
     ] = await Promise.all([
       this.db.select().from(currencies),
       this.db.select().from(settings),
@@ -80,6 +85,7 @@ export class BackupService {
       this.db.select().from(mortgage),
       this.db.select().from(otherDebts),
       this.db.select().from(movements),
+      this.db.select().from(recurringRules),
       this.db.select().from(objetivoAhorroTramos),
       this.db.select().from(presupuestoTramos),
     ]);
@@ -99,6 +105,7 @@ export class BackupService {
         mortgage: mort,
         otherDebts: debts,
         movements: movs,
+        recurringRules: recRules,
         objetivoAhorroTramos: objTramos,
         presupuestoTramos: presTramos,
       },
@@ -233,11 +240,23 @@ export class BackupService {
       backup.version,
     );
 
-    // Vaciar en orden inverso de dependencias
+    // Reglas periodicas: el backup las trae desde v7. Si es un backup antiguo
+    // (v<=6) que no las incluye, PRESERVAMOS las que ya hubiera en la BD para
+    // no perderlas al restaurar (se borran abajo por FK y se reinsertan luego).
+    const existingRecurring = await this.db.select().from(recurringRules);
+    const recurringRows =
+      backup.version >= 7 && backup.data.recurringRules
+        ? (backup.data.recurringRules as Array<Record<string, unknown>>)
+        : (existingRecurring as unknown as Array<Record<string, unknown>>);
+
+    // Vaciar en orden inverso de dependencias. recurring_rules referencia
+    // accounts/categories/currencies, asi que hay que borrarlo ANTES que ellas
+    // (si no, el DELETE de accounts falla por FOREIGN KEY).
     await this.db.delete(objetivoAhorroTramos);
     await this.db.delete(presupuestoTramos);
     await this.db.delete(investmentContributions);
     await this.db.delete(movements);
+    await this.db.delete(recurringRules);
     await this.db.delete(investments);
     await this.db.delete(goals);
     await this.db.delete(otherDebts);
@@ -258,6 +277,19 @@ export class BackupService {
     await this.insertBatch(otherDebts, convert(backup.data.otherDebts));
 
     await this.insertBatch(movements, convert(movRows));
+
+    // Reglas periodicas (v7 del backup, o las preservadas si era antiguo).
+    // Van despues de accounts/categories/currencies, a las que referencian.
+    // TOLERANTE: si una regla apunta a una cuenta/categoria que ya no existe,
+    // la saltamos en vez de abortar toda la restauracion a medias.
+    for (const r of convert(recurringRows)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.db.insert(recurringRules).values(r as any);
+      } catch (e) {
+        console.warn("[backup] regla periodica omitida al restaurar:", e);
+      }
+    }
 
     // Aportaciones de inversiones: v4 trae el array. Backups v<=3 no lo tienen,
     // asi que sembramos una aportacion inicial por inversion (como la migracion
