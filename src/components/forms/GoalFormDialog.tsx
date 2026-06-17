@@ -90,10 +90,12 @@ export function GoalFormDialog({
       yaAhorrado: 0,
       moneda: monedaLocal,
       // Fecha objetivo por defecto: dentro de 1 año
-      fechaObjetivo: new Date(
-        new Date().getFullYear() + 1,
-        new Date().getMonth(),
-        new Date().getDate(),
+      fechaObjetivo: normalizeDateToUTCNoon(
+        new Date(
+          new Date().getFullYear() + 1,
+          new Date().getMonth(),
+          new Date().getDate(),
+        ),
       ),
       cuentaVinculadaId: null,
       notas: "",
@@ -305,7 +307,8 @@ export function GoalFormDialog({
                         selected={field.value}
                         onSelect={(d) => {
                           if (d) {
-                            field.onChange(d);
+                            // Mediodia UTC del dia elegido (solo importa el dia).
+                            field.onChange(normalizeDateToUTCNoon(d));
                             setCalendarOpen(false);
                           }
                         }}

@@ -116,7 +116,9 @@ export function RecurringRuleFormDialog({
       categoriaId: null,
       categoriaTexto: null,
       diaDelMes: 1,
-      fechaInicio: new Date(today.getFullYear(), today.getMonth(), 1),
+      fechaInicio: normalizeDateToUTCNoon(
+        new Date(today.getFullYear(), today.getMonth(), 1),
+      ),
       fechaFin: null,
       activa: true,
       notas: "",
@@ -159,7 +161,9 @@ export function RecurringRuleFormDialog({
           categoriaId: null,
           categoriaTexto: null,
           diaDelMes: 1,
-          fechaInicio: new Date(today.getFullYear(), today.getMonth(), 1),
+          fechaInicio: normalizeDateToUTCNoon(
+        new Date(today.getFullYear(), today.getMonth(), 1),
+      ),
           fechaFin: null,
           activa: true,
           notas: "",
@@ -470,7 +474,8 @@ export function RecurringRuleFormDialog({
                         selected={field.value}
                         onSelect={(d) => {
                           if (d) {
-                            field.onChange(d);
+                            // Mediodia UTC del dia elegido (solo importa el dia).
+                            field.onChange(normalizeDateToUTCNoon(d));
                             setCalInicioOpen(false);
                           }
                         }}
@@ -522,7 +527,8 @@ export function RecurringRuleFormDialog({
                         selected={field.value ?? undefined}
                         onSelect={(d) => {
                           if (d) {
-                            field.onChange(d);
+                            // Mediodia UTC del dia elegido (solo importa el dia).
+                            field.onChange(normalizeDateToUTCNoon(d));
                             setCalFinOpen(false);
                           }
                         }}

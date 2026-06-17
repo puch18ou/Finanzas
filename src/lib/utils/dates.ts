@@ -53,6 +53,19 @@ export function toDateOnly(input: Date | number): Date {
  * en el form sigue mostrandose el dia que selecciono el usuario.
  */
 export function normalizeDateToUTCNoon(d: Date): Date {
+  // IDEMPOTENTE: si la fecha YA es una fecha civil (mediodia UTC exacto), la
+  // devolvemos sin tocar. Asi se puede normalizar varias veces sin desplazar el
+  // dia (p.ej. al elegir en el <Calendar> y de nuevo al guardar). Sin esta
+  // guarda, en zonas al ESTE de UTC+12 (UTC+13/+14) mediodia UTC se lee como el
+  // dia siguiente en local y cada pasada con getters locales sumaria +1 dia.
+  if (
+    d.getUTCHours() === 12 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0
+  ) {
+    return new Date(d.getTime());
+  }
   return new Date(
     Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0),
   );

@@ -113,7 +113,7 @@ export function MovementFormDialog({
   const gastoForm = useForm<GastoFormData>({
     resolver: zodResolver(gastoFormSchema),
     defaultValues: {
-      fecha: new Date(),
+      fecha: normalizeDateToUTCNoon(new Date()),
       concepto: "",
       importe: 0,
       moneda: monedaLocal,
@@ -127,7 +127,7 @@ export function MovementFormDialog({
   const ingresoForm = useForm<IngresoFormData>({
     resolver: zodResolver(ingresoFormSchema),
     defaultValues: {
-      fecha: new Date(),
+      fecha: normalizeDateToUTCNoon(new Date()),
       concepto: "",
       importe: 0,
       moneda: monedaLocal,
@@ -141,7 +141,7 @@ export function MovementFormDialog({
   const transferenciaForm = useForm<TransferenciaFormData>({
     resolver: zodResolver(transferenciaFormSchema),
     defaultValues: {
-      fecha: new Date(),
+      fecha: normalizeDateToUTCNoon(new Date()),
       concepto: "Transferencia",
       importe: 0,
       moneda: monedaLocal,
@@ -157,7 +157,7 @@ export function MovementFormDialog({
   const ajusteForm = useForm<AjusteFormData>({
     resolver: zodResolver(ajusteFormSchema),
     defaultValues: {
-      fecha: new Date(),
+      fecha: normalizeDateToUTCNoon(new Date()),
       concepto: "Ajuste",
       importe: 0,
       moneda: monedaLocal,
@@ -230,7 +230,7 @@ export function MovementFormDialog({
     } else {
       // creacion: reset a defaults
       gastoForm.reset({
-        fecha: new Date(),
+        fecha: normalizeDateToUTCNoon(new Date()),
         concepto: "",
         importe: 0,
         moneda: monedaLocal,
@@ -240,7 +240,7 @@ export function MovementFormDialog({
         etiquetas: "",
       });
       ingresoForm.reset({
-        fecha: new Date(),
+        fecha: normalizeDateToUTCNoon(new Date()),
         concepto: "",
         importe: 0,
         moneda: monedaLocal,
@@ -250,7 +250,7 @@ export function MovementFormDialog({
         etiquetas: "",
       });
       transferenciaForm.reset({
-        fecha: new Date(),
+        fecha: normalizeDateToUTCNoon(new Date()),
         concepto: "Transferencia",
         importe: 0,
         moneda: monedaLocal,
@@ -906,7 +906,11 @@ function FechaImporteMoneda({ control, register, currencies, errors }: any) {
                   selected={field.value}
                   onSelect={(d) => {
                     if (d) {
-                      field.onChange(d);
+                      // Fijamos la fecha a MEDIODIA UTC del dia elegido: el
+                      // Calendar devuelve medianoche LOCAL (que en UTC+8 cae el
+                      // dia anterior), y al mostrarla/guardarla como fecha civil
+                      // (getUTC*) se desplazaba un dia. Solo importa el dia.
+                      field.onChange(normalizeDateToUTCNoon(d));
                       setCalendarOpen(false);
                     }
                   }}

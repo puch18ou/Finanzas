@@ -557,7 +557,8 @@ export function InvestmentFormDialog({
                           mode="single"
                           selected={field.value ?? undefined}
                           onSelect={(d) => {
-                            field.onChange(d ?? null);
+                            // Mediodia UTC del dia elegido (solo importa el dia).
+                            field.onChange(d ? normalizeDateToUTCNoon(d) : null);
                             setCalendarOpen(false);
                           }}
                           initialFocus

@@ -25,6 +25,7 @@ import {
   extractPeriod,
   formatDateLong,
   formatInstantLong,
+  normalizeDateToUTCNoon,
 } from "@/lib/utils/dates";
 import { currentPeriod } from "@/lib/domain/recurring";
 import { monthsBetween } from "@/lib/domain/goals";
@@ -77,6 +78,27 @@ describe("currentPeriod usa la hora LOCAL (mes donde estas fisicamente)", () => 
   it("a las 31 may 23:00 UTC, en UTC+14 ya estas en junio", () => {
     const inst = new Date("2026-05-31T23:00:00Z");
     expect(currentPeriod(inst)).toEqual({ mes: 6, anio: 2026 });
+  });
+});
+
+describe("normalizar la fecha de un <Calendar> al elegirla (mediodia UTC)", () => {
+  // El <Calendar> (react-day-picker) devuelve MEDIANOCHE LOCAL del dia elegido.
+  // En una TZ al este, eso cae el dia anterior en UTC -> si se mostraba/guardaba
+  // como fecha civil (getUTC*) salia un dia menos. Normalizar a mediodia UTC al
+  // elegir lo arregla: el dia mostrado y el periodo coinciden con lo elegido.
+  it("elegir '15 jun' (medianoche local) se muestra y archiva como 15 jun", () => {
+    const elegidaLocal = new Date(2026, 5, 15); // medianoche local del 15-jun
+    // Sin normalizar, en UTC+14 se veria el 14 (el bug):
+    expect(formatDateLong(elegidaLocal, false)).toBe("14 Junio 2026");
+    // Normalizada a mediodia UTC, el dia civil es el correcto:
+    const civil = normalizeDateToUTCNoon(elegidaLocal);
+    expect(formatDateLong(civil, false)).toBe("15 Junio 2026");
+    expect(extractPeriod(civil)).toEqual({ mes: 6, anio: 2026 });
+  });
+
+  it("es idempotente: re-normalizar una fecha civil no la mueve", () => {
+    const civil = normalizeDateToUTCNoon(new Date(2026, 5, 15));
+    expect(normalizeDateToUTCNoon(civil)).toEqual(civil);
   });
 });
 
