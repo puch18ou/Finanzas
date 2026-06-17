@@ -18,6 +18,7 @@ import {
   Home,
   ArrowLeftRight,
   Landmark,
+  LineChart,
   Wallet,
   Settings,
   Plus,
@@ -29,10 +30,17 @@ import {
 import { MobileHome } from "./screens/MobileHome";
 import { MobileMovements } from "./screens/MobileMovements";
 import { MobileAccounts } from "./screens/MobileAccounts";
+import { MobileInvestments } from "./screens/MobileInvestments";
 import { MobileBudgets } from "./screens/MobileBudgets";
 import { MobileSettings } from "./screens/MobileSettings";
 
-type TabId = "inicio" | "movimientos" | "cuentas" | "presupuestos" | "ajustes";
+type TabId =
+  | "inicio"
+  | "movimientos"
+  | "cuentas"
+  | "inversiones"
+  | "presupuestos"
+  | "ajustes";
 
 const TABS: {
   id: TabId;
@@ -42,6 +50,7 @@ const TABS: {
   { id: "inicio", label: "Inicio", icon: Home },
   { id: "movimientos", label: "Movim.", icon: ArrowLeftRight },
   { id: "cuentas", label: "Cuentas", icon: Landmark },
+  { id: "inversiones", label: "Invers.", icon: LineChart },
   { id: "presupuestos", label: "Presup.", icon: Wallet },
   { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
@@ -73,6 +82,7 @@ function MobileShell() {
         {tab === "inicio" && <MobileHome />}
         {tab === "movimientos" && <MobileMovements />}
         {tab === "cuentas" && <MobileAccounts />}
+        {tab === "inversiones" && <MobileInvestments />}
         {tab === "presupuestos" && <MobileBudgets />}
         {tab === "ajustes" && <MobileSettings />}
       </main>
