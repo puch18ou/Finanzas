@@ -27,6 +27,7 @@
         { "url": "https://*.finance.yahoo.com/*" },
         { "url": "https://query1.finance.yahoo.com/*" },
         { "url": "https://query2.finance.yahoo.com/*" },
+        { "url": "https://markets.ft.com/*" },
         { "url": "https://stooq.com/*" },
         { "url": "https://api.frankfurter.dev/*" },
         { "url": "https://api.frankfurter.app/*" },

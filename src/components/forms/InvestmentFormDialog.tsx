@@ -337,7 +337,7 @@ export function InvestmentFormDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               {isinMsg ??
-                "Pega el ISIN y pulsa Buscar para rellenar el ticker (si Yahoo lo tiene)."}
+                "En fondos, el ISIN basta para cotizar el VL automaticamente (Financial Times). En acciones/ETF, pulsa Buscar para rellenar el ticker (Yahoo)."}
             </p>
           </div>
 

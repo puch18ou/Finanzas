@@ -182,13 +182,14 @@ export default function InversionesPage() {
     setValueFor(null);
   };
 
-  // ¿Se puede cotizar por API? Cualquier activo con ticker, salvo la cuenta
-  // remunerada (que se valora por TAE, no por mercado). Los fondos "por dinero"
-  // se actualizan escalando su valor por el VL (ver useInvestments.refreshQuote).
+  // ¿Se puede cotizar por API? Salvo la cuenta remunerada (que se valora por
+  // TAE, no por mercado): cualquier activo con ticker (Yahoo), o un fondo "por
+  // dinero" con ISIN (su VL se baja de Financial Times; ver
+  // useInvestments.refreshQuote). Los fondos se valoran escalando por el VL.
   const cotizable = (inv: Investment) =>
-    !!inv.ticker &&
-    inv.ticker.trim() !== "" &&
-    inv.tipo !== "Cuenta remunerada";
+    inv.tipo !== "Cuenta remunerada" &&
+    ((!!inv.ticker && inv.ticker.trim() !== "") ||
+      (!usaParticipaciones(inv.tipo) && !!inv.isin && inv.isin.trim() !== ""));
 
   // Refresca los tipos de cambio (BCE) y devuelve el mapa YA actualizado. Asi
   // la conversion del precio (p.ej. oro USD->EUR) usa el tipo de HOY y no uno

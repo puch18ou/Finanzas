@@ -10,7 +10,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import { fetchQuote } from "@/lib/services/quote-service";
+import {
+  fetchQuote,
+  fetchFundNavByIsin,
+  type Quote,
+} from "@/lib/services/quote-service";
 import { convert, type RatesMap } from "@/lib/domain/currency";
 import { usaParticipaciones } from "@/lib/domain/investments";
 import type { Investment } from "@/lib/db/schema";
@@ -72,10 +76,34 @@ export function useInvestments() {
   // tipo de cambio para la conversion.
   const refreshQuoteMutation = useMutation({
     mutationFn: async ({ inv, rates }: { inv: Investment; rates: RatesMap }) => {
-      if (!inv.ticker || !inv.ticker.trim()) {
-        throw new Error("Esta inversion no tiene ticker.");
+      const esFondo = !usaParticipaciones(inv.tipo);
+      const tieneIsin = !!inv.isin && inv.isin.trim() !== "";
+      const tieneTicker = !!inv.ticker && inv.ticker.trim() !== "";
+
+      // Fuente del VL/precio:
+      //  - Fondo (modo dinero) con ISIN -> Financial Times por ISIN. Es el VL
+      //    OFICIAL; Yahoo no cubre fondos espanoles y da un VL desfasado.
+      //  - Si FT no cubre ese ISIN pero hay ticker, respaldo a Yahoo (asi no se
+      //    rompe Algebris y similares que ya cotizaban por ticker).
+      //  - Resto de activos (Acciones/ETF/Cripto) -> Yahoo por ticker.
+      let q: Quote | null = null;
+      if (esFondo && tieneIsin) {
+        try {
+          q = await fetchFundNavByIsin(inv.isin!.trim());
+        } catch (e) {
+          if (!tieneTicker) throw e;
+        }
       }
-      const q = await fetchQuote(inv.ticker);
+      if (!q) {
+        if (!tieneTicker) {
+          throw new Error(
+            esFondo
+              ? "El fondo no tiene ISIN cotizable ni ticker."
+              : "Esta inversion no tiene ticker.",
+          );
+        }
+        q = await fetchQuote(inv.ticker!);
+      }
       // Precio/VL en la moneda del activo (convertido si hace falta).
       let valor = q.precio;
       let convertidoDe: string | null = null;

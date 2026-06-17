@@ -25,15 +25,17 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { useInvestments } from "@/hooks/useInvestments";
 import { buildRatesMap } from "@/lib/domain/currency";
+import { usaParticipaciones } from "@/lib/domain/investments";
 import { recordHealthError, clearHealthError } from "@/lib/utils/health-log";
 import type { Investment } from "@/lib/db/schema";
 
-// Mismo criterio que /inversiones: cotiza cualquier activo con ticker, salvo
-// la cuenta remunerada (se valora por TAE, no por mercado).
+// Mismo criterio que /inversiones: cotiza cualquier activo con ticker (Yahoo),
+// o un fondo "por dinero" con ISIN (VL via Financial Times). Salvo la cuenta
+// remunerada (se valora por TAE, no por mercado).
 const esCotizable = (inv: Investment) =>
-  !!inv.ticker &&
-  inv.ticker.trim() !== "" &&
-  inv.tipo !== "Cuenta remunerada";
+  inv.tipo !== "Cuenta remunerada" &&
+  ((!!inv.ticker && inv.ticker.trim() !== "") ||
+    (!usaParticipaciones(inv.tipo) && !!inv.isin && inv.isin.trim() !== ""));
 
 export function MarketAutoRefresh() {
   const { settings } = useSettings();

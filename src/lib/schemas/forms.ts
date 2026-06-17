@@ -108,7 +108,7 @@ export const TIPOS_INVERSION = [
   "Bono",
   "Plan pensiones",
   "Inmueble",
-  "Robo-advisor",
+  "Cartera de fondos",
   "Cuenta remunerada",
   "Otro",
 ] as const;
