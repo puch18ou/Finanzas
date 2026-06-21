@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
 import { LocalBackupsCard } from "@/components/backup/LocalBackupsCard";
+import { ExportInvestmentsCard } from "@/components/ajustes/ExportInvestmentsCard";
 import { HealthCard } from "@/components/ajustes/HealthCard";
 import { SyncCard } from "@/components/sync/SyncCard";
 import { SecurityCard } from "@/components/auth/SecurityCard";
@@ -448,6 +449,8 @@ export default function AjustesPage() {
       <BackupCard />
 
       <LocalBackupsCard />
+
+      <ExportInvestmentsCard />
 
       <SyncCard />
     </div>
