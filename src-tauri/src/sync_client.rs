@@ -12,14 +12,27 @@
 //  sobre TcpStream (el trafico es cleartext en la LAN, sin TLS, igual que el
 //  servidor tiny_http). Al no pasar por el plugin NO hay scope que validar, y
 //  funciona en CUALQUIER red/IP sin mantener listas de permisos. Sin deps.
+//
+//  IMPORTANTE: el trabajo de red es BLOQUEANTE (TcpStream). El comando es
+//  `async` y saca ese trabajo a un hilo del pool (spawn_blocking) para NO
+//  congelar el hilo principal de la UI: la auto-sync corre al arrancar y cada
+//  30s, y si el PC no responde el connect espera hasta el timeout. Sin esto, la
+//  app se quedaba "lentisima" bloqueada durante ese tiempo.
 // ============================================================================
 
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-const CONNECT_TIMEOUT_SECS: u64 = 10;
-const IO_TIMEOUT_SECS: u64 = 30;
+use tauri::async_runtime::spawn_blocking;
+
+/// Timeout de conexion. En una LAN sana el connect es inmediato (<100ms); si el
+/// PC no responde (firewall/apagado) queremos rendirnos PRONTO, no colgar la
+/// sync ni castigar al arranque.
+const CONNECT_TIMEOUT_SECS: u64 = 4;
+/// Timeout de lectura/escritura una vez conectados (el snapshot puede ser
+/// grande, pero tiny_http responde en cuanto el motor de sync termina).
+const IO_TIMEOUT_SECS: u64 = 20;
 
 /// Descompone "http://host:puerto/path" en (host:puerto, path). Sin dependencias.
 fn split_url(url: &str) -> Result<(String, String), String> {
@@ -35,9 +48,20 @@ fn split_url(url: &str) -> Result<(String, String), String> {
 /// POST de un cuerpo JSON al servidor de sync del PC. Devuelve el cuerpo de la
 /// respuesta (JSON). No pasa por el scope del plugin HTTP -> vale para cualquier
 /// IP de la LAN, en Android y en escritorio por igual.
+///
+/// `async` + spawn_blocking: el IO real corre en un hilo aparte para no bloquear
+/// la UI (ver nota de cabecera).
 #[tauri::command]
-pub fn lan_http_post(url: String, body: String) -> Result<String, String> {
-    let (authority, path) = split_url(&url)?;
+pub async fn lan_http_post(url: String, body: String) -> Result<String, String> {
+    spawn_blocking(move || post_blocking(&url, &body))
+        .await
+        .map_err(|e| format!("Fallo el hilo de red: {e}"))?
+}
+
+/// La peticion HTTP en si, bloqueante. Aislada para poder testearla sin runtime
+/// async y para envolverla en spawn_blocking desde el comando.
+fn post_blocking(url: &str, body: &str) -> Result<String, String> {
+    let (authority, path) = split_url(url)?;
 
     // Resolver la direccion. Si es una IP (caso LAN) no hay DNS de por medio.
     let addr = authority
@@ -123,8 +147,8 @@ mod tests {
         });
 
         let url = format!("http://127.0.0.1:{port}/");
-        let payload = r#"{"kind":"exchange","n":42}"#.to_string();
-        let out = lan_http_post(url, payload.clone()).unwrap();
+        let payload = r#"{"kind":"exchange","n":42}"#;
+        let out = post_blocking(&url, payload).unwrap();
 
         assert_eq!(out, payload);
         handle.join().unwrap();
@@ -135,7 +159,7 @@ mod tests {
     #[test]
     fn puerto_cerrado_devuelve_error() {
         // Puerto 1 en 127.0.0.1: nadie escucha -> conexion rechazada.
-        let res = lan_http_post("http://127.0.0.1:1/".to_string(), "{}".to_string());
+        let res = post_blocking("http://127.0.0.1:1/", "{}");
         assert!(res.is_err());
     }
 
