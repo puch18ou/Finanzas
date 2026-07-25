@@ -10,7 +10,6 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { fetch } from "@tauri-apps/plugin-http";
 import { setActiveDbPath, getRawDb } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { createSyncSession } from "./session-factory";
@@ -93,29 +92,45 @@ export async function syncWithServer(address: string): Promise<PullStats> {
   const peerKey = `lan:${address.trim()}`;
 
   return session.exchangeWith(peerKey, async (req: ExchangeRequest) => {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "exchange", req: requestToWire(req) }),
-      });
-    } catch {
-      // El fetch falla (no llega al PC): mensaje claro y accionable en vez del
-      // error de red crudo.
-      throw new Error(
-        `No se pudo conectar con el PC (${address}). Comprueba que la app de escritorio este abierta con el servidor ENCENDIDO, que ambos esten en la MISMA WiFi y que la direccion/QR sea la actual (la IP del PC puede cambiar).`,
-      );
-    }
-    if (!res.ok) {
-      throw new Error(`El PC respondio ${res.status}. ¿Servidor encendido?`);
-    }
-    const data = (await res.json()) as ExchangeResponse | { error: string };
-    if (data && typeof data === "object" && "error" in data) {
-      throw new Error(String((data as { error: string }).error));
-    }
-    return data as ExchangeResponse;
+    // Pedimos por el cliente HTTP nativo (comando Rust): no pasa por el scope
+    // del plugin HTTP, asi que funciona en cualquier IP de la LAN (Android
+    // rechazaba las IPs con comodin del scope).
+    const data = await postToServer<ExchangeResponse>(url, {
+      kind: "exchange",
+      req: requestToWire(req),
+    });
+    return data;
   });
+}
+
+/**
+ * POST JSON al servidor de sync del PC via el comando nativo `lan_http_post`
+ * (TcpStream en Rust, sin el scope del plugin HTTP). Traduce los fallos de red
+ * en un mensaje accionable y propaga los errores que devuelva el motor (PIN
+ * incorrecto, etc.) tal cual.
+ */
+async function postToServer<T>(
+  url: string,
+  payload: unknown,
+): Promise<T> {
+  let bodyText: string;
+  try {
+    bodyText = await invoke<string>("lan_http_post", {
+      url,
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // No se pudo abrir la conexion con el PC: mensaje claro y accionable en vez
+    // del error de red crudo.
+    throw new Error(
+      "No se pudo conectar con el PC. Comprueba que la app de escritorio este abierta con el servidor ENCENDIDO, que ambos esten en la MISMA WiFi y que la direccion/QR sea la actual (la IP del PC puede cambiar).",
+    );
+  }
+  const data = JSON.parse(bodyText) as T | { error: string };
+  if (data && typeof data === "object" && "error" in data) {
+    throw new Error(String((data as { error: string }).error));
+  }
+  return data as T;
 }
 
 // -- Aprovisionamiento: traer un usuario del PC a un dispositivo nuevo --------
@@ -142,19 +157,11 @@ export async function provisionFromServer(
   username: string,
   pin: string,
 ): Promise<ProvisionResult> {
-  const res = await fetch(toUrl(address), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "provision", username, pin }),
+  return postToServer<ProvisionResult>(toUrl(address), {
+    kind: "provision",
+    username,
+    pin,
   });
-  if (!res.ok) {
-    throw new Error(`El PC respondio ${res.status}. ¿Servidor encendido?`);
-  }
-  const data = (await res.json()) as ProvisionResult | { error: string };
-  if (data && typeof data === "object" && "error" in data) {
-    throw new Error(String((data as { error: string }).error));
-  }
-  return data as ProvisionResult;
 }
 
 /**

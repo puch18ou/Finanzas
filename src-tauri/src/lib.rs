@@ -1,6 +1,7 @@
 // Punto de entrada del binario nativo.
 // La logica vive en TypeScript; aqui solo registramos plugins.
 
+mod sync_client;
 mod sync_server;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -33,6 +34,7 @@ pub fn run() {
             sync_server::sync_server_stop,
             sync_server::sync_server_status,
             sync_server::sync_respond,
+            sync_client::lan_http_post,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
