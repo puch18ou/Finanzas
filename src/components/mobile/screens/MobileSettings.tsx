@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LogOut, Sun, Moon, Monitor } from "lucide-react";
 import { MobileScreen } from "../MobileScreen";
 import { SyncCard } from "@/components/sync/SyncCard";
+import { BackupCard } from "@/components/papelera/BackupCard";
 import { useAuth } from "@/contexts/AuthProvider";
 import { useGlobalTheme, type ThemeValue } from "@/contexts/GlobalThemeProvider";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ export function MobileSettings() {
   return (
     <MobileScreen title="Ajustes">
       <SyncCard />
+
+      <BackupCard />
 
       <Card>
         <CardHeader className="pb-2">
