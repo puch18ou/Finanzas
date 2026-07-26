@@ -4,10 +4,15 @@
  * ============================================================================
  *
  *  Guarda copias COMPRIMIDAS (.json.gz) del backup completo en la carpeta de
- *  datos de la app (BaseDirectory.AppData/backups), una por dia. Rotacion: se
- *  conservan los N ficheros mas recientes (por dia, no por dia natural: los
- *  dias que no abres la app se saltan). Abrir varias veces el mismo dia
- *  sobrescribe el fichero de ese dia.
+ *  datos de la app, una por dia. Rotacion: se conservan los N ficheros mas
+ *  recientes (por dia, no por dia natural: los dias que no abres la app se
+ *  saltan). Abrir varias veces el mismo dia sobrescribe el fichero de ese dia.
+ *
+ *  AISLAMIENTO POR USUARIO (multiusuario, Lote 12): cada usuario guarda sus
+ *  copias en su PROPIA subcarpeta `backups/<idUsuario>/`. Antes iban todas a
+ *  `backups/` a secas, asi que un usuario veia (y podia restaurar) las copias
+ *  de otro -> fuga de datos entre usuarios del mismo equipo. Por eso todas las
+ *  funciones reciben el `userId` del usuario activo.
  *
  *  Es un backup de VERDAD: vive como fichero aparte, sobrevive aunque la BD
  *  se corrompa. Requiere el plugin tauri-plugin-fs (escritorio y movil).
@@ -28,13 +33,23 @@ import {
 } from "@tauri-apps/plugin-fs";
 import type { BackupService, BackupFile } from "./backup-service";
 
-const BACKUP_DIR = "backups";
+const BACKUP_ROOT = "backups";
 const PREFIX = "finanzas-";
 const SUFFIX = ".json.gz";
 /** Cuantos ficheros de backup conservar (los mas recientes). */
 export const KEEP_BACKUPS = 10;
 
 const FS = { baseDir: BaseDirectory.AppData } as const;
+
+/**
+ * Subcarpeta de copias del usuario `userId`, saneando el id para que sea un
+ * nombre de carpeta seguro (los ids son internos, pero evitamos sorpresas con
+ * separadores de ruta). Cada usuario queda aislado en su propia carpeta.
+ */
+function backupDir(userId: string): string {
+  const safe = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `${BACKUP_ROOT}/${safe}`;
+}
 
 /** ¿Estamos dentro del runtime de Tauri? (en `next dev` puro no hay FS). */
 export function isTauriRuntime(): boolean {
@@ -54,8 +69,8 @@ function fileNameForDay(dayKey: string): string {
   return `${PREFIX}${dayKey}${SUFFIX}`;
 }
 
-function pathFor(name: string): string {
-  return `${BACKUP_DIR}/${name}`;
+function pathFor(userId: string, name: string): string {
+  return `${backupDir(userId)}/${name}`;
 }
 
 /** Extrae la fecha (YYYY-MM-DD) del nombre de fichero, o null si no encaja. */
@@ -86,11 +101,14 @@ export type LocalBackupEntry = {
   dia: string;
 };
 
-/** Lista las copias existentes, mas reciente primero. */
-export async function listLocalBackups(): Promise<LocalBackupEntry[]> {
+/** Lista las copias del usuario `userId`, mas reciente primero. */
+export async function listLocalBackups(
+  userId: string,
+): Promise<LocalBackupEntry[]> {
   if (!isTauriRuntime()) return [];
-  if (!(await exists(BACKUP_DIR, FS))) return [];
-  const entries = await readDir(BACKUP_DIR, FS);
+  const dir = backupDir(userId);
+  if (!(await exists(dir, FS))) return [];
+  const entries = await readDir(dir, FS);
   const backups: LocalBackupEntry[] = [];
   for (const e of entries) {
     if (!e.isFile) continue;
@@ -103,12 +121,12 @@ export async function listLocalBackups(): Promise<LocalBackupEntry[]> {
   return backups;
 }
 
-/** Elimina los backups que excedan los `keep` mas recientes. */
-async function rotate(keep: number): Promise<void> {
-  const backups = await listLocalBackups();
+/** Elimina los backups del usuario que excedan los `keep` mas recientes. */
+async function rotate(userId: string, keep: number): Promise<void> {
+  const backups = await listLocalBackups(userId);
   for (const old of backups.slice(keep)) {
     try {
-      await remove(pathFor(old.name), FS);
+      await remove(pathFor(userId, old.name), FS);
     } catch {
       // best-effort
     }
@@ -116,46 +134,54 @@ async function rotate(keep: number): Promise<void> {
 }
 
 /**
- * Crea/sobrescribe la copia de HOY y rota. Devuelve el nombre del fichero o
- * null si no se pudo (sin runtime de Tauri, error de FS...).
+ * Crea/sobrescribe la copia de HOY del usuario `userId` y rota. Devuelve el
+ * nombre del fichero o null si no se pudo (sin runtime de Tauri, error de FS...).
  */
 export async function createDailyBackup(
   backup: BackupService,
+  userId: string,
 ): Promise<string | null> {
   if (!isTauriRuntime()) return null;
-  await mkdir(BACKUP_DIR, { ...FS, recursive: true });
+  await mkdir(backupDir(userId), { ...FS, recursive: true });
   const data = await backup.exportAll();
   const bytes = await gzip(JSON.stringify(data));
   const name = fileNameForDay(todayKey());
-  await writeFile(pathFor(name), bytes, FS);
-  await rotate(KEEP_BACKUPS);
+  await writeFile(pathFor(userId, name), bytes, FS);
+  await rotate(userId, KEEP_BACKUPS);
   return name;
 }
 
-/** ¿Existe ya la copia de hoy? (para no re-exportar en cada apertura). */
-export async function todayBackupExists(): Promise<boolean> {
+/** ¿Existe ya la copia de hoy del usuario? (para no re-exportar al abrir). */
+export async function todayBackupExists(userId: string): Promise<boolean> {
   if (!isTauriRuntime()) return false;
-  return exists(pathFor(fileNameForDay(todayKey())), FS);
+  return exists(pathFor(userId, fileNameForDay(todayKey())), FS);
 }
 
-/** Lee y descomprime una copia, devolviendo el objeto BackupFile crudo. */
-export async function readLocalBackup(name: string): Promise<unknown> {
-  const bytes = await readFile(pathFor(name), FS);
+/** Lee y descomprime una copia del usuario, devolviendo el BackupFile crudo. */
+export async function readLocalBackup(
+  userId: string,
+  name: string,
+): Promise<unknown> {
+  const bytes = await readFile(pathFor(userId, name), FS);
   const text = await gunzip(bytes);
   return JSON.parse(text);
 }
 
-/** Restaura una copia: valida e importa (REEMPLAZA todos los datos). */
+/** Restaura una copia del usuario: valida e importa (REEMPLAZA todos los datos). */
 export async function restoreLocalBackup(
   backup: BackupService,
+  userId: string,
   name: string,
 ): Promise<void> {
-  const obj = await readLocalBackup(name);
+  const obj = await readLocalBackup(userId, name);
   backup.validateBackup(obj);
   await backup.importAll(obj as BackupFile);
 }
 
-/** Borra una copia concreta. */
-export async function deleteLocalBackup(name: string): Promise<void> {
-  await remove(pathFor(name), FS);
+/** Borra una copia concreta del usuario. */
+export async function deleteLocalBackup(
+  userId: string,
+  name: string,
+): Promise<void> {
+  await remove(pathFor(userId, name), FS);
 }

@@ -10,6 +10,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { useAuth } from "@/contexts/AuthProvider";
 import {
   createDailyBackup,
   todayBackupExists,
@@ -18,23 +19,26 @@ import {
 
 export function AutoBackupRunner() {
   const repos = useRepos();
+  const { user } = useAuth();
   const lanzado = useRef(false);
 
   useEffect(() => {
     if (lanzado.current) return;
     if (!isTauriRuntime()) return;
+    if (!user) return;
     lanzado.current = true;
 
+    const userId = user.id;
     (async () => {
       try {
-        // Una copia por dia: si ya existe la de hoy, no re-exportamos.
-        if (await todayBackupExists()) return;
-        await createDailyBackup(repos.backup);
+        // Una copia por dia y POR USUARIO: si ya existe la de hoy, no re-exportamos.
+        if (await todayBackupExists(userId)) return;
+        await createDailyBackup(repos.backup, userId);
       } catch (e) {
         console.error("[backup] no se pudo crear la copia diaria", e);
       }
     })();
-  }, [repos]);
+  }, [repos, user]);
 
   return null;
 }

@@ -10,6 +10,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { useAuth } from "@/contexts/AuthProvider";
 import type { Repositories } from "@/lib/repositories";
 import {
   listLocalBackups,
@@ -22,15 +23,21 @@ export const LOCAL_BACKUPS_KEY = ["localBackups"] as const;
 
 export function useLocalBackups() {
   const repos: Repositories = useRepos();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const qc = useQueryClient();
 
   const list = useQuery({
-    queryKey: LOCAL_BACKUPS_KEY,
-    queryFn: () => listLocalBackups(),
+    // La clave incluye el usuario: al cambiar de sesion, la lista se recarga
+    // (cada usuario ve SOLO sus copias).
+    queryKey: [...LOCAL_BACKUPS_KEY, userId],
+    queryFn: () => (userId ? listLocalBackups(userId) : Promise.resolve([])),
+    enabled: !!userId,
   });
 
   const create = useMutation({
-    mutationFn: () => createDailyBackup(repos.backup),
+    mutationFn: () =>
+      userId ? createDailyBackup(repos.backup, userId) : Promise.resolve(null),
     onSuccess: (name) => {
       qc.invalidateQueries({ queryKey: LOCAL_BACKUPS_KEY });
       toast.success(name ? "Copia de seguridad creada" : "Copia no disponible");
@@ -42,7 +49,10 @@ export function useLocalBackups() {
   });
 
   const restore = useMutation({
-    mutationFn: (name: string) => restoreLocalBackup(repos.backup, name),
+    mutationFn: (name: string) => {
+      if (!userId) throw new Error("No hay sesion iniciada.");
+      return restoreLocalBackup(repos.backup, userId, name);
+    },
     onSuccess: () => {
       qc.invalidateQueries(); // todo cambia
       toast.success("Datos restaurados desde la copia");
@@ -54,7 +64,10 @@ export function useLocalBackups() {
   });
 
   const del = useMutation({
-    mutationFn: (name: string) => deleteLocalBackup(name),
+    mutationFn: (name: string) => {
+      if (!userId) throw new Error("No hay sesion iniciada.");
+      return deleteLocalBackup(userId, name);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: LOCAL_BACKUPS_KEY });
       toast.success("Copia borrada");
