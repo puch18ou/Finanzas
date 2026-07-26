@@ -662,6 +662,12 @@ export default function InversionesPage() {
               : editing.participaciones > 0
                 ? data.valorActual / editing.participaciones
                 : 0;
+            // Si el usuario cambia el valor actual al editar (lapiz), sellamos
+            // la fecha de actualizacion igual que el boton "Actualizar valor",
+            // para que el aviso de "precio sin actualizar" desaparezca. Si no
+            // toca el valor, no la tocamos.
+            const precioCambio =
+              Math.abs(precioActual - editing.precioActual) > 1e-9;
             // Lote 16: TAE. Si la inversion pasa de "sin TAE" a "con TAE",
             // fijamos ultimoInteresAplicado=now para no aplicar retroactivos.
             const tasaInteresNueva =
@@ -693,6 +699,9 @@ export default function InversionesPage() {
                   ? (data.interesCompuesto ?? true)
                   : null,
                 ultimoInteresAplicado,
+                ...(precioCambio
+                  ? { ultimaActualizacionPrecio: new Date() }
+                  : {}),
               },
             });
           } else {

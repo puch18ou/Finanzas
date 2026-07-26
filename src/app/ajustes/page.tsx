@@ -32,9 +32,13 @@
  * ============================================================================
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, AlertCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useRepos } from "@/contexts/DatabaseProvider";
+import { buildRatesMap } from "@/lib/domain/currency";
+import { convertBudgetsToLocal } from "@/lib/services/budget-currency-service";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useGlobalTheme, type ThemeValue } from "@/contexts/GlobalThemeProvider";
 import { ObjetivoAhorroTramosCard } from "@/components/ajustes/ObjetivoAhorroTramosCard";
@@ -84,6 +88,9 @@ export default function AjustesPage() {
   const { data: currencies = [], isLoading: currenciesLoading } =
     useCurrencies();
   const { accounts, isLoading: accountsLoading } = useAccounts();
+  const repos = useRepos();
+  const qc = useQueryClient();
+  const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
 
   const cuentasActivas = accounts.filter((a) => a.activa);
 
@@ -118,6 +125,7 @@ export default function AjustesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
+    if (!settings) return;
 
     if (!monedaLocal || !monedaVista) {
       setFeedback({
@@ -138,6 +146,12 @@ export default function AjustesPage() {
       const emptyToNull = (v: string | null | undefined) =>
         v === "" || v == null ? null : v;
 
+      // Si CAMBIA la moneda local, convertimos automaticamente los presupuestos
+      // existentes a la nueva moneda al tipo de cambio (p.ej. 600 SGD -> 414 EUR).
+      // Ver budget-currency-service.
+      const monedaLocalAnterior = settings.monedaLocal;
+      const cambioMonedaLocal = monedaLocal !== monedaLocalAnterior;
+
       await update({
         monedaLocal,
         monedaVista,
@@ -149,7 +163,20 @@ export default function AjustesPage() {
         integrarCuotaHipoteca,
         cuentaPorDefectoId: emptyToNull(cuentaPorDefectoId),
       });
-      setFeedback({ kind: "success", text: "Ajustes guardados" });
+
+      let convertidos = 0;
+      if (cambioMonedaLocal) {
+        convertidos = await convertBudgetsToLocal(repos, monedaLocal, rates);
+        await qc.invalidateQueries();
+      }
+
+      setFeedback({
+        kind: "success",
+        text:
+          cambioMonedaLocal && convertidos > 0
+            ? `Ajustes guardados. Presupuestos pasados de ${monedaLocalAnterior} a ${monedaLocal} (${convertidos} convertidos).`
+            : "Ajustes guardados",
+      });
     } catch (e) {
       setFeedback({
         kind: "error",
