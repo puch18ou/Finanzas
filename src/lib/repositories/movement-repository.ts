@@ -135,6 +135,55 @@ export class MovementRepository extends BaseRepository {
   }
 
   /**
+   * Devoluciones (activas) vinculadas a un GASTO concreto (gastoAsociadoId),
+   * recientes primero. Para el dialogo "devoluciones de este gasto".
+   */
+  async listByGastoAsociado(gastoId: string): Promise<Movement[]> {
+    return this.db
+      .select()
+      .from(movements)
+      .where(
+        and(
+          isNull(movements.deletedAt),
+          eq(movements.gastoAsociadoId, gastoId),
+        ),
+      )
+      .orderBy(desc(movements.fecha), desc(movements.createdAt));
+  }
+
+  /**
+   * Mapa gastoId -> devoluciones vinculadas (activas) con su importe y MONEDA,
+   * para calcular el "coste real" en el cliente sin una query por gasto. Se
+   * devuelve la moneda porque una devolucion puede estar en otra divisa que el
+   * gasto; la conversion la hace domain/refunds.sumRefundsInCurrency.
+   */
+  async refundsByGastoMap(): Promise<
+    Record<string, Array<{ importe: number; moneda: string }>>
+  > {
+    const rows = await this.db
+      .select({
+        gastoId: movements.gastoAsociadoId,
+        importe: movements.importe,
+        moneda: movements.moneda,
+      })
+      .from(movements)
+      .where(
+        and(
+          isNull(movements.deletedAt),
+          eq(movements.tipo, "devolucion"),
+          isNotNull(movements.gastoAsociadoId),
+        ),
+      );
+
+    const map: Record<string, Array<{ importe: number; moneda: string }>> = {};
+    for (const r of rows) {
+      if (!r.gastoId) continue;
+      (map[r.gastoId] ??= []).push({ importe: r.importe, moneda: r.moneda });
+    }
+    return map;
+  }
+
+  /**
    * Pares (concepto, categoriaId) de movimientos recientes CON categoria, para
    * sugerir la categoria al teclear el concepto (ver domain/category-suggest).
    * Recientes primero, limitado para no cargar todo el historico.

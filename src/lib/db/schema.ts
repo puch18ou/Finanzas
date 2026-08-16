@@ -582,6 +582,11 @@ export const movements = sqliteTable(
     categoriaId: text("categoria_id").references(() => categories.id),
     categoriaTexto: text("categoria_texto"),
 
+    // Solo en devoluciones (tipo 'devolucion'): id del GASTO que reembolsan,
+    // para calcular el coste real del gasto. NULL = devolucion suelta (sin
+    // gasto asociado). Ver domain/refunds.ts.
+    gastoAsociadoId: text("gasto_asociado_id"),
+
     mes: integer("mes").notNull(),
     anio: integer("anio").notNull(),
 

@@ -36,12 +36,14 @@ import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useRefundTotals } from "@/hooks/useRefunds";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
 import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import type { RecurringRule } from "@/lib/db/schema";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
+import { RefundsDialog } from "@/components/forms/RefundsDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { Button } from "@/components/ui/button";
@@ -69,6 +71,7 @@ import type { Movement } from "@/lib/db/schema";
 import type { MovementType, CreateMovementData } from "@/lib/repositories";
 import { formatAmount, buildRatesMap, convert } from "@/lib/domain/currency";
 import { parseTags, allTags, hasTag } from "@/lib/domain/tags";
+import { costeReal, sumRefundsInCurrency } from "@/lib/domain/refunds";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
@@ -222,6 +225,11 @@ export default function MovimientosPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Movement | null>(null);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
+  const [refundsFor, setRefundsFor] = useState<Movement | null>(null);
+
+  // Devoluciones por gasto (importe+moneda) para el coste real. La suma
+  // convertida a la moneda de cada gasto se calcula al pintar cada fila.
+  const { data: refundsByGasto = {} } = useRefundTotals();
 
   const tabToFormTipo = (
     t: TabKey,
@@ -387,6 +395,12 @@ export default function MovimientosPage() {
                       setFormOpen(true);
                     }}
                     onDelete={() => setToDelete(m)}
+                    totalDevuelto={sumRefundsInCurrency(
+                      refundsByGasto[m.id] ?? [],
+                      m.moneda,
+                      rates,
+                    )}
+                    onRefunds={() => setRefundsFor(m)}
                   />
                 ))}
               </TableBody>
@@ -410,6 +424,16 @@ export default function MovimientosPage() {
         defaultAccountId={settings.cuentaPorDefectoId ?? null}
         loading={isMutating}
         onSubmit={handleSubmit}
+      />
+
+      <RefundsDialog
+        open={!!refundsFor}
+        onOpenChange={(v) => !v && setRefundsFor(null)}
+        gasto={refundsFor}
+        accounts={accounts}
+        accById={accById}
+        currencies={currencies}
+        defaultAccountId={settings.cuentaPorDefectoId ?? null}
       />
 
       <DeleteConfirmation
@@ -459,6 +483,8 @@ function MovementRow({
   invNameByMovId,
   onEdit,
   onDelete,
+  totalDevuelto,
+  onRefunds,
 }: {
   m: Movement;
   catById: Record<string, string>;
@@ -466,9 +492,13 @@ function MovementRow({
   invNameByMovId: Record<string, string>;
   onEdit: () => void;
   onDelete: () => void;
+  totalDevuelto: number;
+  onRefunds: () => void;
 }) {
   const tipoMeta = getTipoMeta(m.tipo);
   const fecha = m.fecha instanceof Date ? m.fecha : new Date(m.fecha);
+  // Las devoluciones se asocian a gastos (y cuotas). El resto de tipos no.
+  const esGasto = m.tipo === "gasto" || m.tipo === "cuota";
 
   return (
     <TableRow>
@@ -509,9 +539,28 @@ function MovementRow({
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass)}>
         {tipoMeta.amountSign}
         {formatAmount(m.importe, m.moneda)}
+        {esGasto && totalDevuelto > 0 && (
+          <div className="text-xs font-normal text-muted-foreground">
+            −{formatAmount(totalDevuelto, m.moneda)} dev. · real{" "}
+            <span className="font-medium text-foreground">
+              {formatAmount(costeReal(m.importe, totalDevuelto), m.moneda)}
+            </span>
+          </div>
+        )}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
+          {esGasto && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRefunds}
+              aria-label="Devoluciones"
+              title="Devoluciones de este gasto"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar">
             <Pencil className="h-4 w-4" />
           </Button>

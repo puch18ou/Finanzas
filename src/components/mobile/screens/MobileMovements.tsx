@@ -1,16 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, Undo2 } from "lucide-react";
 import { MobileScreen } from "../MobileScreen";
 import { useMovementEditor } from "../MobileMovementEditor";
 import { movementKind, movKindColor, movKindSign } from "../movement-display";
 import { useMovements } from "@/hooks/useMovements";
 import { useCategories } from "@/hooks/useCategories";
+import { useAccounts } from "@/hooks/useAccounts";
+import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useRefundTotals } from "@/hooks/useRefunds";
 import { formatMoney } from "@/lib/utils/money";
+import { buildRatesMap } from "@/lib/domain/currency";
+import { costeReal, sumRefundsInCurrency } from "@/lib/domain/refunds";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
+import { RefundsDialog } from "@/components/forms/RefundsDialog";
 import type { Movement } from "@/lib/db/schema";
 
 const MESES = [
@@ -20,6 +26,10 @@ const MESES = [
 
 export function MobileMovements() {
   const { categories } = useCategories();
+  const { accounts } = useAccounts();
+  const { settings } = useSettings();
+  const { data: currencies = [] } = useCurrencies();
+  const { data: refundsByGasto = {} } = useRefundTotals();
   const editor = useMovementEditor();
 
   const now = new Date();
@@ -35,6 +45,14 @@ export function MobileMovements() {
   const { movements, remove, isMutating } = useMovements({ anio, mes });
 
   const [toDelete, setToDelete] = useState<Movement | null>(null);
+  const [refundsFor, setRefundsFor] = useState<Movement | null>(null);
+
+  const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
+  const accById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const a of accounts) map[a.id] = a.alias;
+    return map;
+  }, [accounts]);
 
   const catName = useMemo(() => {
     const map = new Map(categories.map((c) => [c.id, c.nombre]));
@@ -71,6 +89,10 @@ export function MobileMovements() {
             {lista.map((m) => {
               const kind = movementKind(m.tipo);
               const cat = catName(m);
+              const esGasto = m.tipo === "gasto" || m.tipo === "cuota";
+              const totalDevuelto = esGasto
+                ? sumRefundsInCurrency(refundsByGasto[m.id] ?? [], m.moneda, rates)
+                : 0;
               return (
                 <div key={m.id} className="flex items-center gap-1 pr-1">
                   {/* Toque en la fila -> editar */}
@@ -89,11 +111,29 @@ export function MobileMovements() {
                         {cat ? ` · ${cat}` : ""}
                       </p>
                     </div>
-                    <span className={`shrink-0 text-sm font-semibold ${movKindColor(kind)}`}>
-                      {movKindSign(kind)}
-                      {formatMoney(m.importe, m.moneda)}
-                    </span>
+                    <div className="shrink-0 text-right">
+                      <span className={`text-sm font-semibold ${movKindColor(kind)}`}>
+                        {movKindSign(kind)}
+                        {formatMoney(m.importe, m.moneda)}
+                      </span>
+                      {esGasto && totalDevuelto > 0 && (
+                        <p className="text-[10px] text-muted-foreground">
+                          real {formatMoney(costeReal(m.importe, totalDevuelto), m.moneda)}
+                        </p>
+                      )}
+                    </div>
                   </button>
+                  {/* Devoluciones (solo gastos) */}
+                  {esGasto && (
+                    <button
+                      type="button"
+                      onClick={() => setRefundsFor(m)}
+                      aria-label="Devoluciones"
+                      className="shrink-0 p-2 text-muted-foreground active:text-foreground"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                    </button>
+                  )}
                   {/* Borrar */}
                   <button
                     type="button"
@@ -109,6 +149,16 @@ export function MobileMovements() {
           </CardContent>
         </Card>
       )}
+
+      <RefundsDialog
+        open={!!refundsFor}
+        onOpenChange={(v) => !v && setRefundsFor(null)}
+        gasto={refundsFor}
+        accounts={accounts}
+        accById={accById}
+        currencies={currencies}
+        defaultAccountId={settings?.cuentaPorDefectoId ?? null}
+      />
 
       <DeleteConfirmation
         open={!!toDelete}

@@ -35,6 +35,7 @@ import migration0027 from "../../../drizzle/0027_patrimonio_snapshots.sql?raw";
 import migration0028 from "../../../drizzle/0028_movement_etiquetas.sql?raw";
 import migration0029 from "../../../drizzle/0029_contribution_plusvalia.sql?raw";
 import migration0030 from "../../../drizzle/0030_rename_roboadvisor_cartera.sql?raw";
+import migration0031 from "../../../drizzle/0031_movement_gasto_asociado.sql?raw";
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0000_init", sql: init0000 },
@@ -77,6 +78,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: "0028_movement_etiquetas", sql: migration0028 },
   { name: "0029_contribution_plusvalia", sql: migration0029 },
   { name: "0030_rename_roboadvisor_cartera", sql: migration0030 },
+  { name: "0031_movement_gasto_asociado", sql: migration0031 },
 ];
 
 function isAlreadyExistsError(err: unknown): boolean {
