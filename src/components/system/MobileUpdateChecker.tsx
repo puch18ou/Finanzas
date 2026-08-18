@@ -3,93 +3,169 @@
 /**
  * src/components/system/MobileUpdateChecker.tsx — Auto-update ASISTIDO de movil.
  *
- * El updater de Tauri no soporta Android. Aqui, al arrancar (solo en movil),
- * consultamos la ultima release de GitHub: si hay una version mas nueva que la
- * instalada y tiene un APK adjunto, avisamos con un toast y un boton que ABRE
- * el APK (lo descarga el navegador del sistema); el usuario lo toca para
- * instalar.
+ * Al arrancar (solo movil) comprueba si hay una version mas nueva en GitHub. Si
+ * la hay, muestra una PANTALLA a pantalla completa con el progreso: descarga el
+ * APK dentro de la app (por trozos, con barra de progreso) y lanza el instalador
+ * de Android. Si algo falla, muestra el error y ofrece abrir la descarga en el
+ * navegador (metodo antiguo, fiable).
+ *
+ * Android no permite instalar en silencio: el ultimo paso ("Instalar") lo
+ * confirma siempre el usuario en la pantalla del sistema.
  */
 
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
+import { Download, RefreshCw, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { isMobileApp } from "@/lib/utils/platform";
-import { isNewerVersion } from "@/lib/utils/version";
-import { downloadAndInstallApk } from "@/lib/services/apk-update-service";
+import {
+  checkForUpdate,
+  downloadApk,
+  installApk,
+  openInBrowser,
+  type UpdateInfo,
+} from "@/lib/services/apk-update-service";
+import { Button } from "@/components/ui/button";
 
-const REPO = "puch18ou/Finanzas";
-
-type GithubRelease = {
-  tag_name?: string;
-  assets?: { name?: string; browser_download_url?: string }[];
-};
-
-/**
- * Descarga el APK dentro de la app y lanza el instalador de Android. Si algo
- * falla (descarga, permisos, apertura), CAE al metodo anterior: abrir la URL en
- * el navegador, para que el usuario nunca se quede sin poder actualizar.
- */
-async function actualizar(url: string): Promise<void> {
-  const id = toast.loading("Descargando actualización…");
-  try {
-    await downloadAndInstallApk(url);
-    toast.success(
-      "Descarga lista. Confirma la instalación cuando Android te lo pida.",
-      { id },
-    );
-  } catch {
-    toast.info("Abriendo la descarga en el navegador…", { id });
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(url);
-    } catch (e) {
-      toast.error(
-        `No se pudo descargar: ${e instanceof Error ? e.message : "error"}`,
-      );
-    }
-  }
-}
+type Phase =
+  | "off" // sin actualizacion / oculto
+  | "prompt" // hay version nueva, preguntamos
+  | "downloading"
+  | "installing"
+  | "done"
+  | "error";
 
 export function MobileUpdateChecker() {
   const lanzado = useRef(false);
+  const [phase, setPhase] = useState<Phase>("off");
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     if (lanzado.current || !isMobileApp()) return;
     lanzado.current = true;
-
     void (async () => {
       try {
-        const { fetch } = await import("@tauri-apps/plugin-http");
-        const { getVersion } = await import("@tauri-apps/api/app");
-        const actual = await getVersion();
-
-        const res = await fetch(
-          `https://api.github.com/repos/${REPO}/releases/latest`,
-          { method: "GET", headers: { Accept: "application/vnd.github+json" } },
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as GithubRelease;
-
-        const ultima = String(data.tag_name ?? "").replace(/^v/, "");
-        if (!ultima || !isNewerVersion(ultima, actual)) return;
-
-        const apk = (data.assets ?? []).find((a) =>
-          String(a.name ?? "").toLowerCase().endsWith(".apk"),
-        );
-        if (!apk?.browser_download_url) return;
-        const url = apk.browser_download_url;
-
-        toast.info(`Nueva version ${ultima} disponible`, {
-          duration: Infinity,
-          action: {
-            label: "Actualizar",
-            onClick: () => void actualizar(url),
-          },
-        });
+        const upd = await checkForUpdate();
+        if (upd) {
+          setInfo(upd);
+          setPhase("prompt");
+        }
       } catch {
-        // sin red, o no es movil real (dev/web): ignorar en silencio.
+        // sin red / no es movil real: no molestamos.
       }
     })();
   }, []);
 
-  return null;
+  const startUpdate = async () => {
+    if (!info) return;
+    setProgress(0);
+    setPhase("downloading");
+    try {
+      const path = await downloadApk(info.url, (f) => setProgress(f));
+      setPhase("installing");
+      await installApk(path);
+      setPhase("done");
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+      setPhase("error");
+    }
+  };
+
+  if (phase === "off") return null;
+
+  const pct = Math.round(progress * 100);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background p-8 text-center">
+      <div className="flex flex-col items-center gap-3">
+        {phase === "error" ? (
+          <AlertTriangle className="h-12 w-12 text-amber-500" />
+        ) : phase === "done" ? (
+          <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+        ) : phase === "downloading" ? (
+          <Download className="h-12 w-12 text-primary" />
+        ) : (
+          <RefreshCw
+            className={`h-12 w-12 text-primary ${phase === "installing" ? "animate-spin" : ""}`}
+          />
+        )}
+        <h1 className="text-xl font-semibold">
+          {phase === "prompt" && "Actualización disponible"}
+          {phase === "downloading" && "Descargando actualización…"}
+          {phase === "installing" && "Abriendo el instalador…"}
+          {phase === "done" && "Listo para instalar"}
+          {phase === "error" && "No se pudo actualizar sola"}
+        </h1>
+        {info && (
+          <p className="text-sm text-muted-foreground">Versión {info.version}</p>
+        )}
+      </div>
+
+      {phase === "downloading" && (
+        <div className="w-full max-w-xs">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="mt-2 text-sm tabular-nums text-muted-foreground">{pct}%</p>
+        </div>
+      )}
+
+      {phase === "installing" && (
+        <p className="max-w-xs text-sm text-muted-foreground">
+          Cuando Android lo pida, pulsa <strong>Instalar</strong>.
+        </p>
+      )}
+
+      {phase === "done" && (
+        <p className="max-w-xs text-sm text-muted-foreground">
+          Sigue en pantalla las instrucciones de Android para instalar la
+          actualización.
+        </p>
+      )}
+
+      {phase === "error" && (
+        <p className="max-w-xs break-words text-xs text-muted-foreground">
+          {errorMsg}
+        </p>
+      )}
+
+      <div className="flex flex-col items-stretch gap-2 pt-2">
+        {phase === "prompt" && (
+          <>
+            <Button onClick={() => void startUpdate()} className="gap-2">
+              <Download className="h-4 w-4" />
+              Actualizar ahora
+            </Button>
+            <Button variant="ghost" onClick={() => setPhase("off")}>
+              Ahora no
+            </Button>
+          </>
+        )}
+
+        {phase === "error" && info && (
+          <>
+            <Button
+              onClick={() => void openInBrowser(info.url)}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Descargar en el navegador
+            </Button>
+            <Button variant="ghost" onClick={() => setPhase("off")}>
+              Cerrar
+            </Button>
+          </>
+        )}
+
+        {(phase === "done" || phase === "installing") && (
+          <Button variant="ghost" onClick={() => setPhase("off")}>
+            Cerrar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }
