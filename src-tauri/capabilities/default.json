@@ -11,6 +11,7 @@
     "sql:allow-select",
     "sql:allow-close",
     "opener:default",
+    "opener:allow-open-path",
     "fs:allow-mkdir",
     "fs:allow-write-file",
     "fs:allow-read-file",
@@ -19,7 +20,12 @@
     "fs:allow-exists",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**/*" }]
+      "allow": [
+        { "path": "$APPDATA" },
+        { "path": "$APPDATA/**/*" },
+        { "path": "$APPCACHE" },
+        { "path": "$APPCACHE/**/*" }
+      ]
     },
     {
       "identifier": "http:default",
@@ -32,6 +38,8 @@
         { "url": "https://api.frankfurter.dev/*" },
         { "url": "https://api.frankfurter.app/*" },
         { "url": "https://api.github.com/*" },
+        { "url": "https://github.com/*" },
+        { "url": "https://*.githubusercontent.com/*" },
         { "url": "http://10.138.1.156:8787/*" },
         { "url": "http://192.168.*.*:*/*" },
         { "url": "http://10.*.*.*:*/*" },

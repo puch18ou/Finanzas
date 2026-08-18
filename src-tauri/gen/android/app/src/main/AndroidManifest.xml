@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Camara: para escanear el QR de emparejamiento de la sync (Fase 2). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Instalar el APK de la actualizacion in-app (auto-update movil asistido).
+         Android pide al usuario confirmar la instalacion igualmente. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- AndroidTV support -->

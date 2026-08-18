@@ -14,6 +14,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { isMobileApp } from "@/lib/utils/platform";
 import { isNewerVersion } from "@/lib/utils/version";
+import { downloadAndInstallApk } from "@/lib/services/apk-update-service";
 
 const REPO = "puch18ou/Finanzas";
 
@@ -22,14 +23,29 @@ type GithubRelease = {
   assets?: { name?: string; browser_download_url?: string }[];
 };
 
-async function descargarApk(url: string): Promise<void> {
+/**
+ * Descarga el APK dentro de la app y lanza el instalador de Android. Si algo
+ * falla (descarga, permisos, apertura), CAE al metodo anterior: abrir la URL en
+ * el navegador, para que el usuario nunca se quede sin poder actualizar.
+ */
+async function actualizar(url: string): Promise<void> {
+  const id = toast.loading("Descargando actualización…");
   try {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(url);
-  } catch (e) {
-    toast.error(
-      `No se pudo abrir la descarga: ${e instanceof Error ? e.message : "error"}`,
+    await downloadAndInstallApk(url);
+    toast.success(
+      "Descarga lista. Confirma la instalación cuando Android te lo pida.",
+      { id },
     );
+  } catch {
+    toast.info("Abriendo la descarga en el navegador…", { id });
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+    } catch (e) {
+      toast.error(
+        `No se pudo descargar: ${e instanceof Error ? e.message : "error"}`,
+      );
+    }
   }
 }
 
@@ -65,8 +81,8 @@ export function MobileUpdateChecker() {
         toast.info(`Nueva version ${ultima} disponible`, {
           duration: Infinity,
           action: {
-            label: "Descargar",
-            onClick: () => void descargarApk(url),
+            label: "Actualizar",
+            onClick: () => void actualizar(url),
           },
         });
       } catch {
