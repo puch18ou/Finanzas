@@ -34,6 +34,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { formatAmount } from "@/lib/domain/currency";
+import { usePrivacy } from "@/contexts/PrivacyProvider";
+import { maskMoney } from "@/lib/utils/privacy";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 import type { PatrimonioSnapshot } from "@/lib/db/schema";
 
@@ -48,16 +50,18 @@ function shortLabel(fecha: Date): string {
   return `${d} ${m}`;
 }
 
-function tooltipNumberFormatter(moneda: string) {
+function tooltipNumberFormatter(moneda: string, hidden: boolean) {
   return (value: unknown): string => {
     const n = typeof value === "number" ? value : Number(value);
     if (Number.isNaN(n)) return String(value);
-    return formatAmount(n, moneda);
+    const s = formatAmount(n, moneda);
+    return hidden ? maskMoney(s) : s;
   };
 }
 
 /** Eje Y compacto: 12.500 -> "12,5k". */
-function formatYAxis(v: number, moneda: string): string {
+function formatYAxis(v: number, moneda: string, hidden: boolean): string {
+  if (hidden) return "••";
   if (Math.abs(v) >= 1000) {
     return (
       formatAmount(v / 1000, moneda, { decimals: 1 }).replace(/[.,]0(?=\D|$)/, "") +
@@ -69,6 +73,7 @@ function formatYAxis(v: number, moneda: string): string {
 
 export function PatrimonioChart({ snapshots }: Props) {
   const moneda = snapshots[snapshots.length - 1]?.moneda ?? "EUR";
+  const { hidden } = usePrivacy();
 
   const data = useMemo(
     () =>
@@ -126,10 +131,10 @@ export function PatrimonioChart({ snapshots }: Props) {
                 <YAxis
                   tick={{ fontSize: 12 }}
                   width={70}
-                  tickFormatter={(v) => formatYAxis(Number(v), moneda)}
+                  tickFormatter={(v) => formatYAxis(Number(v), moneda, hidden)}
                 />
                 <RTooltip
-                  formatter={tooltipNumberFormatter(moneda)}
+                  formatter={tooltipNumberFormatter(moneda, hidden)}
                   labelClassName="text-xs"
                   contentStyle={{ fontSize: 12 }}
                 />

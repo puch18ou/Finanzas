@@ -7,6 +7,7 @@ import { useAccountBalances } from "@/hooks/useAccounts";
 import { buildRatesMap, convert } from "@/lib/domain/currency";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/ui/money";
 
 export function MobileAccounts() {
   const { settings } = useSettings();
@@ -27,7 +28,9 @@ export function MobileAccounts() {
       <Card>
         <CardContent className="flex items-center justify-between py-4">
           <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-xl font-semibold">{formatMoney(total, view)}</span>
+          <span className="text-xl font-semibold">
+            <Money>{formatMoney(total, view)}</Money>
+          </span>
         </CardContent>
       </Card>
 
@@ -54,7 +57,7 @@ export function MobileAccounts() {
                       saldo < 0 ? "text-red-600 dark:text-red-400" : ""
                     }`}
                   >
-                    {formatMoney(saldo, a.moneda)}
+                    <Money>{formatMoney(saldo, a.moneda)}</Money>
                   </span>
                 </div>
               );

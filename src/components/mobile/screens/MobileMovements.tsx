@@ -23,6 +23,7 @@ import { buildRatesMap, convert } from "@/lib/domain/currency";
 import { costeReal, sumRefundsInCurrency } from "@/lib/domain/refunds";
 import { normalizeConcepto } from "@/lib/domain/category-suggest";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/ui/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -216,7 +217,7 @@ export function MobileMovements() {
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             {lista.length} · neto{" "}
             <span className="font-medium text-foreground">
-              {formatMoney(totalVista, view)}
+              <Money>{formatMoney(totalVista, view)}</Money>
             </span>
           </span>
         </div>
@@ -259,11 +260,14 @@ export function MobileMovements() {
                     <div className="shrink-0 text-right">
                       <span className={`text-sm font-semibold ${movKindColor(kind)}`}>
                         {movKindSign(kind)}
-                        {formatMoney(m.importe, m.moneda)}
+                        <Money>{formatMoney(m.importe, m.moneda)}</Money>
                       </span>
                       {esGasto && totalDevuelto > 0 && (
                         <p className="text-[10px] text-muted-foreground">
-                          real {formatMoney(costeReal(m.importe, totalDevuelto), m.moneda)}
+                          real{" "}
+                          <Money>
+                            {formatMoney(costeReal(m.importe, totalDevuelto), m.moneda)}
+                          </Money>
                         </p>
                       )}
                     </div>

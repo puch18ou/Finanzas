@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./AppSidebar";
 import { QuickAddFab } from "./QuickAddFab";
 import { MobileApp } from "@/components/mobile/MobileApp";
+import { PrivacyToggle } from "@/components/system/PrivacyToggle";
 import { isMobileApp } from "@/lib/utils/platform";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex h-14 items-center gap-2 px-4">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
+            <PrivacyToggle className="ml-auto" />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">{children}</main>

@@ -18,6 +18,7 @@ import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/ui/money";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -121,10 +122,12 @@ export function MobileHome() {
             <p className="text-xs text-muted-foreground">
               Patrimonio (cuentas + inversiones)
             </p>
-            <p className="text-xl font-semibold">{formatMoney(patrimonio, view)}</p>
+            <p className="text-xl font-semibold">
+              <Money>{formatMoney(patrimonio, view)}</Money>
+            </p>
             {portfolio.valorActualVista > 0 && (
               <p className="text-xs text-muted-foreground">
-                Cartera: {formatMoney(portfolio.valorActualVista, view)}
+                Cartera: <Money>{formatMoney(portfolio.valorActualVista, view)}</Money>
               </p>
             )}
           </div>
@@ -156,7 +159,7 @@ export function MobileHome() {
                     </div>
                     <span className={`shrink-0 text-sm font-semibold ${movKindColor(kind)}`}>
                       {movKindSign(kind)}
-                      {formatMoney(m.importe, m.moneda)}
+                      <Money>{formatMoney(m.importe, m.moneda)}</Money>
                     </span>
                   </div>
                 );
@@ -183,7 +186,9 @@ function Stat({
       <CardContent className="flex flex-col gap-1 p-3">
         {icon}
         <span className="text-[11px] text-muted-foreground">{label}</span>
-        <span className="text-sm font-semibold leading-tight">{value}</span>
+        <span className="text-sm font-semibold leading-tight">
+          <Money>{value}</Money>
+        </span>
       </CardContent>
     </Card>
   );

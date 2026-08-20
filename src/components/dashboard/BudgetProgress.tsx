@@ -24,6 +24,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils/cn";
 import { formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 
 export type BudgetRow = {
   categoriaId: string;
@@ -38,6 +39,8 @@ type Props = {
 };
 
 export function BudgetProgress({ rows, viewCurrency }: Props) {
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
   // Solo mostramos categorias con presupuesto > 0 (las que no tienen
   // limite serian engorrosas en esta vista).
   const filtered = rows.filter((r) => r.presupuesto > 0);
@@ -74,8 +77,7 @@ export function BudgetProgress({ rows, viewCurrency }: Props) {
                         isWarning && "text-amber-600 dark:text-amber-500",
                       )}
                     >
-                      {formatAmount(r.gastado, viewCurrency)} /{" "}
-                      {formatAmount(r.presupuesto, viewCurrency)}
+                      {money(r.gastado)} / {money(r.presupuesto)}
                     </span>
                   </div>
                   <Progress

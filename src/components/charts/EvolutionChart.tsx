@@ -59,6 +59,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { formatAmount } from "@/lib/domain/currency";
+import { usePrivacy } from "@/contexts/PrivacyProvider";
+import { maskMoney } from "@/lib/utils/privacy";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 
 type EvolutionType =
@@ -93,11 +95,12 @@ type Props = {
  * Formatter del tooltip de Recharts. Recharts pasa `value` como ValueType
  * (union de number | string | array). Casteamos a number con guard.
  */
-function tooltipNumberFormatter(viewCurrency: string) {
+function tooltipNumberFormatter(viewCurrency: string, hidden: boolean) {
   return (value: unknown): string => {
     const n = typeof value === "number" ? value : Number(value);
     if (Number.isNaN(n)) return String(value);
-    return formatAmount(n, viewCurrency);
+    const s = formatAmount(n, viewCurrency);
+    return hidden ? maskMoney(s) : s;
   };
 }
 
@@ -112,6 +115,7 @@ export function EvolutionChart({
     "chart:evolutionType",
     "lines",
   );
+  const { hidden } = usePrivacy();
 
   const chartData = data.map((row) => ({
     ...row,
@@ -135,7 +139,7 @@ export function EvolutionChart({
         ) : (
           <>
             <ResponsiveContainer width="100%" height={340}>
-              {renderChart(type, chartData, viewCurrency, markers)}
+              {renderChart(type, chartData, viewCurrency, markers, hidden)}
             </ResponsiveContainer>
             {markers.length > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -173,12 +177,15 @@ function renderChart(
   data: (EvolutionRow & { mesLabel: string })[],
   viewCurrency: string,
   markers: ChartMarker[],
+  hidden: boolean,
 ) {
   const refLines = markerLines(markers);
-  const formatY = (v: number) =>
-    v >= 1000
+  const formatY = (v: number) => {
+    if (hidden) return "••";
+    return v >= 1000
       ? formatAmount(v / 1000, viewCurrency).replace(/[.,]00/, "") + "k"
       : formatAmount(v, viewCurrency);
+  };
 
   const tooltipProps = {
     contentStyle: {
@@ -187,7 +194,7 @@ function renderChart(
       borderRadius: "var(--radius-md)",
       fontSize: "12px",
     },
-    formatter: tooltipNumberFormatter(viewCurrency),
+    formatter: tooltipNumberFormatter(viewCurrency, hidden),
   };
 
   const colors = {

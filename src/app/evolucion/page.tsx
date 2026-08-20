@@ -38,6 +38,7 @@ import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { PatrimonioChart } from "@/components/charts/PatrimonioChart";
 import { usePatrimonioSnapshots } from "@/hooks/usePatrimonioSnapshots";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
@@ -148,6 +149,8 @@ export default function EvolucionPage() {
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
 
   // Previstos del mes ACTUAL real (no en meses futuros, donde no tiene
   // sentido contar como movimiento del mes algo aun por venir). Se calculan
@@ -291,11 +294,11 @@ export default function EvolucionPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <YearTotal label="Ingresos" value={formatAmount(yearTotals.ingresos, viewCurrency)} intent="positive" />
-          <YearTotal label="Gastos" value={formatAmount(yearTotals.gastos, viewCurrency)} intent="negative" />
+          <YearTotal label="Ingresos" value={money(yearTotals.ingresos)} intent="positive" />
+          <YearTotal label="Gastos" value={money(yearTotals.gastos)} intent="negative" />
           <YearTotal
             label="Ahorro"
-            value={formatAmount(yearTotals.ahorro, viewCurrency)}
+            value={money(yearTotals.ahorro)}
             intent={yearTotals.ahorro >= 0 ? "positive" : "negative"}
           />
           <YearTotal
@@ -352,18 +355,18 @@ export default function EvolucionPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-primary">
-                    {formatAmount(r.ingresos, viewCurrency)}
+                    {money(r.ingresos)}
                     {r.ingresoPrevisto > 0 && (
                       <div className="text-xs font-normal text-muted-foreground">
-                        +{formatAmount(r.ingresoPrevisto, viewCurrency)} previsto
+                        +{money(r.ingresoPrevisto)} previsto
                       </div>
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-destructive">
-                    {formatAmount(r.gastos, viewCurrency)}
+                    {money(r.gastos)}
                     {r.gastoPrevisto > 0 && (
                       <div className="text-xs font-normal text-muted-foreground">
-                        +{formatAmount(r.gastoPrevisto, viewCurrency)} previsto
+                        +{money(r.gastoPrevisto)} previsto
                       </div>
                     )}
                   </TableCell>
@@ -373,7 +376,7 @@ export default function EvolucionPage() {
                       r.ahorro >= 0 ? "text-primary" : "text-destructive",
                     )}
                   >
-                    {formatAmount(r.ahorro, viewCurrency)}
+                    {money(r.ahorro)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.ingresos > 0 ? `${(r.tasaAhorro * 100).toFixed(0)}%` : "—"}

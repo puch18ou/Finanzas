@@ -43,6 +43,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { formatAmount } from "@/lib/domain/currency";
+import { usePrivacy } from "@/contexts/PrivacyProvider";
+import { maskMoney } from "@/lib/utils/privacy";
 
 export type ChartDatum = {
   name: string;
@@ -78,11 +80,12 @@ function pickColor(item: ChartDatum, index: number): string {
  * Recharts tipa value como ValueType (number | string | (number|string)[]).
  * Como nuestros datos siempre son numericos, lo casteamos a number.
  */
-function tooltipNumberFormatter(viewCurrency: string) {
+function tooltipNumberFormatter(viewCurrency: string, hidden: boolean) {
   return (value: unknown): string => {
     const n = typeof value === "number" ? value : Number(value);
     if (Number.isNaN(n)) return String(value);
-    return formatAmount(n, viewCurrency);
+    const s = formatAmount(n, viewCurrency);
+    return hidden ? maskMoney(s) : s;
   };
 }
 
@@ -91,6 +94,7 @@ export function CategoryChart({ data, viewCurrency, title, description }: Props)
     "chart:categoryType",
     "donut",
   );
+  const { hidden } = usePrivacy();
 
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
@@ -109,13 +113,14 @@ export function CategoryChart({ data, viewCurrency, title, description }: Props)
             No hay datos para mostrar.
           </p>
         ) : chartType === "bars" ? (
-          <BarsView data={data} viewCurrency={viewCurrency} />
+          <BarsView data={data} viewCurrency={viewCurrency} hidden={hidden} />
         ) : (
           <PieView
             data={data}
             viewCurrency={viewCurrency}
             isDonut={chartType === "donut"}
             total={total}
+            hidden={hidden}
           />
         )}
       </CardContent>
@@ -166,11 +171,13 @@ function PieView({
   viewCurrency,
   isDonut,
   total,
+  hidden,
 }: {
   data: ChartDatum[];
   viewCurrency: string;
   isDonut: boolean;
   total: number;
+  hidden: boolean;
 }) {
   return (
     <div className="relative">
@@ -199,7 +206,7 @@ function PieView({
               borderRadius: "var(--radius-md)",
               fontSize: "12px",
             }}
-            formatter={tooltipNumberFormatter(viewCurrency)}
+            formatter={tooltipNumberFormatter(viewCurrency, hidden)}
           />
           <Legend
             verticalAlign="bottom"
@@ -213,7 +220,9 @@ function PieView({
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Total</p>
             <p className="text-lg font-semibold tabular-nums">
-              {formatAmount(total, viewCurrency)}
+              {hidden
+                ? maskMoney(formatAmount(total, viewCurrency))
+                : formatAmount(total, viewCurrency)}
             </p>
           </div>
         </div>
@@ -225,9 +234,11 @@ function PieView({
 function BarsView({
   data,
   viewCurrency,
+  hidden,
 }: {
   data: ChartDatum[];
   viewCurrency: string;
+  hidden: boolean;
 }) {
   const sorted = useMemo(
     () => [...data].sort((a, b) => b.value - a.value),
@@ -243,7 +254,10 @@ function BarsView({
           type="number"
           stroke="var(--color-muted-foreground)"
           fontSize={11}
-          tickFormatter={(v) => formatAmount(v as number, viewCurrency)}
+          tickFormatter={(v) => {
+            const s = formatAmount(v as number, viewCurrency);
+            return hidden ? maskMoney(s) : s;
+          }}
         />
         <YAxis
           dataKey="name"
@@ -259,7 +273,7 @@ function BarsView({
             borderRadius: "var(--radius-md)",
             fontSize: "12px",
           }}
-          formatter={tooltipNumberFormatter(viewCurrency)}
+          formatter={tooltipNumberFormatter(viewCurrency, hidden)}
         />
         <Bar dataKey="value" radius={[0, 4, 4, 0]}>
           {sorted.map((entry, idx) => (

@@ -49,6 +49,7 @@ import {
 import { MESES_ES, MESES_ES_CORTO, formatDateLong } from "@/lib/utils/dates";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { tramosAncla, resolvePresupuesto } from "@/lib/domain/tramos";
 import { cn } from "@/lib/utils/cn";
 
@@ -84,6 +85,8 @@ export default function PresupuestosPage() {
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
 
   // Mes de inicio del acumulado dentro del anio visible. Si el objetivo de
   // ahorro arranca en ESTE anio y su mes es <= al mes seleccionado, el
@@ -277,7 +280,7 @@ export default function PresupuestosPage() {
                           </button>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {formatAmount(r.presupuestoMes, viewCurrency)}
+                          {money(r.presupuestoMes, viewCurrency)}
                         </TableCell>
                         <TableCell>
                           <BudgetCell
@@ -310,7 +313,7 @@ export default function PresupuestosPage() {
                 <TableRow className="border-t-2 font-medium">
                   <TableCell>Total</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatAmount(totals.presupuestoMes, viewCurrency)}
+                    {money(totals.presupuestoMes, viewCurrency)}
                   </TableCell>
                   <TableCell>
                     <BudgetCell
@@ -343,6 +346,8 @@ function BudgetBreakdown({
   items: CategoryMovementItem[];
   viewCurrency: string;
 }) {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   return (
     <div className="my-2 max-h-72 overflow-y-auto rounded-md border bg-muted/20">
       <table className="w-full text-sm">
@@ -367,7 +372,7 @@ function BudgetBreakdown({
                   )}
                   {devuelto > 0 && (
                     <div className="text-xs text-muted-foreground">
-                      {formatAmount(m.importe, m.moneda)} − {formatAmount(devuelto, m.moneda)} dev.
+                      {money(m.importe, m.moneda)} − {money(devuelto, m.moneda)} dev.
                     </div>
                   )}
                 </td>
@@ -379,12 +384,12 @@ function BudgetBreakdown({
                 >
                   <div>
                     {esDev ? "−" : ""}
-                    {formatAmount(importeNeto, m.moneda)}
+                    {money(importeNeto, m.moneda)}
                   </div>
                   {otraDivisa && (
                     <div className="text-xs text-muted-foreground">
                       ≈ {esDev ? "−" : ""}
-                      {formatAmount(Math.abs(valorVista), viewCurrency)}
+                      {money(Math.abs(valorVista), viewCurrency)}
                     </div>
                   )}
                 </td>
@@ -409,6 +414,8 @@ function BudgetCell({
   const pct = presupuesto > 0 ? gastado / presupuesto : 0;
   const isOver = pct > 1;
   const isWarning = pct > 0.7 && !isOver;
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
 
   return (
     <div className="space-y-1">
@@ -420,8 +427,7 @@ function BudgetCell({
             isWarning && "text-amber-600 dark:text-amber-500",
           )}
         >
-          {formatAmount(gastado, viewCurrency)} /{" "}
-          {formatAmount(presupuesto, viewCurrency)}
+          {money(gastado)} / {money(presupuesto)}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
           {(pct * 100).toFixed(0)}%

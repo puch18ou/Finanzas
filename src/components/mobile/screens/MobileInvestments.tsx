@@ -19,6 +19,7 @@ import {
 } from "@/lib/domain/investments";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/ui/money";
 
 export function MobileInvestments() {
   const { settings } = useSettings();
@@ -38,7 +39,7 @@ export function MobileInvestments() {
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Valor cartera</span>
             <span className="text-xl font-semibold">
-              {formatMoney(portfolio.valorActualVista, view)}
+              <Money>{formatMoney(portfolio.valorActualVista, view)}</Money>
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -51,7 +52,7 @@ export function MobileInvestments() {
               }`}
             >
               {plPositive ? "+" : ""}
-              {formatMoney(portfolio.plAbsolutoVista, view)} (
+              <Money>{formatMoney(portfolio.plAbsolutoVista, view)}</Money> (
               {plPositive ? "+" : ""}
               {(portfolio.plPorcentaje * 100).toFixed(2)}%)
             </span>
@@ -82,7 +83,7 @@ export function MobileInvestments() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold">
-                      {formatMoney(m.valorActual, inv.moneda)}
+                      <Money>{formatMoney(m.valorActual, inv.moneda)}</Money>
                     </p>
                     <p
                       className={`text-xs font-medium ${

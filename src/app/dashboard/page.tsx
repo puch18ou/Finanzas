@@ -56,6 +56,7 @@ import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
 import { MESES_ES, periodKey } from "@/lib/utils/dates";
 import { resolveTramo, tramosAncla, resolvePresupuesto } from "@/lib/domain/tramos";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { cn } from "@/lib/utils/cn";
 
 export default function DashboardPage() {
@@ -103,6 +104,9 @@ export default function DashboardPage() {
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
+  // Enmascara importes en moneda vista si el modo privacidad esta activo.
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
 
   const baseSummary = useMemo(() => {
     if (!settings) return null;
@@ -441,7 +445,7 @@ export default function DashboardPage() {
             Resumen financiero del mes seleccionado.
             {cuotaHipotecaVista > 0 && (
               <span className="ml-1 italic">
-                · Incluye cuota hipoteca de {formatAmount(cuotaHipotecaVista, viewCurrency)}
+                · Incluye cuota hipoteca de {money(cuotaHipotecaVista)}
               </span>
             )}
           </p>
@@ -459,12 +463,12 @@ export default function DashboardPage() {
       <div className={`grid gap-4 ${kpiCols}`}>
         <KpiCard
           label="Ingresos"
-          value={formatAmount(summary.ingresos, viewCurrency)}
+          value={money(summary.ingresos)}
           icon={Wallet}
           intent="positive"
           hint={
             ingresosPrevistos > 0
-              ? `Incluye ${formatAmount(ingresosPrevistos, viewCurrency)} previstos`
+              ? `Incluye ${money(ingresosPrevistos)} previstos`
               : summary.ingresos === 0
                 ? "Sin ingresos este mes"
                 : undefined
@@ -472,11 +476,11 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Gastos"
-          value={formatAmount(summary.gastos, viewCurrency)}
+          value={money(summary.gastos)}
           icon={TrendingDown}
           hint={
             gastosPrevistos > 0
-              ? `Incluye ${formatAmount(gastosPrevistos, viewCurrency)} previstos${
+              ? `Incluye ${money(gastosPrevistos)} previstos${
                   cuotaHipotecaVista > 0 ? " + cuota hipoteca" : ""
                 }`
               : cuotaHipotecaVista > 0
@@ -486,7 +490,7 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Ahorro"
-          value={formatAmount(summary.ahorro, viewCurrency)}
+          value={money(summary.ahorro)}
           icon={PiggyBank}
           intent={summary.ahorro >= 0 ? "positive" : "negative"}
           hint={
@@ -499,11 +503,11 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Patrimonio neto"
-          value={formatAmount(patrimonioNeto, viewCurrency)}
+          value={money(patrimonioNeto)}
           icon={Coins}
           hint={
             deudaTotalVista > 0
-              ? `Descontada deuda: ${formatAmount(deudaTotalVista, viewCurrency)}`
+              ? `Descontada deuda: ${money(deudaTotalVista)}`
               : hayInversiones
               ? `Cuentas + cartera`
               : "Saldo total de cuentas activas"
@@ -512,7 +516,7 @@ export default function DashboardPage() {
         {hayInversiones && (
           <KpiCard
             label="Valor cartera"
-            value={formatAmount(portfolio.valorActualVista, viewCurrency)}
+            value={money(portfolio.valorActualVista)}
             icon={PieIcon}
             intent={portfolio.plAbsolutoVista >= 0 ? "positive" : "negative"}
             hint={`${portfolio.plAbsolutoVista >= 0 ? "+" : ""}${(
@@ -547,16 +551,15 @@ export default function DashboardPage() {
                     : "text-destructive",
                 )}
               >
-                {formatAmount(ahorroAcumulado.ahorro, viewCurrency)}
+                {money(ahorroAcumulado.ahorro)}
               </p>
               {ahorroAcumulado.hayImporte && (
                 <p className="text-xs text-muted-foreground">
-                  Objetivo: {formatAmount(objetivoImporteAcum, viewCurrency)}{" "}
+                  Objetivo: {money(objetivoImporteAcum)}{" "}
                   {ahorroAcumulado.ahorro >= objetivoImporteAcum
                     ? "✓"
-                    : `· faltan ${formatAmount(
+                    : `· faltan ${money(
                         objetivoImporteAcum - ahorroAcumulado.ahorro,
-                        viewCurrency,
                       )}`}
                 </p>
               )}

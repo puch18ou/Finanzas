@@ -81,6 +81,7 @@ import {
   usaParticipaciones,
 } from "@/lib/domain/investments";
 import type { RatesMap } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
 import { cn } from "@/lib/utils/cn";
 import { timeAgo, stalenessLevel } from "@/lib/utils/staleness";
@@ -127,6 +128,8 @@ export default function InversionesPage() {
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
 
   // Tab activo en la seccion de pestañas por tipo. Los KPIs de arriba se
   // calculan sobre las inversiones de la pestaña activa (o todas en 'resumen').
@@ -342,16 +345,16 @@ export default function InversionesPage() {
                 )}
                 <TableCell className="text-right tabular-nums">
                   <div className="font-medium">
-                    {formatAmount(m.costeTotal, inv.moneda)}
+                    {money(m.costeTotal, inv.moneda)}
                   </div>
                   {usaParticipaciones(inv.tipo) && (
                     <div className="text-xs text-muted-foreground">
-                      {formatAmount(inv.precioCompra, inv.moneda)}/ud
+                      {money(inv.precioCompra, inv.moneda)}/ud
                     </div>
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums font-medium">
-                  {formatAmount(m.valorActual, inv.moneda)}
+                  {money(m.valorActual, inv.moneda)}
                   {/* Aviso de precio viejo: solo si esta envejecido y la
                       posicion se valora por precio (no por TAE, que se
                       revaloriza sola). */}
@@ -385,7 +388,7 @@ export default function InversionesPage() {
                 >
                   <div>
                     {plPositive ? "+" : ""}
-                    {formatAmount(m.plAbsoluto, inv.moneda)}
+                    {money(m.plAbsoluto, inv.moneda)}
                   </div>
                   <div className="text-xs">
                     {plPositive ? "+" : ""}
@@ -396,7 +399,7 @@ export default function InversionesPage() {
                   {inv.moneda === viewCurrency ? (
                     "—"
                   ) : valorEnVista !== null ? (
-                    formatAmount(valorEnVista, viewCurrency)
+                    money(valorEnVista, viewCurrency)
                   ) : (
                     <span className="text-destructive">err</span>
                   )}
@@ -553,18 +556,18 @@ export default function InversionesPage() {
         <KpiPortfolio
           icon={Banknote}
           label="Valor cartera"
-          value={formatAmount(portfolio.valorActualVista, viewCurrency)}
+          value={money(portfolio.valorActualVista, viewCurrency)}
           hint={`${portfolio.numPosiciones} posiciones`}
         />
         <KpiPortfolio
           icon={PieIcon}
           label="Coste total invertido"
-          value={formatAmount(portfolio.costeTotalVista, viewCurrency)}
+          value={money(portfolio.costeTotalVista, viewCurrency)}
         />
         <KpiPortfolio
           icon={portfolio.plAbsolutoVista >= 0 ? TrendingUp : TrendingDown}
           label="Plusvalia"
-          value={`${portfolio.plAbsolutoVista >= 0 ? "+" : ""}${formatAmount(
+          value={`${portfolio.plAbsolutoVista >= 0 ? "+" : ""}${money(
             portfolio.plAbsolutoVista,
             viewCurrency,
           )}`}

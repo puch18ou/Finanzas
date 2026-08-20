@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { Movement } from "@/lib/db/schema";
 import { formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { parseTags } from "@/lib/domain/tags";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
@@ -88,6 +89,7 @@ function MovementRow({
   categoryNames: Record<string, string>;
   accountNames: Record<string, string>;
 }) {
+  const mask = useMaskMoney();
   const fecha = m.fecha instanceof Date ? m.fecha : new Date(m.fecha);
   const meta = getTipoMeta(m);
   const detail = getDetail(m, categoryNames, accountNames);
@@ -120,7 +122,7 @@ function MovementRow({
       </div>
       <span className={cn("text-sm tabular-nums font-medium", meta.amount)}>
         {meta.sign}
-        {formatAmount(m.importe, m.moneda)}
+        {mask(formatAmount(m.importe, m.moneda))}
       </span>
     </li>
   );

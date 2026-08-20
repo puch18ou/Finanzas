@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { computeBudgetAlerts, type BudgetInput } from "@/lib/domain/alerts";
 import { formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { cn } from "@/lib/utils/cn";
 
 export function AlertsCard({
@@ -26,6 +27,8 @@ export function AlertsCard({
   rows: BudgetInput[];
   viewCurrency: string;
 }) {
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
   const alerts = computeBudgetAlerts(rows);
   if (alerts.length === 0) return null;
 
@@ -64,8 +67,7 @@ export function AlertsCard({
                   over ? "text-destructive" : "text-amber-600 dark:text-amber-500",
                 )}
               >
-                {formatAmount(a.gastado, viewCurrency)} /{" "}
-                {formatAmount(a.presupuesto, viewCurrency)} ({pct}%)
+                {money(a.gastado)} / {money(a.presupuesto)} ({pct}%)
               </span>
             </div>
           );

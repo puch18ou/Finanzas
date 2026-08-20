@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
 import {
   projectCashflow,
@@ -65,6 +66,8 @@ export function CashflowCard() {
 
   const viewCurrency = settings?.monedaVista ?? "EUR";
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
+  const mask = useMaskMoney();
+  const money = (n: number) => mask(formatAmount(n, viewCurrency));
 
   const saldoLiquido = useMemo(() => {
     let total = 0;
@@ -153,7 +156,7 @@ export function CashflowCard() {
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Saldo liquido hoy</p>
             <p className="text-2xl font-bold tabular-nums">
-              {formatAmount(saldoLiquido, viewCurrency)}
+              {money(saldoLiquido)}
             </p>
           </div>
           <div className="space-y-1">
@@ -164,7 +167,7 @@ export function CashflowCard() {
                 saldoFinMes < 0 ? "text-destructive" : "text-primary",
               )}
             >
-              {formatAmount(saldoFinMes, viewCurrency)}
+              {money(saldoFinMes)}
             </p>
           </div>
         </div>
@@ -175,7 +178,7 @@ export function CashflowCard() {
             <span>
               Tu saldo bajara a{" "}
               <strong className="tabular-nums">
-                {formatAmount(proyeccion.minSaldo, viewCurrency)}
+                {money(proyeccion.minSaldo)}
               </strong>{" "}
               el {formatDateLong(proyeccion.minFecha!)}.
             </span>
@@ -184,7 +187,7 @@ export function CashflowCard() {
           eventos.length > 0 && (
             <p className="text-sm text-muted-foreground">
               Te mantienes en positivo en los proximos {HORIZONTE_DIAS} dias
-              (minimo {formatAmount(proyeccion.minSaldo, viewCurrency)}).
+              (minimo {money(proyeccion.minSaldo)}).
             </p>
           )
         )}
@@ -209,7 +212,7 @@ export function CashflowCard() {
                   )}
                 >
                   {e.delta >= 0 ? "+" : ""}
-                  {formatAmount(e.delta, viewCurrency)}
+                  {money(e.delta)}
                 </span>
               </li>
             ))}

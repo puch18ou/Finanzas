@@ -7,6 +7,7 @@
  */
 
 import type { ReactNode } from "react";
+import { PrivacyToggle } from "@/components/system/PrivacyToggle";
 
 export function MobileScreen({
   title,
@@ -21,7 +22,10 @@ export function MobileScreen({
     <div className="min-h-full">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur">
         <h1 className="text-lg font-semibold">{title}</h1>
-        {action}
+        <div className="flex items-center gap-1">
+          {action}
+          <PrivacyToggle />
+        </div>
       </div>
       <div className="space-y-4 p-4 pb-28">{children}</div>
     </div>

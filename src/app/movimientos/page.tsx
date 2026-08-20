@@ -85,6 +85,7 @@ import { formatAmount, buildRatesMap, convert } from "@/lib/domain/currency";
 import { parseTags, allTags, hasTag } from "@/lib/domain/tags";
 import { normalizeConcepto } from "@/lib/domain/category-suggest";
 import { costeReal, sumRefundsInCurrency } from "@/lib/domain/refunds";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
@@ -225,6 +226,8 @@ export default function MovimientosPage() {
   const tagsDisponibles = useMemo(() => allTags(listaBase), [listaBase]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
 
   // Contadores por tab
   const counts = useMemo(() => {
@@ -562,7 +565,7 @@ export default function MovimientosPage() {
             <div className="text-sm text-muted-foreground tabular-nums">
               {procesados.length} mov · gasto neto{" "}
               <span className="font-medium text-foreground">
-                {formatAmount(totalVista, viewCurrency)}
+                {money(totalVista, viewCurrency)}
               </span>
             </div>
           </div>
@@ -787,6 +790,7 @@ function MovementRow({
   onRefunds: () => void;
 }) {
   const tipoMeta = getTipoMeta(m.tipo);
+  const mask = useMaskMoney();
   const fecha = m.fecha instanceof Date ? m.fecha : new Date(m.fecha);
   // Las devoluciones se asocian a gastos (y cuotas). El resto de tipos no.
   const esGasto = m.tipo === "gasto" || m.tipo === "cuota";
@@ -829,12 +833,12 @@ function MovementRow({
       </TableCell>
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass)}>
         {tipoMeta.amountSign}
-        {formatAmount(m.importe, m.moneda)}
+        {mask(formatAmount(m.importe, m.moneda))}
         {esGasto && totalDevuelto > 0 && (
           <div className="text-xs font-normal text-muted-foreground">
-            −{formatAmount(totalDevuelto, m.moneda)} dev. · real{" "}
+            −{mask(formatAmount(totalDevuelto, m.moneda))} dev. · real{" "}
             <span className="font-medium text-foreground">
-              {formatAmount(costeReal(m.importe, totalDevuelto), m.moneda)}
+              {mask(formatAmount(costeReal(m.importe, totalDevuelto), m.moneda))}
             </span>
           </div>
         )}
@@ -921,6 +925,7 @@ function UpcomingRow({
   fecha: Date;
   accById: Record<string, string>;
 }) {
+  const mask = useMaskMoney();
   const tipoMeta = getTipoMeta(rule.tipoMovimiento);
   // La cuenta a mostrar segun el tipo del movimiento: para gastos/cuotas la
   // cuenta origen, para ingresos/intereses la destino, para transferencias
@@ -950,7 +955,7 @@ function UpcomingRow({
       <TableCell className="text-sm">{cuenta}</TableCell>
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass, "opacity-80")}>
         {tipoMeta.amountSign}
-        {formatAmount(rule.importe, rule.moneda)}
+        {mask(formatAmount(rule.importe, rule.moneda))}
       </TableCell>
     </TableRow>
   );

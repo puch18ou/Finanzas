@@ -18,6 +18,7 @@ import { resolvePresupuesto } from "@/lib/domain/tramos";
 import { formatMoney } from "@/lib/utils/money";
 import { cn } from "@/lib/utils/cn";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/ui/money";
 
 export function MobileBudgets() {
   const { settings } = useSettings();
@@ -130,7 +131,8 @@ export function MobileBudgets() {
                     <span
                       className={`shrink-0 text-xs ${over ? "font-semibold text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
                     >
-                      {formatMoney(f.gastado, view)} / {formatMoney(f.presupuesto, view)}
+                      <Money>{formatMoney(f.gastado, view)}</Money> /{" "}
+                      <Money>{formatMoney(f.presupuesto, view)}</Money>
                     </span>
                   </button>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -156,8 +158,8 @@ export function MobileBudgets() {
                                 </span>
                                 {devuelto > 0 && (
                                   <span className="block text-[10px] text-muted-foreground">
-                                    {formatAmount(m.importe, m.moneda)} −{" "}
-                                    {formatAmount(devuelto, m.moneda)} dev.
+                                    <Money>{formatAmount(m.importe, m.moneda)}</Money> −{" "}
+                                    <Money>{formatAmount(devuelto, m.moneda)}</Money> dev.
                                   </span>
                                 )}
                               </span>
@@ -170,12 +172,12 @@ export function MobileBudgets() {
                                   )}
                                 >
                                   {esDev ? "−" : ""}
-                                  {formatAmount(importeNeto, m.moneda)}
+                                  <Money>{formatAmount(importeNeto, m.moneda)}</Money>
                                 </span>
                                 {otraDivisa && (
                                   <span className="block text-[10px] text-muted-foreground">
                                     ≈ {esDev ? "−" : ""}
-                                    {formatAmount(Math.abs(valorVista), view)}
+                                    <Money>{formatAmount(Math.abs(valorVista), view)}</Money>
                                   </span>
                                 )}
                               </span>

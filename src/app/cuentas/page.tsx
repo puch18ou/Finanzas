@@ -38,6 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { Account } from "@/lib/db/schema";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 
 export default function CuentasPage() {
   const { settings } = useSettings();
@@ -45,6 +46,7 @@ export default function CuentasPage() {
   const { accounts, isLoading, create, update, remove, isMutating } = useAccounts();
   const { balances } = useAccountBalances();
   const { create: createMovement, isMutating: isReconciling } = useMovements();
+  const mask = useMaskMoney();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -57,6 +59,7 @@ export default function CuentasPage() {
 
   const rates = buildRatesMap(currencies);
   const viewCurrency = settings.monedaVista;
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
 
   const saldoDe = (a: Account) => balances.get(a.id) ?? 0;
 
@@ -173,13 +176,13 @@ export default function CuentasPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatAmount(saldo, a.moneda)}
+                        {money(saldo, a.moneda)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {equivalente !== null
                           ? a.moneda === viewCurrency
                             ? "—"
-                            : formatAmount(equivalente, viewCurrency)
+                            : money(equivalente, viewCurrency)
                           : <span className="text-destructive">err</span>}
                       </TableCell>
                       <TableCell className="text-right">
@@ -225,7 +228,7 @@ export default function CuentasPage() {
                     Total cuentas activas en {viewCurrency}:
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">
-                    {formatAmount(totalEnVista, viewCurrency)}
+                    {money(totalEnVista, viewCurrency)}
                   </TableCell>
                   <TableCell />
                 </TableRow>
