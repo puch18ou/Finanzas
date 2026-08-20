@@ -53,6 +53,13 @@ import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -84,6 +91,16 @@ import { cn } from "@/lib/utils/cn";
 type TabKey = "todos" | "gasto" | "ingreso" | "transferencia" | "ajuste";
 type SortKey = "fecha" | "concepto" | "importe" | "categoria";
 type SortDir = "asc" | "desc";
+type Periodo = { anio: number; mes: number };
+
+// Indice absoluto de mes (anio*12 + mes-1), para comparar/ordenar periodos.
+const periodoKey = (p: Periodo): number => p.anio * 12 + (p.mes - 1);
+
+// Desplaza un periodo `delta` meses (negativo hacia atras).
+const shiftPeriodo = (p: Periodo, delta: number): Periodo => {
+  const idx = periodoKey(p) + delta;
+  return { anio: Math.floor(idx / 12), mes: (idx % 12) + 1 };
+};
 
 export default function MovimientosPage() {
   const today = new Date();
@@ -107,6 +124,33 @@ export default function MovimientosPage() {
     today.getMonth() + 1,
   );
 
+  // Modo de periodo: un solo MES (como siempre) o un RANGO de meses
+  // (desde/hasta), para consultar p.ej. "transporte desde marzo hasta hoy".
+  const [periodMode, setPeriodMode] = useState<"mes" | "rango">("mes");
+  const [desde, setDesde] = useState<Periodo>({
+    anio: today.getFullYear(),
+    mes: today.getMonth() + 1,
+  });
+  const [hasta, setHasta] = useState<Periodo>({
+    anio: today.getFullYear(),
+    mes: today.getMonth() + 1,
+  });
+
+  // Atajos de rango: fijan desde/hasta (y pasan a modo rango).
+  const applyPreset = (key: string) => {
+    const cur: Periodo = { anio: today.getFullYear(), mes: today.getMonth() + 1 };
+    if (key === "3m") setDesde(shiftPeriodo(cur, -2));
+    else if (key === "6m") setDesde(shiftPeriodo(cur, -5));
+    else if (key === "12m") setDesde(shiftPeriodo(cur, -11));
+    else if (key === "ytd") setDesde({ anio: cur.anio, mes: 1 });
+    else if (key === "prev-year") {
+      setDesde({ anio: cur.anio - 1, mes: 1 });
+      setHasta({ anio: cur.anio - 1, mes: 12 });
+      return;
+    }
+    if (key !== "prev-year") setHasta(cur);
+  };
+
   const [tab, setTab] = useState<TabKey>("todos");
   // Filtro por etiqueta (en cliente). null = sin filtro.
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
@@ -125,14 +169,17 @@ export default function MovimientosPage() {
     }
   };
 
-  // El filtro de tipo se aplica en cliente (mas flexible para el tab "todos")
-  const filter = useMemo(
-    () => ({
-      anio: periodAnio,
-      mes: periodMes ?? undefined,
-    }),
-    [periodAnio, periodMes],
-  );
+  // El filtro de tipo se aplica en cliente (mas flexible para el tab "todos").
+  // En modo RANGO traemos por rango de ANIOS (ya soportado por el repo) y luego
+  // acotamos a la ventana exacta de meses en cliente (ver listaBase).
+  const filter = useMemo(() => {
+    if (periodMode === "rango") {
+      const lo = Math.min(desde.anio, hasta.anio);
+      const hi = Math.max(desde.anio, hasta.anio);
+      return { anioDesde: lo, anioHasta: hi };
+    }
+    return { anio: periodAnio, mes: periodMes ?? undefined };
+  }, [periodMode, periodAnio, periodMes, desde, hasta]);
 
   const { movements, isLoading, create, update, remove, isMutating } =
     useMovements(filter);
@@ -140,13 +187,20 @@ export default function MovimientosPage() {
   // Las devoluciones ASOCIADAS a un gasto no se listan como movimiento propio:
   // las gestiona el gasto (que muestra su coste real). Las devoluciones SUELTAS
   // (sin gasto asociado) si aparecen, como hasta ahora.
-  const listaBase = useMemo(
-    () =>
-      movements.filter(
-        (m) => !(m.tipo === "devolucion" && m.gastoAsociadoId),
-      ),
-    [movements],
-  );
+  const listaBase = useMemo(() => {
+    let arr = movements.filter(
+      (m) => !(m.tipo === "devolucion" && m.gastoAsociadoId),
+    );
+    if (periodMode === "rango") {
+      const a = Math.min(periodoKey(desde), periodoKey(hasta));
+      const b = Math.max(periodoKey(desde), periodoKey(hasta));
+      arr = arr.filter((m) => {
+        const k = m.anio * 12 + (m.mes - 1);
+        return k >= a && k <= b;
+      });
+    }
+    return arr;
+  }, [movements, periodMode, desde, hasta]);
 
   // Filtramos por tab y por etiqueta en cliente
   const visibleMovements = useMemo(() => {
@@ -352,15 +406,69 @@ export default function MovimientosPage() {
             Todos los gastos, ingresos, transferencias y ajustes.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <PeriodSelector
-            anio={periodAnio}
-            mes={periodMes ?? new Date().getMonth() + 1}
-            onChange={({ anio, mes }) => {
-              setPeriodAnio(anio);
-              setPeriodMes(mes);
-            }}
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Modo mes / rango */}
+          <div className="inline-flex items-center rounded-md border p-0.5">
+            <Button
+              size="sm"
+              variant={periodMode === "mes" ? "secondary" : "ghost"}
+              className="h-7 px-2.5"
+              onClick={() => setPeriodMode("mes")}
+            >
+              Mes
+            </Button>
+            <Button
+              size="sm"
+              variant={periodMode === "rango" ? "secondary" : "ghost"}
+              className="h-7 px-2.5"
+              onClick={() => setPeriodMode("rango")}
+            >
+              Rango
+            </Button>
+          </div>
+
+          {periodMode === "mes" ? (
+            <PeriodSelector
+              anio={periodAnio}
+              mes={periodMes ?? new Date().getMonth() + 1}
+              onChange={({ anio, mes }) => {
+                setPeriodAnio(anio);
+                setPeriodMes(mes);
+              }}
+            />
+          ) : (
+            <>
+              <div className="inline-flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Desde</span>
+                <PeriodSelector
+                  anio={desde.anio}
+                  mes={desde.mes}
+                  onChange={setDesde}
+                />
+              </div>
+              <div className="inline-flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Hasta</span>
+                <PeriodSelector
+                  anio={hasta.anio}
+                  mes={hasta.mes}
+                  onChange={setHasta}
+                />
+              </div>
+              <Select value="" onValueChange={applyPreset}>
+                <SelectTrigger className="h-8 w-[150px]">
+                  <SelectValue placeholder="Atajos…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3m">Últimos 3 meses</SelectItem>
+                  <SelectItem value="6m">Últimos 6 meses</SelectItem>
+                  <SelectItem value="12m">Últimos 12 meses</SelectItem>
+                  <SelectItem value="ytd">Este año</SelectItem>
+                  <SelectItem value="prev-year">Año pasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
+
           <Button
             onClick={() => {
               setEditing(null);
@@ -373,7 +481,7 @@ export default function MovimientosPage() {
         </div>
       </header>
 
-      {upcomings.length > 0 && (
+      {periodMode === "mes" && upcomings.length > 0 && (
         <Card className="border-dashed">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
