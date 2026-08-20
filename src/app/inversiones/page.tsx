@@ -336,10 +336,12 @@ export default function InversionesPage() {
                 {showParticipaciones && (
                   <TableCell className="text-right tabular-nums">
                     {usaParticipaciones(inv.tipo)
-                      ? inv.participaciones.toLocaleString("es-ES", {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 6,
-                        })
+                      ? mask(
+                          inv.participaciones.toLocaleString("es-ES", {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 6,
+                          }),
+                        )
                       : "—"}
                   </TableCell>
                 )}
