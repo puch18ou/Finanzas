@@ -132,17 +132,28 @@ export function MobileMovements() {
     return arr;
   }, [movements, search, sortKey, sortDir, catName, rates, view]);
 
+  // GASTO NETO de lo visible, en moneda vista: solo gastos/cuotas por su coste
+  // real (menos devoluciones asociadas); las devoluciones sueltas restan;
+  // ingresos, transferencias, aportaciones y ajustes no suman.
   const totalVista = useMemo(() => {
+    const enVista = (imp: number, mon: string) => {
+      try {
+        return convert(imp, mon, view, rates);
+      } catch {
+        return 0;
+      }
+    };
     let t = 0;
     for (const m of lista) {
-      try {
-        t += convert(m.importe, m.moneda, view, rates);
-      } catch {
-        // moneda sin tipo de cambio: se ignora
+      if (m.tipo === "gasto" || m.tipo === "cuota") {
+        const dev = sumRefundsInCurrency(refundsByGasto[m.id] ?? [], view, rates);
+        t += Math.max(0, enVista(m.importe, m.moneda) - dev);
+      } else if (m.tipo === "devolucion") {
+        t -= enVista(m.importe, m.moneda);
       }
     }
     return t;
-  }, [lista, rates, view]);
+  }, [lista, refundsByGasto, rates, view]);
 
   return (
     <MobileScreen
@@ -203,7 +214,7 @@ export function MobileMovements() {
             )}
           </Button>
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {lista.length} ·{" "}
+            {lista.length} · neto{" "}
             <span className="font-medium text-foreground">
               {formatMoney(totalVista, view)}
             </span>

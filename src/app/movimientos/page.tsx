@@ -246,13 +246,31 @@ export default function MovimientosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleMovements, search, sortKey, sortDir, catById, rates, viewCurrency]);
 
-  // Suma de los importes visibles, en moneda vista (siempre visible).
+  // Devoluciones por gasto (importe+moneda), para el coste real de cada gasto.
+  const { data: refundsByGasto = {} } = useRefundTotals();
+
+  // GASTO NETO de lo visible, en moneda vista: solo gastos/cuotas por su coste
+  // real (importe menos sus devoluciones asociadas). Las devoluciones SUELTAS
+  // (sin gasto) restan. Ingresos, transferencias, aportaciones y ajustes no
+  // suman nada. (Las devoluciones asociadas ya no aparecen: las lleva el gasto.)
   const totalVista = useMemo(() => {
     let t = 0;
-    for (const m of procesados) t += importeVista(m);
+    for (const m of procesados) {
+      if (m.tipo === "gasto" || m.tipo === "cuota") {
+        const dev = sumRefundsInCurrency(
+          refundsByGasto[m.id] ?? [],
+          viewCurrency,
+          rates,
+        );
+        t += Math.max(0, importeVista(m) - dev);
+      } else if (m.tipo === "devolucion") {
+        t -= importeVista(m);
+      }
+      // ingreso, intereses, transferencia, ajuste -> 0
+    }
     return t;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [procesados, rates, viewCurrency]);
+  }, [procesados, refundsByGasto, rates, viewCurrency]);
 
   const accById = useMemo(() => {
     const m: Record<string, string> = {};
@@ -303,10 +321,6 @@ export default function MovimientosPage() {
   const [editing, setEditing] = useState<Movement | null>(null);
   const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [refundsFor, setRefundsFor] = useState<Movement | null>(null);
-
-  // Devoluciones por gasto (importe+moneda) para el coste real. La suma
-  // convertida a la moneda de cada gasto se calcula al pintar cada fila.
-  const { data: refundsByGasto = {} } = useRefundTotals();
 
   const tabToFormTipo = (
     t: TabKey,
@@ -438,7 +452,7 @@ export default function MovimientosPage() {
               )}
             </div>
             <div className="text-sm text-muted-foreground tabular-nums">
-              {procesados.length} mov ·{" "}
+              {procesados.length} mov · gasto neto{" "}
               <span className="font-medium text-foreground">
                 {formatAmount(totalVista, viewCurrency)}
               </span>
