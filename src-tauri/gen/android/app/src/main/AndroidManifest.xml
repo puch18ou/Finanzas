@@ -39,5 +39,21 @@
             android:name="android.support.FILE_PROVIDER_PATHS"
             android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Lanza el instalador del APK (auto-update in-app). Se invoca con
+             openUrl("finanzas-install://install?path=...") desde el frontend. -->
+        <activity
+          android:name=".InstallActivity"
+          android:exported="true"
+          android:noHistory="true"
+          android:excludeFromRecents="true"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar">
+          <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="finanzas-install" />
+          </intent-filter>
+        </activity>
     </application>
 </manifest>

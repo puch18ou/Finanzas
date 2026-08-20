@@ -1,6 +1,6 @@
 {
   "name": "finanzas",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "description": "Aplicacion personal de finanzas (escritorio, multimoneda).",
   "scripts": {

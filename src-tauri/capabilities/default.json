@@ -12,6 +12,10 @@
     "sql:allow-close",
     "opener:default",
     "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "finanzas-install://*" }]
+    },
     "fs:allow-mkdir",
     "fs:allow-open",
     "fs:allow-write",

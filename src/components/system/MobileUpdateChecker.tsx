@@ -161,9 +161,21 @@ export function MobileUpdateChecker() {
         )}
 
         {(phase === "done" || phase === "installing") && (
-          <Button variant="ghost" onClick={() => setPhase("off")}>
-            Cerrar
-          </Button>
+          <>
+            {info && (
+              <Button
+                variant="outline"
+                onClick={() => void openInBrowser(info.url)}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                ¿No se abrió? Descargar en el navegador
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setPhase("off")}>
+              Cerrar
+            </Button>
+          </>
         )}
       </div>
     </div>

@@ -18,7 +18,7 @@
 
 import { fetch } from "@tauri-apps/plugin-http";
 import { open } from "@tauri-apps/plugin-fs";
-import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 import { getVersion } from "@tauri-apps/api/app";
 import { isNewerVersion } from "@/lib/utils/version";
@@ -105,10 +105,18 @@ export async function downloadApk(
   return dest;
 }
 
-/** Lanza el instalador de Android para el APK descargado (via FileProvider). */
+/**
+ * Lanza el instalador de Android para el APK descargado. Usa nuestra
+ * `InstallActivity` nativa via un esquema propio: el plugin opener dispara un
+ * Intent.ACTION_VIEW con la URL y Android lo enruta a esa actividad, que
+ * construye el intent de instalacion COMO DEBE (FileProvider content:// + MIME
+ * de APK + permiso de lectura). `openPath` NO sirve para instalar un APK (usa
+ * file:// sin MIME, ilegal en Android 7+).
+ */
 export async function installApk(path: string): Promise<void> {
+  const url = `finanzas-install://install?path=${encodeURIComponent(path)}`;
   try {
-    await openPath(path);
+    await openUrl(url);
   } catch (e) {
     throw new Error(`abrir instalador: ${e instanceof Error ? e.message : e}`);
   }
