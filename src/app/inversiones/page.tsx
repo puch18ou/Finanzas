@@ -214,11 +214,11 @@ export default function InversionesPage() {
       const de = r.convertidoDe ? ` (de ${r.convertidoDe})` : "";
       if (r.modo === "fondo") {
         toast.success(
-          `${inv.nombre}: ${formatAmount(r.valor, r.moneda)}${de} (VL ${formatAmount(r.vl, r.moneda)})`,
+          `${inv.nombre}: ${money(r.valor, r.moneda)}${de} (VL ${money(r.vl, r.moneda)})`,
         );
       } else {
         toast.success(
-          `${inv.nombre}: ${formatAmount(r.valor, r.moneda)}/ud${de}`,
+          `${inv.nombre}: ${money(r.valor, r.moneda)}/ud${de}`,
         );
       }
     } catch (e) {

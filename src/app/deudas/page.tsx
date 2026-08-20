@@ -67,11 +67,14 @@ import {
   convert,
   formatAmount,
 } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { summarizeLoan } from "@/lib/domain/mortgage";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 export default function DeudasPage() {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { accounts } = useAccounts();
@@ -154,7 +157,7 @@ export default function DeudasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold tabular-nums text-destructive">
-              {formatAmount(totals.pendienteVista, viewCurrency)}
+              {money(totals.pendienteVista, viewCurrency)}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {debts.length} prestamos activos
@@ -170,7 +173,7 @@ export default function DeudasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold tabular-nums">
-              {formatAmount(totals.cuotaMensualVista, viewCurrency)}
+              {money(totals.cuotaMensualVista, viewCurrency)}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Suma de cuotas activas en {viewCurrency}
@@ -234,13 +237,13 @@ export default function DeudasPage() {
                         <Badge variant="secondary">{d.tipo}</Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-destructive/80">
-                        {formatAmount(d.capitalPendiente, d.moneda)}
+                        {money(d.capitalPendiente, d.moneda)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {(d.tin * 100).toFixed(2)}%
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatAmount(cuota, d.moneda)}
+                        {money(cuota, d.moneda)}
                       </TableCell>
                       <TableCell className="w-[140px]">
                         <div className="flex items-center gap-2">
@@ -344,6 +347,8 @@ function DebtDetailCard({
   cuotaCalc: number;
 }) {
   const totalRestante = cuotaCalc * debt.plazoRestanteMeses;
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const totalIntereses = Math.max(0, totalRestante - debt.capitalPendiente);
   const fechaInicio =
     debt.fechaInicio instanceof Date
@@ -375,20 +380,20 @@ function DebtDetailCard({
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <DetailKpi
             label="Cuota mensual"
-            value={formatAmount(cuotaCalc, debt.moneda)}
+            value={money(cuotaCalc, debt.moneda)}
           />
           <DetailKpi
             label="Importe inicial"
-            value={formatAmount(debt.importeInicial, debt.moneda)}
+            value={money(debt.importeInicial, debt.moneda)}
           />
           <DetailKpi
             label="Capital pendiente"
-            value={formatAmount(debt.capitalPendiente, debt.moneda)}
+            value={money(debt.capitalPendiente, debt.moneda)}
             intent="negative"
           />
           <DetailKpi
             label="Intereses restantes"
-            value={formatAmount(totalIntereses, debt.moneda)}
+            value={money(totalIntereses, debt.moneda)}
             hint={`En ${debt.plazoRestanteMeses} cuotas`}
           />
         </div>
@@ -401,7 +406,7 @@ function DebtDetailCard({
           <Progress value={progreso * 100} />
           <p className="text-xs text-muted-foreground tabular-nums">
             Quedan {debt.plazoRestanteMeses} cuotas ·{" "}
-            {formatAmount(totalRestante, debt.moneda)} restante total
+            {money(totalRestante, debt.moneda)} restante total
           </p>
         </div>
 

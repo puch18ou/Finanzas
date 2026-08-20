@@ -55,12 +55,15 @@ import {
   convert,
   formatAmount,
 } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import {
   sumMovementsByCategory,
   filterMovementsByPeriod,
 } from "@/lib/domain/aggregation";
 
 export default function CategoriasPage() {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const today = new Date();
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
@@ -224,11 +227,11 @@ export default function CategoriasPage() {
                         <Badge variant="secondary">{c.tipo}</Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatAmount(gastado, viewCurrency)}
+                        {money(gastado, viewCurrency)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {presupuestoView > 0
-                          ? formatAmount(presupuestoView, viewCurrency)
+                          ? money(presupuestoView, viewCurrency)
                           : "—"}
                         {tieneCambios && (
                           <span

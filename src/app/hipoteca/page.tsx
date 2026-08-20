@@ -70,10 +70,13 @@ import {
   type AnnualSummaryRow,
 } from "@/lib/domain/mortgage";
 import { formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 export default function HipotecaPage() {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { accounts } = useAccounts();
@@ -316,7 +319,7 @@ export default function HipotecaPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Capital prestado</Label>
                 <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium tabular-nums">
-                  {formatAmount(capitalPrestado, moneda)}
+                  {money(capitalPrestado, moneda)}
                 </div>
               </div>
             </div>
@@ -459,10 +462,10 @@ export default function HipotecaPage() {
         {calculations && (
           <>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <KpiMortgage icon={Calculator} label="Cuota mensual" value={formatAmount(calculations.summary.cuotaMensual, moneda)} hint={`${calculations.summary.numeroCuotas} cuotas`} intent="primary" />
-              <KpiMortgage icon={Home} label="Capital prestado" value={formatAmount(calculations.summary.capitalPrestado, moneda)} />
-              <KpiMortgage icon={TrendingUp} label="Total intereses" value={formatAmount(calculations.summary.totalIntereses, moneda)} intent="negative" />
-              <KpiMortgage icon={Home} label="Total a pagar" value={formatAmount(calculations.summary.totalAPagar, moneda)} />
+              <KpiMortgage icon={Calculator} label="Cuota mensual" value={money(calculations.summary.cuotaMensual, moneda)} hint={`${calculations.summary.numeroCuotas} cuotas`} intent="primary" />
+              <KpiMortgage icon={Home} label="Capital prestado" value={money(calculations.summary.capitalPrestado, moneda)} />
+              <KpiMortgage icon={TrendingUp} label="Total intereses" value={money(calculations.summary.totalIntereses, moneda)} intent="negative" />
+              <KpiMortgage icon={Home} label="Total a pagar" value={money(calculations.summary.totalAPagar, moneda)} />
             </div>
 
             <Card>
@@ -506,16 +509,18 @@ export default function HipotecaPage() {
 function YearRowFragment({ row, moneda, expanded, onToggle }: {
   row: AnnualSummaryRow; moneda: string; expanded: boolean; onToggle: () => void;
 }) {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   return (
     <>
       <TableRow className="cursor-pointer hover:bg-muted/40" onClick={onToggle}>
         <TableCell>{expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}</TableCell>
         <TableCell className="font-medium">{row.anio}</TableCell>
-        <TableCell className="text-right tabular-nums">{formatAmount(row.cuotaAnual, moneda)}</TableCell>
-        <TableCell className="text-right tabular-nums text-destructive/80">{formatAmount(row.interesesAnio, moneda)}</TableCell>
-        <TableCell className="text-right tabular-nums text-primary">{formatAmount(row.capitalAnio, moneda)}</TableCell>
-        <TableCell className="text-right tabular-nums">{formatAmount(row.capitalAmortizado, moneda)}</TableCell>
-        <TableCell className="text-right tabular-nums text-muted-foreground">{formatAmount(row.capitalPendiente, moneda)}</TableCell>
+        <TableCell className="text-right tabular-nums">{money(row.cuotaAnual, moneda)}</TableCell>
+        <TableCell className="text-right tabular-nums text-destructive/80">{money(row.interesesAnio, moneda)}</TableCell>
+        <TableCell className="text-right tabular-nums text-primary">{money(row.capitalAnio, moneda)}</TableCell>
+        <TableCell className="text-right tabular-nums">{money(row.capitalAmortizado, moneda)}</TableCell>
+        <TableCell className="text-right tabular-nums text-muted-foreground">{money(row.capitalPendiente, moneda)}</TableCell>
       </TableRow>
       {expanded && (
         <TableRow className="bg-muted/20">
@@ -537,10 +542,10 @@ function YearRowFragment({ row, moneda, expanded, onToggle }: {
                       <TableCell className="py-1 font-mono text-muted-foreground">
                         <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">#{m.mes}</Badge>
                       </TableCell>
-                      <TableCell className="py-1 text-right tabular-nums">{formatAmount(m.cuota, moneda)}</TableCell>
-                      <TableCell className="py-1 text-right tabular-nums text-destructive/70">{formatAmount(m.intereses, moneda)}</TableCell>
-                      <TableCell className="py-1 text-right tabular-nums text-primary">{formatAmount(m.amortizacion, moneda)}</TableCell>
-                      <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{formatAmount(m.capitalFinal, moneda)}</TableCell>
+                      <TableCell className="py-1 text-right tabular-nums">{money(m.cuota, moneda)}</TableCell>
+                      <TableCell className="py-1 text-right tabular-nums text-destructive/70">{money(m.intereses, moneda)}</TableCell>
+                      <TableCell className="py-1 text-right tabular-nums text-primary">{money(m.amortizacion, moneda)}</TableCell>
+                      <TableCell className="py-1 text-right tabular-nums text-muted-foreground">{money(m.capitalFinal, moneda)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -43,6 +43,7 @@ import {
   convert,
   formatAmount,
 } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { calculateGoalProgress } from "@/lib/domain/goals";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
@@ -221,6 +222,8 @@ function GoalCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const fechaObjetivo =
     goal.fechaObjetivo instanceof Date
       ? goal.fechaObjetivo
@@ -281,10 +284,10 @@ function GoalCard({
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="text-sm font-medium tabular-nums">
-              {formatAmount(goal.yaAhorrado, goal.moneda)}
+              {money(goal.yaAhorrado, goal.moneda)}
             </span>
             <span className="text-sm text-muted-foreground tabular-nums">
-              / {formatAmount(goal.importeObjetivo, goal.moneda)}
+              / {money(goal.importeObjetivo, goal.moneda)}
             </span>
           </div>
           <Progress
@@ -298,7 +301,7 @@ function GoalCard({
             <span>{(progress.progreso * 100).toFixed(1)}%</span>
             {progress.restante > 0 && (
               <span className="tabular-nums">
-                Faltan {formatAmount(progress.restante, goal.moneda)}
+                Faltan {money(progress.restante, goal.moneda)}
               </span>
             )}
           </div>
@@ -323,7 +326,7 @@ function GoalCard({
               <p className="text-xs text-muted-foreground">Ahorro mensual</p>
               <p className="font-semibold tabular-nums">
                 {progress.ahorroMensualNecesario > 0
-                  ? formatAmount(progress.ahorroMensualNecesario, goal.moneda)
+                  ? money(progress.ahorroMensualNecesario, goal.moneda)
                   : "—"}
               </p>
             </div>

@@ -47,6 +47,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { RecurringRule } from "@/lib/db/schema";
 import { formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { formatDateLong } from "@/lib/utils/dates";
 
 const TIPO_BADGE: Record<string, { label: string; className: string }> = {
@@ -240,6 +241,8 @@ function RuleTable({
   onDelete: (r: RecurringRule) => void;
   vinculada: boolean;
 }) {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   return (
     <Table>
       <TableHeader>
@@ -291,7 +294,7 @@ function RuleTable({
                 </Badge>
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {formatAmount(r.importe, r.moneda)}
+                {money(r.importe, r.moneda)}
               </TableCell>
               <TableCell className="tabular-nums">{r.diaDelMes}</TableCell>
               <TableCell className="text-xs text-muted-foreground">

@@ -35,12 +35,15 @@ import {
   ReferenceLine,
 } from "recharts";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
+import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 import { summarizeMonth } from "@/lib/domain/aggregation";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
 
 export default function ProyeccionPage() {
+  const mask = useMaskMoney();
+  const money = (n: number, cur: string) => mask(formatAmount(n, cur));
   const today = new Date();
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
@@ -255,19 +258,19 @@ export default function ProyeccionPage() {
           <div className="space-y-1">
             <Label className="text-xs">Patrimonio inicial declarado</Label>
             <p className="text-lg font-semibold tabular-nums">
-              {formatAmount(patrimonioInicial, viewCurrency)}
+              {money(patrimonioInicial, viewCurrency)}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Patrimonio neto actual</Label>
             <p className="text-lg font-semibold tabular-nums">
-              {formatAmount(patrimonioNetoActual, viewCurrency)}
+              {money(patrimonioNetoActual, viewCurrency)}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Ahorro mensual medio (12m)</Label>
             <p className="text-lg font-semibold tabular-nums">
-              {formatAmount(ahorroMensualMedio, viewCurrency)}
+              {money(ahorroMensualMedio, viewCurrency)}
             </p>
           </div>
           <div className="space-y-2 md:col-span-3">
@@ -300,13 +303,13 @@ export default function ProyeccionPage() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">En {horizonMonths} meses</p>
               <p className="text-2xl font-bold tabular-nums">
-                {formatAmount(patrimonioProyectado, viewCurrency)}
+                {money(patrimonioProyectado, viewCurrency)}
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Crecimiento esperado</p>
               <p className="text-2xl font-bold tabular-nums text-primary">
-                {formatAmount(patrimonioProyectado - patrimonioNetoActual, viewCurrency)}
+                {money(patrimonioProyectado - patrimonioNetoActual, viewCurrency)}
               </p>
             </div>
           </div>
@@ -317,7 +320,7 @@ export default function ProyeccionPage() {
                 <XAxis dataKey="label" interval="preserveStartEnd" />
                 <YAxis />
                 <Tooltip
-                  formatter={(v: unknown) => formatAmount(Number(v) || 0, viewCurrency)}
+                  formatter={(v: unknown) => money(Number(v) || 0, viewCurrency)}
                   contentStyle={{
                     backgroundColor: "var(--color-card)",
                     border: "1px solid var(--color-border)",
@@ -355,7 +358,7 @@ export default function ProyeccionPage() {
           <CardTitle>Metas</CardTitle>
           <CardDescription>
             Fecha estimada de cumplimiento segun lo ya ahorrado y tu ahorro
-            mensual medio ({formatAmount(ahorroMensualMedio, viewCurrency)}/mes).
+            mensual medio ({money(ahorroMensualMedio, viewCurrency)}/mes).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -373,7 +376,7 @@ export default function ProyeccionPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{g.nombre}</p>
                     <p className="text-xs text-muted-foreground tabular-nums">
-                      {formatAmount(g.objetivoView, viewCurrency)} · objetivo{" "}
+                      {money(g.objetivoView, viewCurrency)} · objetivo{" "}
                       {fmtMesAnio(g.fechaObjetivo)}
                     </p>
                   </div>
