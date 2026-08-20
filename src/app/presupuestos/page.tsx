@@ -17,8 +17,8 @@
  * ============================================================================
  */
 
-import { useMemo, useState } from "react";
-import { Wallet } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Wallet, ChevronRight } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
@@ -43,8 +43,10 @@ import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import {
   filterMovementsByPeriod,
   sumMovementsByCategory,
+  listMovementsByCategory,
+  type CategoryMovementItem,
 } from "@/lib/domain/aggregation";
-import { MESES_ES, MESES_ES_CORTO } from "@/lib/utils/dates";
+import { MESES_ES, MESES_ES_CORTO, formatDateLong } from "@/lib/utils/dates";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
 import { tramosAncla, resolvePresupuesto } from "@/lib/domain/tramos";
@@ -57,6 +59,9 @@ type Row = {
   gastadoMes: number;
   presupuestoAcum: number;
   gastadoAcum: number;
+  // Desglose de los gastos de ESTE mes que componen `gastadoMes`, ordenado de
+  // mayor a menor, para poder desplegar la fila.
+  gastosMes: CategoryMovementItem[];
 };
 
 export default function PresupuestosPage() {
@@ -71,6 +76,9 @@ export default function PresupuestosPage() {
   // siempre el mes en curso. El selector permite navegar durante la sesion.
   const [anio, setAnio] = useState<number>(today.getFullYear());
   const [mes, setMes] = useState<number>(today.getMonth() + 1);
+  // Categoria cuya fila esta desplegada (desglose de gastos del mes). Solo una
+  // abierta a la vez para que la tabla no crezca sin control.
+  const [expandida, setExpandida] = useState<string | null>(null);
 
   const { movements } = useMovements({ anio });
 
@@ -111,6 +119,7 @@ export default function PresupuestosPage() {
       rates,
       viewCurrency,
     );
+    const gastosMesByCat = listMovementsByCategory(movsMes, rates, viewCurrency);
 
     // Presupuesto resuelto y convertido a moneda vista para (anio, m).
     const presView = (c: (typeof categories)[number], m: number): number => {
@@ -144,6 +153,7 @@ export default function PresupuestosPage() {
           gastadoMes: gastadoMesByCat[c.id] ?? 0,
           presupuestoAcum,
           gastadoAcum: gastadoAcumByCat[c.id] ?? 0,
+          gastosMes: gastosMesByCat[c.id] ?? [],
         };
       });
   }, [
@@ -231,28 +241,72 @@ export default function PresupuestosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.categoriaId}>
-                    <TableCell className="font-medium">{r.nombre}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatAmount(r.presupuestoMes, viewCurrency)}
-                    </TableCell>
-                    <TableCell>
-                      <BudgetCell
-                        gastado={r.gastadoMes}
-                        presupuesto={r.presupuestoMes}
-                        viewCurrency={viewCurrency}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <BudgetCell
-                        gastado={r.gastadoAcum}
-                        presupuesto={r.presupuestoAcum}
-                        viewCurrency={viewCurrency}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {rows.map((r) => {
+                  const abierta = expandida === r.categoriaId;
+                  const tieneGastos = r.gastosMes.length > 0;
+                  return (
+                    <Fragment key={r.categoriaId}>
+                      <TableRow>
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            disabled={!tieneGastos}
+                            onClick={() =>
+                              setExpandida(abierta ? null : r.categoriaId)
+                            }
+                            className={cn(
+                              "flex items-center gap-1.5 text-left",
+                              tieneGastos
+                                ? "hover:text-primary"
+                                : "cursor-default",
+                            )}
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                                abierta && "rotate-90",
+                                !tieneGastos && "opacity-0",
+                              )}
+                            />
+                            <span>{r.nombre}</span>
+                            {tieneGastos && (
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                ({r.gastosMes.length})
+                              </span>
+                            )}
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatAmount(r.presupuestoMes, viewCurrency)}
+                        </TableCell>
+                        <TableCell>
+                          <BudgetCell
+                            gastado={r.gastadoMes}
+                            presupuesto={r.presupuestoMes}
+                            viewCurrency={viewCurrency}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <BudgetCell
+                            gastado={r.gastadoAcum}
+                            presupuesto={r.presupuestoAcum}
+                            viewCurrency={viewCurrency}
+                          />
+                        </TableCell>
+                      </TableRow>
+                      {abierta && tieneGastos && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={4} className="py-0">
+                            <BudgetBreakdown
+                              items={r.gastosMes}
+                              viewCurrency={viewCurrency}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
                 <TableRow className="border-t-2 font-medium">
                   <TableCell>Total</TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -278,6 +332,67 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function BudgetBreakdown({
+  items,
+  viewCurrency,
+}: {
+  items: CategoryMovementItem[];
+  viewCurrency: string;
+}) {
+  return (
+    <div className="my-2 max-h-72 overflow-y-auto rounded-md border bg-muted/20">
+      <table className="w-full text-sm">
+        <tbody>
+          {items.map(({ movement: m, importeNeto, devuelto, valorVista }) => {
+            const fecha = m.fecha instanceof Date ? m.fecha : new Date(m.fecha);
+            const esDev = m.tipo === "devolucion";
+            // Si el gasto esta en otra divisa, mostramos tambien su conversion
+            // a la moneda de vista (valorVista ya es el neto convertido).
+            const otraDivisa = m.moneda !== viewCurrency;
+            return (
+              <tr key={m.id} className="border-b last:border-b-0">
+                <td className="w-[110px] whitespace-nowrap px-3 py-1.5 align-top tabular-nums text-muted-foreground">
+                  {formatDateLong(fecha)}
+                </td>
+                <td className="px-3 py-1.5">
+                  {m.concepto}
+                  {esDev && (
+                    <span className="ml-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                      devolución
+                    </span>
+                  )}
+                  {devuelto > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {formatAmount(m.importe, m.moneda)} − {formatAmount(devuelto, m.moneda)} dev.
+                    </div>
+                  )}
+                </td>
+                <td
+                  className={cn(
+                    "whitespace-nowrap px-3 py-1.5 text-right align-top tabular-nums",
+                    esDev && "text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  <div>
+                    {esDev ? "−" : ""}
+                    {formatAmount(importeNeto, m.moneda)}
+                  </div>
+                  {otraDivisa && (
+                    <div className="text-xs text-muted-foreground">
+                      ≈ {esDev ? "−" : ""}
+                      {formatAmount(Math.abs(valorVista), viewCurrency)}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

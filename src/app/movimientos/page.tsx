@@ -30,6 +30,10 @@ import {
   Sparkles,
   Clock,
   Undo2,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMovements } from "@/hooks/useMovements";
@@ -47,6 +51,7 @@ import { RefundsDialog } from "@/components/forms/RefundsDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -71,11 +76,14 @@ import type { Movement } from "@/lib/db/schema";
 import type { MovementType, CreateMovementData } from "@/lib/repositories";
 import { formatAmount, buildRatesMap, convert } from "@/lib/domain/currency";
 import { parseTags, allTags, hasTag } from "@/lib/domain/tags";
+import { normalizeConcepto } from "@/lib/domain/category-suggest";
 import { costeReal, sumRefundsInCurrency } from "@/lib/domain/refunds";
 import { formatDateLong } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 type TabKey = "todos" | "gasto" | "ingreso" | "transferencia" | "ajuste";
+type SortKey = "fecha" | "concepto" | "importe" | "categoria";
+type SortDir = "asc" | "desc";
 
 export default function MovimientosPage() {
   const today = new Date();
@@ -102,6 +110,20 @@ export default function MovimientosPage() {
   const [tab, setTab] = useState<TabKey>("todos");
   // Filtro por etiqueta (en cliente). null = sin filtro.
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
+  // Busqueda de texto (concepto + categoria + etiquetas) y orden.
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("fecha");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const toggleSort = (col: SortKey) => {
+    if (sortKey === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(col);
+      // Por defecto: fecha e importe de mayor a menor; texto de la A a la Z.
+      setSortDir(col === "concepto" || col === "categoria" ? "asc" : "desc");
+    }
+  };
 
   // El filtro de tipo se aplica en cliente (mas flexible para el tab "todos")
   const filter = useMemo(
@@ -115,9 +137,20 @@ export default function MovimientosPage() {
   const { movements, isLoading, create, update, remove, isMutating } =
     useMovements(filter);
 
+  // Las devoluciones ASOCIADAS a un gasto no se listan como movimiento propio:
+  // las gestiona el gasto (que muestra su coste real). Las devoluciones SUELTAS
+  // (sin gasto asociado) si aparecen, como hasta ahora.
+  const listaBase = useMemo(
+    () =>
+      movements.filter(
+        (m) => !(m.tipo === "devolucion" && m.gastoAsociadoId),
+      ),
+    [movements],
+  );
+
   // Filtramos por tab y por etiqueta en cliente
   const visibleMovements = useMemo(() => {
-    let list = movements;
+    let list = listaBase;
     if (tab === "gasto") {
       list = list.filter(
         (m) =>
@@ -132,35 +165,23 @@ export default function MovimientosPage() {
     }
     if (tagFiltro) list = list.filter((m) => hasTag(m.etiquetas, tagFiltro));
     return list;
-  }, [movements, tab, tagFiltro]);
+  }, [listaBase, tab, tagFiltro]);
 
-  // Etiquetas disponibles en el periodo + total de la etiqueta filtrada.
-  const tagsDisponibles = useMemo(() => allTags(movements), [movements]);
+  // Etiquetas disponibles en el periodo.
+  const tagsDisponibles = useMemo(() => allTags(listaBase), [listaBase]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
-  const tagTotal = useMemo(() => {
-    if (!tagFiltro) return 0;
-    let t = 0;
-    for (const m of visibleMovements) {
-      try {
-        t += convert(m.importe, m.moneda, viewCurrency, rates);
-      } catch {
-        // moneda sin tipo de cambio: la ignoramos
-      }
-    }
-    return t;
-  }, [tagFiltro, visibleMovements, rates, viewCurrency]);
 
   // Contadores por tab
   const counts = useMemo(() => {
     const c = {
-      todos: movements.length,
+      todos: listaBase.length,
       gasto: 0,
       ingreso: 0,
       transferencia: 0,
       ajuste: 0,
     };
-    for (const m of movements) {
+    for (const m of listaBase) {
       if (m.tipo === "gasto" || m.tipo === "cuota" || m.tipo === "devolucion")
         c.gasto++;
       else if (m.tipo === "ingreso" || m.tipo === "intereses") c.ingreso++;
@@ -168,7 +189,7 @@ export default function MovimientosPage() {
       else if (m.tipo === "ajuste") c.ajuste++;
     }
     return c;
-  }, [movements]);
+  }, [listaBase]);
 
   // Helpers para mostrar
   const catById = useMemo(() => {
@@ -176,6 +197,62 @@ export default function MovimientosPage() {
     for (const c of categories) m[c.id] = c.nombre;
     return m;
   }, [categories]);
+
+  // Nombre de categoria (o texto libre) de un movimiento, para buscar/ordenar.
+  const catNameOf = (m: Movement): string =>
+    (m.categoriaId ? catById[m.categoriaId] : null) ?? m.categoriaTexto ?? "";
+
+  // Importe convertido a moneda vista (para ordenar por cantidad y sumar).
+  const importeVista = (m: Movement): number => {
+    try {
+      return convert(m.importe, m.moneda, viewCurrency, rates);
+    } catch {
+      return 0;
+    }
+  };
+
+  // Pipeline final: sobre lo visible (tab + etiqueta) aplicamos BUSQUEDA de
+  // texto y ORDEN. La busqueda casa por concepto + categoria + etiquetas,
+  // exigiendo que aparezcan todas las palabras escritas (sin tildes ni mayus).
+  const procesados = useMemo(() => {
+    const tokens = normalizeConcepto(search).split(" ").filter(Boolean);
+    let list = visibleMovements;
+    if (tokens.length) {
+      list = list.filter((m) => {
+        const hay = normalizeConcepto(
+          `${m.concepto} ${catNameOf(m)} ${m.etiquetas ?? ""}`,
+        );
+        return tokens.every((t) => hay.includes(t));
+      });
+    }
+    const dir = sortDir === "asc" ? 1 : -1;
+    const arr = [...list];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "concepto") {
+        cmp = a.concepto.localeCompare(b.concepto, "es");
+      } else if (sortKey === "categoria") {
+        cmp = catNameOf(a).localeCompare(catNameOf(b), "es");
+      } else if (sortKey === "importe") {
+        cmp = importeVista(a) - importeVista(b);
+      } else {
+        cmp = +new Date(a.fecha) - +new Date(b.fecha);
+      }
+      // Desempate estable por fecha (mas nuevo primero).
+      if (cmp === 0) cmp = +new Date(b.fecha) - +new Date(a.fecha);
+      return cmp * dir;
+    });
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMovements, search, sortKey, sortDir, catById, rates, viewCurrency]);
+
+  // Suma de los importes visibles, en moneda vista (siempre visible).
+  const totalVista = useMemo(() => {
+    let t = 0;
+    for (const m of procesados) t += importeVista(m);
+    return t;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [procesados, rates, viewCurrency]);
 
   const accById = useMemo(() => {
     const m: Record<string, string> = {};
@@ -322,7 +399,7 @@ export default function MovimientosPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {visibleMovements.length} movimientos
+            {procesados.length} movimientos
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -339,6 +416,34 @@ export default function MovimientosPage() {
               <TabTrigger value="ajuste" label="Ajustes" count={counts.ajuste} />
             </TabsList>
           </Tabs>
+
+          {/* Buscador + total de lo que se esta viendo */}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por concepto, categoría o etiqueta…"
+                className="pl-8"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground tabular-nums">
+              {procesados.length} mov ·{" "}
+              <span className="font-medium text-foreground">
+                {formatAmount(totalVista, viewCurrency)}
+              </span>
+            </div>
+          </div>
 
           {tagsDisponibles.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -357,33 +462,62 @@ export default function MovimientosPage() {
                   </Badge>
                 </button>
               ))}
-              {tagFiltro && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  · {visibleMovements.length} mov ·{" "}
-                  {formatAmount(tagTotal, viewCurrency)}
-                </span>
-              )}
             </div>
           )}
 
-          {!isLoading && visibleMovements.length === 0 ? (
+          {!isLoading && procesados.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              No hay movimientos en este periodo.
+              {search.trim()
+                ? "Ningún movimiento coincide con la búsqueda."
+                : "No hay movimientos en este periodo."}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[110px]">Fecha</TableHead>
+                  <TableHead className="w-[110px]">
+                    <SortHeader
+                      label="Fecha"
+                      col="fecha"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                    />
+                  </TableHead>
                   <TableHead className="w-[110px]">Tipo</TableHead>
-                  <TableHead>Concepto</TableHead>
-                  <TableHead>Categoria / Cuentas</TableHead>
-                  <TableHead className="text-right">Importe</TableHead>
+                  <TableHead>
+                    <SortHeader
+                      label="Concepto"
+                      col="concepto"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortHeader
+                      label="Categoria / Cuentas"
+                      col="categoria"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortHeader
+                      label="Importe"
+                      col="importe"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={toggleSort}
+                      align="right"
+                    />
+                  </TableHead>
                   <TableHead className="w-[80px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleMovements.map((m) => (
+                {procesados.map((m) => (
                   <MovementRow
                     key={m.id}
                     m={m}
@@ -454,6 +588,41 @@ export default function MovimientosPage() {
         }}
       />
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+  align,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (col: SortKey) => void;
+  align?: "right";
+}) {
+  const active = sortKey === col;
+  const Icon = active ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(col)}
+      className={cn(
+        "inline-flex items-center gap-1 hover:text-foreground",
+        align === "right" && "flex-row-reverse",
+        active ? "text-foreground" : "",
+      )}
+    >
+      {label}
+      <Icon
+        className={cn("h-3.5 w-3.5", active ? "opacity-100" : "opacity-40")}
+      />
+    </button>
   );
 }
 
