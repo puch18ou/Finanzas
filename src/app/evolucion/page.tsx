@@ -36,6 +36,14 @@ import {
 } from "@/components/ui/table";
 import { EvolutionChart } from "@/components/charts/EvolutionChart";
 import { PatrimonioChart } from "@/components/charts/PatrimonioChart";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { CompareYearsTab } from "@/components/evolucion/CompareYearsTab";
+import { CategoryTrendTab } from "@/components/evolucion/CategoryTrendTab";
 import { usePatrimonioSnapshots } from "@/hooks/usePatrimonioSnapshots";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
@@ -247,45 +255,54 @@ export default function EvolucionPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Evolucion</h1>
-          <p className="text-sm text-muted-foreground">
-            {usaObjetivo
-              ? "Resumen mensual desde tu objetivo de ahorro."
-              : "Resumen mensual del anio seleccionado."}
-          </p>
-        </div>
-        <Select
-          value={usaObjetivo ? "objetivo" : String(anio)}
-          onValueChange={(v) => {
-            if (v === "objetivo") {
-              setModo("objetivo");
-            } else {
-              setModo("anio");
-              setAnio(Number(v));
-            }
-          }}
-        >
-          <SelectTrigger className={hayObjetivoDesde ? "w-[210px]" : "w-[120px]"}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {hayObjetivoDesde && (
-              <SelectItem value="objetivo">
-                Desde objetivo de ahorro
-              </SelectItem>
-            )}
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Evolucion</h1>
+        <p className="text-sm text-muted-foreground">
+          Resumen mensual, comparativa entre años y evolucion por categoria.
+        </p>
       </header>
 
-      <Card>
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="comparar">Comparar años</TabsTrigger>
+          <TabsTrigger value="categorias">Por categoria</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="space-y-6">
+          <div className="flex justify-end">
+            <Select
+              value={usaObjetivo ? "objetivo" : String(anio)}
+              onValueChange={(v) => {
+                if (v === "objetivo") {
+                  setModo("objetivo");
+                } else {
+                  setModo("anio");
+                  setAnio(Number(v));
+                }
+              }}
+            >
+              <SelectTrigger
+                className={hayObjetivoDesde ? "w-[210px]" : "w-[120px]"}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {hayObjetivoDesde && (
+                  <SelectItem value="objetivo">
+                    Desde objetivo de ahorro
+                  </SelectItem>
+                )}
+                {years.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Card>
         <CardHeader>
           <CardTitle>
             {usaObjetivo ? "Resumen desde objetivo" : `Resumen ${anio}`}
@@ -391,6 +408,16 @@ export default function EvolucionPage() {
           </Table>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="comparar">
+          <CompareYearsTab viewCurrency={viewCurrency} rates={rates} />
+        </TabsContent>
+
+        <TabsContent value="categorias">
+          <CategoryTrendTab viewCurrency={viewCurrency} rates={rates} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
