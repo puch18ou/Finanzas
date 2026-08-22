@@ -313,7 +313,11 @@ export function ContributionsDialog({
       setEditingPlanId(p.id);
       setPImporte(String(p.importe));
       setPCuenta(p.cuentaOrigenId ?? "");
-      setPFrecuencia(p.frecuencia);
+      setPFrecuencia(
+        p.frecuencia === "diaria" || p.frecuencia === "semanal"
+          ? p.frecuencia
+          : "mensual",
+      );
       setPDia(String(p.diaDelMes));
       setPDiaSemana(String(p.diaSemana ?? 1));
       setPInicio(

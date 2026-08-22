@@ -126,6 +126,153 @@ export function currentPeriod(now: Date = new Date()): { anio: number; mes: numb
   };
 }
 
+// ============================================================================
+//  PERIODICIDAD FLEXIBLE (migracion 0032) — occurrencesForRule
+// ============================================================================
+
+/** Frecuencias soportadas por el motor general de reglas recurrentes. */
+export type RecurringFrecuencia =
+  | "diaria"
+  | "semanal"
+  | "mensual"
+  | "anual"
+  | "varios-mes";
+
+/**
+ * Campos de una regla necesarios para calcular sus ocurrencias en un mes.
+ * Es un subconjunto de RecurringRule para poder testear sin la DB.
+ */
+export interface OccurrenceRule {
+  frecuencia?: RecurringFrecuencia | null;
+  diaDelMes: number;
+  diaSemana?: number | null;
+  diasDelMes?: string | null; // "1,15"
+  mesDelAnio?: number | null; // 1-12
+  fechaInicio: Date | number | string;
+  fechaFin: Date | number | string | null;
+}
+
+function coerceDate(d: Date | number | string): Date {
+  return d instanceof Date ? d : new Date(d);
+}
+
+/**
+ * Parsea la lista "1,15,28" -> [1, 15, 28]. Descarta valores no validos
+ * (fuera de 1-31 o no numericos). No ordena ni deduplica (eso lo hace
+ * occurrencesForRule tras el clamp mensual).
+ */
+export function parseDiasDelMes(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 31);
+}
+
+/**
+ * Comprueba si una fecha concreta (mediodia UTC) cae dentro del rango de la
+ * regla comparando a nivel de DIA (ignora la hora de fechaInicio/fechaFin).
+ * Se usa para diaria/semanal, donde el limite de dia importa.
+ */
+function dayInRange(date: Date, start: Date, end: Date | null): boolean {
+  const ts = date.getTime();
+  const startTs = Date.UTC(
+    start.getUTCFullYear(),
+    start.getUTCMonth(),
+    start.getUTCDate(),
+    12,
+  );
+  if (ts < startTs) return false;
+  if (end) {
+    const endTs = Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate(),
+      12,
+    );
+    if (ts > endTs) return false;
+  }
+  return true;
+}
+
+/**
+ * Devuelve TODAS las fechas (mediodia UTC) en las que una regla ocurre dentro
+ * de un mes/anio concreto, segun su frecuencia. Array vacio si el mes cae
+ * fuera del rango [fechaInicio, fechaFin] o si la frecuencia no aplica ese mes
+ * (p.ej. anual en un mes distinto al configurado).
+ *
+ * - mensual / anual / varios-mes: se filtran a nivel de MES (isPeriodInRange),
+ *   conservando la semantica clasica (fechaInicio como ancla de mes).
+ * - diaria / semanal: ademas se filtra cada dia candidato a nivel de DIA
+ *   contra fechaInicio/fechaFin.
+ *
+ * Reemplaza conceptualmente a monthlyOccurrenceFor generalizando a N fechas.
+ */
+export function occurrencesForRule(
+  rule: OccurrenceRule,
+  anio: number,
+  mes: number,
+): Date[] {
+  const start = coerceDate(rule.fechaInicio);
+  const end = rule.fechaFin != null ? coerceDate(rule.fechaFin) : null;
+  const freq: RecurringFrecuencia = rule.frecuencia ?? "mensual";
+
+  // Puerta a nivel de mes (igual que el motor mensual clasico).
+  if (!isPeriodInRange(anio, mes, start, end)) return [];
+
+  switch (freq) {
+    case "mensual":
+      return [buildPeriodDate(rule.diaDelMes, anio, mes)];
+
+    case "anual": {
+      const targetMonth = rule.mesDelAnio ?? start.getUTCMonth() + 1;
+      if (mes !== targetMonth) return [];
+      return [buildPeriodDate(rule.diaDelMes, anio, mes)];
+    }
+
+    case "varios-mes": {
+      const dias = parseDiasDelMes(rule.diasDelMes);
+      const use = dias.length > 0 ? dias : [rule.diaDelMes];
+      // Deduplicamos tras el clamp: p.ej. dias 30 y 31 colapsan en febrero.
+      const seen = new Set<number>();
+      const out: Date[] = [];
+      for (const d of use) {
+        const day = clampDayToMonth(d, anio, mes);
+        if (seen.has(day)) continue;
+        seen.add(day);
+        out.push(buildPeriodDate(d, anio, mes));
+      }
+      out.sort((a, b) => a.getTime() - b.getTime());
+      return out;
+    }
+
+    case "semanal": {
+      const target = rule.diaSemana ?? start.getUTCDay();
+      const last = lastDayOfMonth(anio, mes);
+      const out: Date[] = [];
+      for (let d = 1; d <= last; d++) {
+        const date = new Date(Date.UTC(anio, mes - 1, d, 12, 0, 0, 0));
+        if (date.getUTCDay() !== target) continue;
+        if (dayInRange(date, start, end)) out.push(date);
+      }
+      return out;
+    }
+
+    case "diaria": {
+      const last = lastDayOfMonth(anio, mes);
+      const out: Date[] = [];
+      for (let d = 1; d <= last; d++) {
+        const date = new Date(Date.UTC(anio, mes - 1, d, 12, 0, 0, 0));
+        if (dayInRange(date, start, end)) out.push(date);
+      }
+      return out;
+    }
+
+    default:
+      return [buildPeriodDate(rule.diaDelMes, anio, mes)];
+  }
+}
+
 /**
  * Devuelve la fecha de la ocurrencia mensual de una regla en un mes/anio
  * concreto, o null si ese periodo cae fuera del rango de la regla
@@ -157,55 +304,35 @@ export function monthlyOccurrenceFor(
 }
 
 /**
- * Dadas la fecha de inicio/fin de una regla MENSUAL y un diaDelMes,
- * devuelve las proximas ocurrencias previstas en el horizonte
- * [now, now + daysAhead]. No incluye ocurrencias ya pasadas: solo
- * las futuras (fecha > now).
+ * Devuelve las proximas ocurrencias previstas de una regla en el horizonte
+ * (now, now + daysAhead]. No incluye ocurrencias ya pasadas: solo las futuras
+ * (fecha > now). Soporta TODAS las frecuencias via occurrencesForRule.
  *
- * Esto se usa para exponer en la UI los movimientos recurrentes que
- * AUN no se han generado (se generaran al llegar el dia).
+ * Esto se usa para exponer en la UI los movimientos recurrentes que AUN no se
+ * han generado (se generaran al llegar el dia).
  */
 export function computeUpcomingFromRule(
-  rule: {
-    diaDelMes: number;
-    fechaInicio: Date;
-    fechaFin: Date | null;
-  },
+  rule: OccurrenceRule,
   now: Date,
   daysAhead: number,
 ): Array<{ fecha: Date; anio: number; mes: number }> {
-  const startDate =
-    rule.fechaInicio instanceof Date
-      ? rule.fechaInicio
-      : new Date(rule.fechaInicio);
-  const endDate = rule.fechaFin
-    ? rule.fechaFin instanceof Date
-      ? rule.fechaFin
-      : new Date(rule.fechaFin)
-    : null;
-
-  const horizonTs = now.getTime() + daysAhead * 24 * 3600 * 1000;
   const nowTs = now.getTime();
+  const horizonTs = nowTs + daysAhead * 24 * 3600 * 1000;
+  const horizon = new Date(horizonTs);
 
-  // Empezamos por el periodo actual y avanzamos mes a mes hasta superar
-  // el horizonte (max 6 iteraciones por seguridad, ~6 meses).
+  const startP = currentPeriod(now);
+  const endP = currentPeriod(horizon);
+  const periods = periodsBetween(startP.anio, startP.mes, endP.anio, endP.mes);
+
   const result: Array<{ fecha: Date; anio: number; mes: number }> = [];
-  let { anio, mes } = currentPeriod(now);
-  for (let i = 0; i < 6; i++) {
-    if (isPeriodInRange(anio, mes, startDate, endDate)) {
-      const fecha = buildPeriodDate(rule.diaDelMes, anio, mes);
+  for (const { anio, mes } of periods) {
+    for (const fecha of occurrencesForRule(rule, anio, mes)) {
       const ts = fecha.getTime();
       if (ts > nowTs && ts <= horizonTs) {
         result.push({ fecha, anio, mes });
-      } else if (ts > horizonTs) {
-        break;
       }
     }
-    mes++;
-    if (mes > 12) {
-      mes = 1;
-      anio++;
-    }
   }
+  result.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
   return result;
 }

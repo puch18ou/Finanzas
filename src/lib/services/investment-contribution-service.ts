@@ -401,17 +401,18 @@ export class InvestmentContributionService {
             isNull(movements.deletedAt),
           ),
         );
+      const freq = investmentFrecuencia(rule.frecuencia);
       const existingKey = new Set(
         existing.map((e) =>
           occurrenceKey(
-            rule.frecuencia,
+            freq,
             e.fecha instanceof Date ? e.fecha : new Date(e.fecha),
           ),
         ),
       );
 
       for (const fecha of occurrences) {
-        if (existingKey.has(occurrenceKey(rule.frecuencia, fecha))) continue;
+        if (existingKey.has(occurrenceKey(freq, fecha))) continue;
         const { mes, anio } = extractPeriod(fecha);
         const ok = await this.addPeriodicContribution(rule, fecha, mes, anio);
         if (ok) generated++;
@@ -470,7 +471,7 @@ export class InvestmentContributionService {
     // IDs DETERMINISTAS (misma clave que el dedup de ocurrencias): la misma
     // aportacion periodica tiene el mismo PK en todos los dispositivos, asi el
     // sync no duplica ni el movimiento ni la fila de aportacion.
-    const occKey = occurrenceKey(rule.frecuencia, fecha);
+    const occKey = occurrenceKey(investmentFrecuencia(rule.frecuencia), fecha);
 
     // ATOMICO: si fallara entre el movimiento y la aportacion, sin compensar
     // quedaria el movimiento huerfano y la idempotencia (que dedupe por el
@@ -738,6 +739,16 @@ function utcNoon(d: Date): Date {
   );
 }
 
+/**
+ * Estrecha la frecuencia (ampliada en 0032 con 'anual'/'varios-mes' para
+ * reglas manuales de PC) al conjunto que soportan las aportaciones a
+ * inversiones. Estas reglas solo se crean con diaria/semanal/mensual, asi que
+ * en la practica es un no-op; el default a 'mensual' es defensivo.
+ */
+function investmentFrecuencia(f: RecurringRule["frecuencia"]): Frecuencia {
+  return f === "diaria" || f === "semanal" ? f : "mensual";
+}
+
 /** Clave de idempotencia: por mes (mensual) o por dia (semanal/diaria). */
 function occurrenceKey(frecuencia: Frecuencia, fecha: Date): string {
   if (frecuencia === "mensual") {
@@ -766,7 +777,7 @@ function buildOccurrences(rule: RecurringRule, now: Date): Date[] {
       : new Date(rule.fechaFin)
     : null;
 
-  const frecuencia: Frecuencia = rule.frecuencia;
+  const frecuencia: Frecuencia = investmentFrecuencia(rule.frecuencia);
 
   if (frecuencia === "mensual") {
     const startAnio = start.getUTCFullYear();

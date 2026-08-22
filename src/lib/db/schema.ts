@@ -755,16 +755,25 @@ export const recurringRules = sqliteTable(
     fechaInicio: integer("fecha_inicio", { mode: "timestamp_ms" }).notNull(),
     fechaFin: integer("fecha_fin", { mode: "timestamp_ms" }),
 
-    // Frecuencia (Lote 13b-2). 'mensual' por defecto (compatibilidad con todas
-    // las reglas existentes, que usan diaDelMes). 'semanal' usa diaSemana
-    // (0=domingo..6=sabado); 'diaria' no usa ninguno. Solo lo honra el
-    // generador de aportaciones periodicas a inversiones.
+    // Frecuencia. 'mensual' por defecto (compatibilidad con todas las reglas
+    // existentes, que usan diaDelMes). Periodicidad flexible (migracion 0032,
+    // motor general, PC):
+    //   'diaria'     -> cada dia del rango (no usa ningun campo extra)
+    //   'semanal'    -> diaSemana (0=domingo..6=sabado)
+    //   'mensual'    -> diaDelMes (un dia del mes)                    [legado]
+    //   'anual'      -> diaDelMes + mesDelAnio (1-12)
+    //   'varios-mes' -> diasDelMes (lista "1,15")
     frecuencia: text("frecuencia", {
-      enum: ["diaria", "semanal", "mensual"],
+      enum: ["diaria", "semanal", "mensual", "anual", "varios-mes"],
     })
       .notNull()
       .default("mensual"),
     diaSemana: integer("dia_semana"),
+    // Lista de dias del mes separados por coma (ej. "1,15"). Solo 'varios-mes'.
+    diasDelMes: text("dias_del_mes"),
+    // Mes (1-12) de la ocurrencia anual. Solo 'anual'. Si NULL, se deriva del
+    // mes de fechaInicio.
+    mesDelAnio: integer("mes_del_anio"),
 
     activa: integer("activa", { mode: "boolean" }).notNull().default(true),
 
