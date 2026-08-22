@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/card";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import {
   projectCashflow,
   saldoAtDate,
@@ -95,12 +95,6 @@ export function CashflowCard() {
       const mes = base.getMonth() + 1;
 
       for (const rule of activeRules) {
-        if (rule.frecuencia && rule.frecuencia !== "mensual") continue;
-        const occ = monthlyOccurrenceFor(rule, anio, mes);
-        if (!occ) continue;
-        const ts = occ.getTime();
-        if (ts <= nowMs || ts > horizonMs) continue;
-
         let importeVista: number;
         try {
           importeVista = convert(rule.importe, rule.moneda, viewCurrency, rates);
@@ -113,7 +107,14 @@ export function CashflowCard() {
           importeVista,
         );
         if (delta === 0) continue;
-        out.push({ fecha: occ, delta, label: rule.nombre });
+
+        // Todas las ocurrencias del mes segun la frecuencia (semanal/diaria/
+        // varios-mes pueden dar varias) dentro del horizonte.
+        for (const occ of occurrencesForRule(rule, anio, mes)) {
+          const ts = occ.getTime();
+          if (ts <= nowMs || ts > horizonMs) continue;
+          out.push({ fecha: occ, delta, label: rule.nombre });
+        }
       }
     }
     return out;

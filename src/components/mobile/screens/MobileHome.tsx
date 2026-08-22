@@ -14,7 +14,7 @@ import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useInvestments } from "@/hooks/useInvestments";
 import { buildRatesMap, convert } from "@/lib/domain/currency";
 import { summarizeMonth } from "@/lib/domain/aggregation";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { formatMoney } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,14 +57,18 @@ export function MobileHome() {
       const esGasto =
         rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
       if (!esIngreso && !esGasto) continue;
-      const occ = monthlyOccurrenceFor(rule, anio, mes);
-      if (!occ || occ.getTime() <= nowMs) continue;
+      // Todas las ocurrencias futuras del mes actual (semanal/diaria/varios-mes
+      // pueden dar varias).
+      let importe: number;
       try {
-        const importe = convert(rule.importe, rule.moneda, view, rates);
+        importe = convert(rule.importe, rule.moneda, view, rates);
+      } catch {
+        continue; // moneda sin tipo de cambio
+      }
+      for (const occ of occurrencesForRule(rule, anio, mes)) {
+        if (occ.getTime() <= nowMs) continue;
         if (esIngreso) prevIngresos += importe;
         else prevGastos += importe;
-      } catch {
-        // moneda sin tipo de cambio, ignorar
       }
     }
   }

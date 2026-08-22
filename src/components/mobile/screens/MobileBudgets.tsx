@@ -13,7 +13,7 @@ import {
   sumMovementsByCategory,
   listMovementsByCategory,
 } from "@/lib/domain/aggregation";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import { resolvePresupuesto } from "@/lib/domain/tramos";
 import { formatMoney } from "@/lib/utils/money";
 import { cn } from "@/lib/utils/cn";
@@ -52,14 +52,17 @@ export function MobileBudgets() {
       const esGasto =
         rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
       if (!esGasto || !rule.categoriaId) continue;
-      const occ = monthlyOccurrenceFor(rule, anio, mes);
-      if (!occ || occ.getTime() <= nowMs) continue;
+      let importe: number;
       try {
-        const importe = convert(rule.importe, rule.moneda, view, rates);
+        importe = convert(rule.importe, rule.moneda, view, rates);
+      } catch {
+        continue; // moneda sin tipo de cambio
+      }
+      // Todas las ocurrencias futuras del mes (semanal/diaria/varios-mes).
+      for (const occ of occurrencesForRule(rule, anio, mes)) {
+        if (occ.getTime() <= nowMs) continue;
         gastoPorCat[rule.categoriaId] =
           (gastoPorCat[rule.categoriaId] ?? 0) + importe;
-      } catch {
-        // moneda sin tipo de cambio, ignorar
       }
     }
   }

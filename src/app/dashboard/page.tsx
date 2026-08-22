@@ -27,7 +27,7 @@ import { useOtherDebts } from "@/hooks/useOtherDebts";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CategoryChart } from "@/components/charts/CategoryChart";
@@ -147,11 +147,15 @@ export default function DashboardPage() {
       const esGasto =
         rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
       if (!esIngreso && !esGasto) continue;
-      const occ = monthlyOccurrenceFor(rule, periodAnio, periodMes);
-      if (!occ) continue;
-      if (occ.getTime() <= nowMs) continue;
+      let importe: number;
       try {
-        const importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+        importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+      } catch {
+        continue; // moneda no encontrada
+      }
+      // Todas las ocurrencias futuras del mes (semanal/diaria/varios-mes).
+      for (const occ of occurrencesForRule(rule, periodAnio, periodMes)) {
+        if (occ.getTime() <= nowMs) continue;
         if (esIngreso) {
           ingresos += importe;
         } else {
@@ -161,8 +165,6 @@ export default function DashboardPage() {
               (gastosPorCategoria[rule.categoriaId] ?? 0) + importe;
           }
         }
-      } catch {
-        // moneda no encontrada, ignorar
       }
     }
     return { ingresos, gastos, gastosPorCategoria };

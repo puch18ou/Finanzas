@@ -11,7 +11,7 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useMovements } from "@/hooks/useMovements";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import {
   Card,
   CardContent,
@@ -172,15 +172,18 @@ export default function EvolucionPage() {
       const esGasto =
         rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
       if (!esIngreso && !esGasto) continue;
-      const occ = monthlyOccurrenceFor(rule, anioActual, mesActual);
-      if (!occ) continue;
-      if (occ.getTime() <= nowMs) continue;
+      // Todas las ocurrencias futuras del mes actual (semanal/diaria/varios-mes
+      // pueden dar varias).
+      let importe: number;
       try {
-        const importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+        importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+      } catch {
+        continue; // moneda sin tipo de cambio
+      }
+      for (const occ of occurrencesForRule(rule, anioActual, mesActual)) {
+        if (occ.getTime() <= nowMs) continue;
         if (esIngreso) ingresos += importe;
         else gastos += importe;
-      } catch {
-        // ignorar moneda no encontrada
       }
     }
     return { anio: anioActual, mes: mesActual, ingresos, gastos };

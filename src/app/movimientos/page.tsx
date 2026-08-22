@@ -44,7 +44,7 @@ import { useRefundTotals } from "@/hooks/useRefunds";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
-import { monthlyOccurrenceFor } from "@/lib/domain/recurring";
+import { occurrencesForRule } from "@/lib/domain/recurring";
 import type { RecurringRule } from "@/lib/db/schema";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
 import { RefundsDialog } from "@/components/forms/RefundsDialog";
@@ -363,10 +363,12 @@ export default function MovimientosPage() {
     for (const rule of activeRules) {
       if (rule.origenAutomatico === "investment") continue;
       for (const mes of meses) {
-        const occ = monthlyOccurrenceFor(rule, periodAnio, mes);
-        if (!occ) continue;
-        if (occ.getTime() <= nowMs) continue;
-        items.push({ rule, fecha: occ, anio: periodAnio, mes });
+        // Todas las ocurrencias del mes (semanal/diaria/varios-mes pueden dar
+        // varias).
+        for (const occ of occurrencesForRule(rule, periodAnio, mes)) {
+          if (occ.getTime() <= nowMs) continue;
+          items.push({ rule, fecha: occ, anio: periodAnio, mes });
+        }
       }
     }
     items.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
