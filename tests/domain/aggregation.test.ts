@@ -7,6 +7,9 @@ import {
   summarizeMonth,
   sumMovementsByCategory,
   listMovementsByCategory,
+  compareYearsByMonth,
+  totalsByYear,
+  categorySeriesByMonth,
 } from "@/lib/domain/aggregation";
 import type { Movement } from "@/lib/db/schema";
 
@@ -167,5 +170,71 @@ describe("listMovementsByCategory (desglose del presupuesto)", () => {
     ];
     const byCat = listMovementsByCategory(movs, RATES2, "EUR");
     expect(Object.keys(byCat)).toHaveLength(0);
+  });
+});
+
+describe("compareYearsByMonth (comparar años)", () => {
+  it("devuelve 12 filas con el valor de la metrica por año", () => {
+    const movs = [
+      mov({ tipo: "gasto", importe: 100, mes: 3, anio: 2025 }),
+      mov({ tipo: "gasto", importe: 150, mes: 3, anio: 2026 }),
+      mov({ tipo: "gasto", importe: 50, mes: 7, anio: 2025 }),
+    ];
+    const rows = compareYearsByMonth(movs, [2025, 2026], "gastos", RATES, "EUR");
+    expect(rows).toHaveLength(12);
+    const marzo = rows.find((r) => r.mes === 3)!;
+    expect(marzo.values[2025]).toBe(100);
+    expect(marzo.values[2026]).toBe(150);
+    const julio = rows.find((r) => r.mes === 7)!;
+    expect(julio.values[2025]).toBe(50);
+    expect(julio.values[2026]).toBe(0);
+  });
+
+  it("metrica ahorro = ingresos - gastos", () => {
+    const movs = [
+      mov({ tipo: "ingreso", importe: 300, mes: 1, anio: 2026 }),
+      mov({ tipo: "gasto", importe: 100, mes: 1, anio: 2026 }),
+    ];
+    const rows = compareYearsByMonth(movs, [2026], "ahorro", RATES, "EUR");
+    expect(rows.find((r) => r.mes === 1)!.values[2026]).toBe(200);
+  });
+
+  it("totalsByYear suma los 12 meses", () => {
+    const movs = [
+      mov({ tipo: "gasto", importe: 100, mes: 3, anio: 2025 }),
+      mov({ tipo: "gasto", importe: 50, mes: 7, anio: 2025 }),
+      mov({ tipo: "gasto", importe: 150, mes: 3, anio: 2026 }),
+    ];
+    const rows = compareYearsByMonth(movs, [2025, 2026], "gastos", RATES, "EUR");
+    const totals = totalsByYear(rows, [2025, 2026]);
+    expect(totals[2025]).toBe(150);
+    expect(totals[2026]).toBe(150);
+  });
+});
+
+describe("categorySeriesByMonth (por categoria mes a mes)", () => {
+  it("gasto neto por categoria y periodo, con devoluciones restadas", () => {
+    const movs = [
+      mov({ tipo: "gasto", importe: 100, categoriaId: "transporte", mes: 3, anio: 2026 }),
+      mov({ tipo: "devolucion", importe: 20, categoriaId: "transporte", mes: 3, anio: 2026 }),
+      mov({ tipo: "gasto", importe: 40, categoriaId: "ocio", mes: 3, anio: 2026 }),
+      mov({ tipo: "gasto", importe: 60, categoriaId: "transporte", mes: 4, anio: 2026 }),
+    ];
+    const periods = [
+      { anio: 2026, mes: 3 },
+      { anio: 2026, mes: 4 },
+    ];
+    const rows = categorySeriesByMonth(
+      movs,
+      ["transporte", "ocio"],
+      periods,
+      RATES,
+      "EUR",
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.values["transporte"]).toBe(80); // 100 - 20
+    expect(rows[0]!.values["ocio"]).toBe(40);
+    expect(rows[1]!.values["transporte"]).toBe(60);
+    expect(rows[1]!.values["ocio"]).toBe(0); // sin gasto ese mes -> 0
   });
 });

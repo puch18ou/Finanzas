@@ -214,6 +214,90 @@ export function listMovementsByCategory(
   return result;
 }
 
+// ============================================================================
+//  COMPARATIVAS (pagina Evolucion, solo PC)
+// ============================================================================
+
+/** Metrica comparable mes a mes / año a año. */
+export type MetricKey = "ingresos" | "gastos" | "ahorro";
+
+/** Una fila por mes (1..12) con el valor de la metrica para cada año pedido. */
+export type YearComparisonRow = {
+  mes: number; // 1..12
+  /** año -> valor de la metrica en ese mes (moneda vista). */
+  values: Record<number, number>;
+};
+
+/**
+ * Compara una metrica (ingresos/gastos/ahorro) mes a mes entre varios años.
+ * Devuelve 12 filas (enero..diciembre); cada una lleva el valor de la metrica
+ * de cada año. Reutiliza summarizeMonth, asi que la definicion de gasto neto,
+ * ingresos y ahorro es identica al resto de la app.
+ */
+export function compareYearsByMonth(
+  movements: Movement[],
+  years: number[],
+  metric: MetricKey,
+  rates: RatesMap,
+  viewCurrency: string,
+): YearComparisonRow[] {
+  const rows: YearComparisonRow[] = [];
+  for (let mes = 1; mes <= 12; mes++) {
+    const values: Record<number, number> = {};
+    for (const anio of years) {
+      const s = summarizeMonth({ mes, anio, movements, rates, viewCurrency });
+      values[anio] = s[metric];
+    }
+    rows.push({ mes, values });
+  }
+  return rows;
+}
+
+/** Total anual de una metrica (suma de los 12 meses) para cada año. */
+export function totalsByYear(
+  rows: YearComparisonRow[],
+  years: number[],
+): Record<number, number> {
+  const totals: Record<number, number> = {};
+  for (const anio of years) {
+    let sum = 0;
+    for (const row of rows) sum += row.values[anio] ?? 0;
+    totals[anio] = sum;
+  }
+  return totals;
+}
+
+/** Una fila por periodo con el gasto neto de cada categoria pedida. */
+export type CategoryMonthlyRow = {
+  anio: number;
+  mes: number;
+  /** categoriaId -> gasto neto (moneda vista) en ese periodo. */
+  values: Record<string, number>;
+};
+
+/**
+ * Serie mensual de GASTO NETO por categoria. Para cada periodo pedido calcula
+ * el gasto neto (devoluciones ya restadas, via sumMovementsByCategory) de cada
+ * categoria de `categoriaIds`. Las categorias sin gasto ese mes salen a 0.
+ */
+export function categorySeriesByMonth(
+  movements: Movement[],
+  categoriaIds: string[],
+  periods: Array<{ anio: number; mes: number }>,
+  rates: RatesMap,
+  viewCurrency: string,
+): CategoryMonthlyRow[] {
+  return periods.map(({ anio, mes }) => {
+    const movsMes = filterMovementsByPeriod(movements, mes, anio);
+    const porCat = sumMovementsByCategory(movsMes, rates, viewCurrency);
+    const values: Record<string, number> = {};
+    for (const id of categoriaIds) {
+      values[id] = porCat[id] ?? 0;
+    }
+    return { anio, mes, values };
+  });
+}
+
 /**
  * Suma de gastos por categoria, en moneda vista.
  */
