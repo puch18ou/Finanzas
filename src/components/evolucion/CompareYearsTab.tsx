@@ -10,8 +10,10 @@
 
 import { useMemo, useState } from "react";
 import { useMovements } from "@/hooks/useMovements";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import {
   compareYearsByMonth,
+  previstosDelMes,
   totalsByYear,
   type MetricKey,
 } from "@/lib/domain/aggregation";
@@ -83,10 +85,34 @@ export function CompareYearsTab({ viewCurrency, rates }: Props) {
   const anioHasta = years.length ? Math.max(...years) : currentYear;
   const { movements } = useMovements({ anioDesde, anioHasta });
 
-  const rows = useMemo(
+  const { data: activeRules = [] } = useActiveRecurringRules();
+
+  const rawRows = useMemo(
     () => compareYearsByMonth(movements, years, metric, rates, viewCurrency),
     [movements, years, metric, rates, viewCurrency],
   );
+
+  // Sumamos los PREVISTOS del mes actual (recurrentes aun no generados) a la
+  // celda del año en curso, igual que la pestaña General.
+  const rows = useMemo(() => {
+    const now = new Date();
+    const cy = now.getFullYear();
+    const cm = now.getMonth() + 1;
+    if (!years.includes(cy)) return rawRows;
+    const prev = previstosDelMes(activeRules, cy, cm, now, rates, viewCurrency);
+    const add =
+      metric === "gastos"
+        ? prev.gastos
+        : metric === "ingresos"
+          ? prev.ingresos
+          : prev.ingresos - prev.gastos;
+    if (add === 0) return rawRows;
+    return rawRows.map((r) =>
+      r.mes === cm
+        ? { ...r, values: { ...r.values, [cy]: (r.values[cy] ?? 0) + add } }
+        : r,
+    );
+  }, [rawRows, activeRules, years, metric, rates, viewCurrency]);
 
   const totals = useMemo(() => totalsByYear(rows, years), [rows, years]);
 

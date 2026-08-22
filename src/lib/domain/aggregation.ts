@@ -23,9 +23,10 @@
  * ============================================================================
  */
 
-import type { Movement } from "@/lib/db/schema";
+import type { Movement, RecurringRule } from "@/lib/db/schema";
 import { convert, type RatesMap } from "./currency";
 import { costeReal, sumRefundsInCurrency } from "./refunds";
+import { occurrencesForRule } from "./recurring";
 
 const TIPOS_GASTO = new Set(["gasto", "cuota"]);
 const TIPOS_INGRESO = new Set(["ingreso", "intereses"]);
@@ -212,6 +213,71 @@ export function listMovementsByCategory(
     list.sort((a, b) => b.valorVista - a.valorVista);
   }
   return result;
+}
+
+// ============================================================================
+//  PREVISTOS (recurrentes aun no generados de un mes)
+// ============================================================================
+
+export type PrevistosMes = {
+  ingresos: number;
+  gastos: number;
+  /** Gasto previsto por categoriaId (moneda vista). */
+  porCategoria: Record<string, number>;
+};
+
+/**
+ * Ingresos/gastos PREVISTOS de un mes: ocurrencias de reglas recurrentes que
+ * aun no han pasado (fecha > now) en ese (anio, mes). Mismo criterio que usan
+ * el dashboard, evolucion y movil. Excluye reglas de inversion. En moneda vista.
+ *
+ * Tipicamente se llama para el mes ACTUAL (los futuros no cuentan como "de este
+ * mes" y los pasados ya estan materializados).
+ */
+export function previstosDelMes(
+  rules: RecurringRule[],
+  anio: number,
+  mes: number,
+  now: Date,
+  rates: RatesMap,
+  viewCurrency: string,
+): PrevistosMes {
+  const nowMs = now.getTime();
+  let ingresos = 0;
+  let gastos = 0;
+  const porCategoria: Record<string, number> = {};
+
+  for (const rule of rules) {
+    if (!rule.activa) continue;
+    if (rule.origenAutomatico === "investment") continue;
+    const esIngreso =
+      rule.tipoMovimiento === "ingreso" || rule.tipoMovimiento === "intereses";
+    const esGasto =
+      rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+    if (!esIngreso && !esGasto) continue;
+
+    let importe: number;
+    try {
+      importe = convert(rule.importe, rule.moneda, viewCurrency, rates);
+    } catch {
+      continue; // moneda sin tipo de cambio
+    }
+
+    for (const occ of occurrencesForRule(rule, anio, mes)) {
+      if (occ.getTime() <= nowMs) continue;
+      if (esIngreso) {
+        ingresos += importe;
+      } else {
+        gastos += importe;
+        if (rule.categoriaId) {
+          porCategoria[rule.categoriaId] =
+            (porCategoria[rule.categoriaId] ?? 0) + importe;
+        }
+      }
+    }
+  }
+
+  return { ingresos, gastos, porCategoria };
 }
 
 // ============================================================================

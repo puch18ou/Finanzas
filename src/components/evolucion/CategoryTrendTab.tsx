@@ -10,7 +10,11 @@
 import { useMemo, useState } from "react";
 import { useMovements } from "@/hooks/useMovements";
 import { useCategories } from "@/hooks/useCategories";
-import { categorySeriesByMonth } from "@/lib/domain/aggregation";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
+import {
+  categorySeriesByMonth,
+  previstosDelMes,
+} from "@/lib/domain/aggregation";
 import type { RatesMap } from "@/lib/domain/currency";
 import { formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
@@ -91,11 +95,31 @@ export function CategoryTrendTab({ viewCurrency, rates }: Props) {
   );
 
   const { movements } = useMovements({ anio });
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
-  const rows = useMemo(
+  const rawRows = useMemo(
     () => categorySeriesByMonth(movements, selected, periods, rates, viewCurrency),
     [movements, selected, periods, rates, viewCurrency],
   );
+
+  // Sumamos el GASTO PREVISTO del mes actual (recurrentes aun no generados) por
+  // categoria, igual que la pestaña General. Solo si el año mostrado es el actual.
+  const rows = useMemo(() => {
+    const now = new Date();
+    const cy = now.getFullYear();
+    const cm = now.getMonth() + 1;
+    if (anio !== cy) return rawRows;
+    const prev = previstosDelMes(activeRules, cy, cm, now, rates, viewCurrency);
+    return rawRows.map((r) => {
+      if (r.mes !== cm) return r;
+      const values = { ...r.values };
+      for (const id of selected) {
+        const add = prev.porCategoria[id] ?? 0;
+        if (add !== 0) values[id] = (values[id] ?? 0) + add;
+      }
+      return { ...r, values };
+    });
+  }, [rawRows, activeRules, anio, selected, rates, viewCurrency]);
 
   const chartData = useMemo(
     () =>

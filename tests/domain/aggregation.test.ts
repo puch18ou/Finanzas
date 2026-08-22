@@ -10,8 +10,9 @@ import {
   compareYearsByMonth,
   totalsByYear,
   categorySeriesByMonth,
+  previstosDelMes,
 } from "@/lib/domain/aggregation";
-import type { Movement } from "@/lib/db/schema";
+import type { Movement, RecurringRule } from "@/lib/db/schema";
 
 const RATES = { EUR: 1 } as Record<string, number>;
 
@@ -209,6 +210,67 @@ describe("compareYearsByMonth (comparar años)", () => {
     const totals = totalsByYear(rows, [2025, 2026]);
     expect(totals[2025]).toBe(150);
     expect(totals[2026]).toBe(150);
+  });
+});
+
+describe("previstosDelMes", () => {
+  const rule = (p: Partial<RecurringRule>): RecurringRule =>
+    ({
+      id: "r",
+      nombre: "regla",
+      tipoMovimiento: "gasto",
+      importe: 0,
+      moneda: "EUR",
+      categoriaId: null,
+      diaDelMes: 15,
+      frecuencia: "mensual",
+      diaSemana: null,
+      diasDelMes: null,
+      mesDelAnio: null,
+      fechaInicio: new Date(Date.UTC(2025, 0, 1, 12)),
+      fechaFin: null,
+      activa: true,
+      origenAutomatico: null,
+      ...p,
+    }) as unknown as RecurringRule;
+
+  it("suma ocurrencias futuras del mes (gasto e ingreso)", () => {
+    const now = new Date(Date.UTC(2026, 2, 10, 12)); // 10/03/2026
+    const rules = [
+      rule({ id: "g", tipoMovimiento: "gasto", importe: 50, diaDelMes: 25, categoriaId: "transporte" }),
+      rule({ id: "i", tipoMovimiento: "ingreso", importe: 1000, diaDelMes: 28 }),
+    ];
+    const p = previstosDelMes(rules, 2026, 3, now, RATES, "EUR");
+    expect(p.gastos).toBe(50);
+    expect(p.ingresos).toBe(1000);
+    expect(p.porCategoria["transporte"]).toBe(50);
+  });
+
+  it("ignora ocurrencias ya pasadas", () => {
+    const now = new Date(Date.UTC(2026, 2, 26, 12)); // 26/03, ya paso el dia 25
+    const rules = [rule({ tipoMovimiento: "gasto", importe: 50, diaDelMes: 25 })];
+    const p = previstosDelMes(rules, 2026, 3, now, RATES, "EUR");
+    expect(p.gastos).toBe(0);
+  });
+
+  it("excluye reglas de inversion e inactivas", () => {
+    const now = new Date(Date.UTC(2026, 2, 1, 12));
+    const rules = [
+      rule({ tipoMovimiento: "gasto", importe: 50, diaDelMes: 25, origenAutomatico: "investment" }),
+      rule({ tipoMovimiento: "gasto", importe: 30, diaDelMes: 25, activa: false }),
+    ];
+    const p = previstosDelMes(rules, 2026, 3, now, RATES, "EUR");
+    expect(p.gastos).toBe(0);
+  });
+
+  it("semanal: suma cada ocurrencia futura del mes", () => {
+    const now = new Date(Date.UTC(2026, 2, 1, 12)); // 01/03/2026
+    const rules = [
+      rule({ tipoMovimiento: "gasto", importe: 10, frecuencia: "semanal", diaSemana: 1 }),
+    ];
+    // Lunes de marzo 2026 futuros: 2,9,16,23,30 = 5 -> 50
+    const p = previstosDelMes(rules, 2026, 3, now, RATES, "EUR");
+    expect(p.gastos).toBe(50);
   });
 });
 
