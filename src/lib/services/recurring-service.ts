@@ -43,11 +43,35 @@ import type {
 } from "@/lib/db/schema";
 import {
   anioMesToComparableNumber,
-  buildPeriodDate,
   currentPeriod,
   isPeriodInRange,
+  occurrencesForRule,
   periodsBetween,
 } from "@/lib/domain/recurring";
+
+/**
+ * Clave de idempotencia por FECHA (una regla puede tener varias ocurrencias
+ * en el mismo mes: semanal/diaria/varios-mes). Es retrocompatible con las
+ * reglas mensuales existentes: su `fecha` almacenada coincide con la que
+ * devuelve occurrencesForRule, asi que la clave es la misma.
+ */
+function dateKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
+}
+
+/**
+ * Las frecuencias con potencialmente varias ocurrencias por mes necesitan el
+ * dia en el sufijo del ID determinista. Las de una sola ocurrencia por periodo
+ * (mensual/anual) conservan el sufijo `anio-mes` HISTORICO para no cambiar el
+ * PK de los movements ya generados (y evitar duplicados via sync al actualizar).
+ */
+function needsDayInId(frecuencia: RecurringRule["frecuencia"]): boolean {
+  return (
+    frecuencia === "diaria" ||
+    frecuencia === "semanal" ||
+    frecuencia === "varios-mes"
+  );
+}
 
 export type RecurringGenerationResult = {
   generated: Movement[];
@@ -112,9 +136,12 @@ export class RecurringService {
 
     if (activeRules.length === 0) return result;
 
-    // Para cada regla calculamos los movements que TOCARIA crear.
+    // Para cada regla calculamos los movements que TOCARIA crear. Una regla
+    // puede generar VARIAS ocurrencias en un mismo mes (semanal/diaria/
+    // varios-mes), asi que cada candidato lleva su fecha concreta.
     const toInsertCandidates: Array<{
       rule: RecurringRule;
+      fecha: Date;
       anio: number;
       mes: number;
     }> = [];
@@ -124,11 +151,6 @@ export class RecurringService {
         rule.fechaInicio instanceof Date
           ? rule.fechaInicio
           : new Date(rule.fechaInicio);
-      const endDate = rule.fechaFin
-        ? rule.fechaFin instanceof Date
-          ? rule.fechaFin
-          : new Date(rule.fechaFin)
-        : null;
 
       const startAnio = startDate.getUTCFullYear();
       const startMes = startDate.getUTCMonth() + 1;
@@ -144,8 +166,10 @@ export class RecurringService {
       const periodos = periodsBetween(startAnio, startMes, anioEnd, mesEnd);
 
       for (const p of periodos) {
-        if (isPeriodInRange(p.anio, p.mes, startDate, endDate)) {
-          toInsertCandidates.push({ rule, anio: p.anio, mes: p.mes });
+        // occurrencesForRule ya filtra por rango (mes y, en diaria/semanal,
+        // dia) segun la frecuencia de la regla.
+        for (const fecha of occurrencesForRule(rule, p.anio, p.mes)) {
+          toInsertCandidates.push({ rule, fecha, anio: p.anio, mes: p.mes });
         }
       }
     }
@@ -160,8 +184,7 @@ export class RecurringService {
       .select({
         id: movements.id,
         origenAutomaticoId: movements.origenAutomaticoId,
-        mes: movements.mes,
-        anio: movements.anio,
+        fecha: movements.fecha,
       })
       .from(movements)
       .where(
@@ -171,11 +194,13 @@ export class RecurringService {
         ),
       );
 
-    // Indice rapido "regla+mes+anio -> existe?"
+    // Indice rapido "regla+fecha -> existe?" (por dia, no por mes: soporta
+    // varias ocurrencias en el mismo mes).
     const existingKey = new Set<string>();
     for (const e of existing) {
       if (e.origenAutomaticoId) {
-        existingKey.add(`${e.origenAutomaticoId}:${e.anio}:${e.mes}`);
+        const ef = e.fecha instanceof Date ? e.fecha : new Date(e.fecha);
+        existingKey.add(`${e.origenAutomaticoId}:${dateKey(ef)}`);
       }
     }
 
@@ -184,23 +209,29 @@ export class RecurringService {
     const nowMs = now.getTime();
 
     for (const c of toInsertCandidates) {
-      const key = `${c.rule.id}:${c.anio}:${c.mes}`;
+      const key = `${c.rule.id}:${dateKey(c.fecha)}`;
       if (existingKey.has(key)) {
         result.skippedExisting++;
         continue;
       }
 
-      const fecha = buildPeriodDate(c.rule.diaDelMes, c.anio, c.mes);
+      const fecha = c.fecha;
       // No materializamos las ocurrencias cuya fecha aun no ha llegado:
       // se exponen como "previstos" en la UI hasta que toque.
       if (fecha.getTime() > nowMs) continue;
       const concepto = c.rule.nombre;
 
+      // Sufijo del ID: con dia solo en frecuencias multi-ocurrencia; los
+      // mensuales/anuales conservan `anio-mes` (PK historico -> sin duplicados
+      // por sync al actualizar).
+      const idSuffix = needsDayInId(c.rule.frecuencia)
+        ? `${c.anio}-${c.mes}-${fecha.getUTCDate()}`
+        : `${c.anio}-${c.mes}`;
+
       const newMov: NewMovement = {
-        // ID DETERMINISTA (misma clave que el dedup `regla:anio:mes`): asi la
-        // misma ocurrencia tiene el mismo PK en todos los dispositivos y el
-        // sync no la duplica.
-        id: autoGenId("rmov", c.rule.id, `${c.anio}-${c.mes}`),
+        // ID DETERMINISTA: la misma ocurrencia tiene el mismo PK en todos los
+        // dispositivos y el sync no la duplica.
+        id: autoGenId("rmov", c.rule.id, idSuffix),
         tipo: c.rule.tipoMovimiento,
         fecha,
         concepto,
