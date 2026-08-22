@@ -34,6 +34,24 @@ import type {
 } from "@/lib/repositories";
 
 export const CURRENCIES_ALL_KEY = ["currencies", "all"] as const;
+// Prefijo compartido con ["currencies"]: al invalidar se refresca tambien.
+export const CURRENCIES_USAGE_KEY = ["currencies", "usage"] as const;
+
+/**
+ * Codigos de moneda EN USO (referenciados por cualquier tabla o por ajustes).
+ * La UI lo usa para impedir el borrado (solo permitir editar).
+ */
+export function useCurrenciesUsage() {
+  const repos = useRepos();
+  const query = useQuery({
+    queryKey: CURRENCIES_USAGE_KEY,
+    queryFn: () => repos.usage.currenciesInUse(),
+  });
+  return {
+    inUse: query.data ?? new Set<string>(),
+    isLoading: query.isLoading,
+  };
+}
 
 export function useCurrenciesManagement() {
   const repos = useRepos();
@@ -118,7 +136,15 @@ export function useCurrenciesManagement() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (code: string) => repos.currencies.delete(code),
+    // Red de seguridad: aunque la UI deshabilita el boton, revalidamos que la
+    // moneda no este en uso antes del borrado FISICO.
+    mutationFn: async (code: string) => {
+      const inUse = await repos.usage.currenciesInUse();
+      if (inUse.has(code)) {
+        throw new Error("esta moneda esta en uso");
+      }
+      return repos.currencies.delete(code);
+    },
     onSuccess: () => {
       invalidateAll();
       toast.success("Moneda eliminada");

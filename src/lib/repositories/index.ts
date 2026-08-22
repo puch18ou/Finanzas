@@ -28,6 +28,7 @@ import { RecurringService } from "@/lib/services/recurring-service";
 import { MortgageDebtSyncService } from "@/lib/services/mortgage-debt-sync-service";
 import { InvestmentContributionService } from "@/lib/services/investment-contribution-service";
 import { InvestmentInterestService } from "@/lib/services/investment-interest-service";
+import { UsageService } from "@/lib/services/usage-service";
 
 export interface Repositories {
   settings: SettingsRepository;
@@ -52,6 +53,7 @@ export interface Repositories {
   mortgageDebtSync: MortgageDebtSyncService;
   investmentContributionService: InvestmentContributionService;
   investmentInterestService: InvestmentInterestService;
+  usage: UsageService;
 }
 
 export function createRepositories(db: DrizzleDb): Repositories {
@@ -86,6 +88,7 @@ export function createRepositories(db: DrizzleDb): Repositories {
     mortgageDebtSync,
     investmentContributionService: new InvestmentContributionService(db),
     investmentInterestService: new InvestmentInterestService(db),
+    usage: new UsageService(db),
   };
 }
 

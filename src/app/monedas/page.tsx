@@ -19,7 +19,10 @@ import {
   DownloadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useCurrenciesManagement } from "@/hooks/useCurrenciesManagement";
+import {
+  useCurrenciesManagement,
+  useCurrenciesUsage,
+} from "@/hooks/useCurrenciesManagement";
 import { useSettings } from "@/hooks/useSettings";
 import { CurrencyFormDialog } from "@/components/forms/CurrencyFormDialog";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
@@ -55,6 +58,7 @@ export default function MonedasPage() {
     isRefreshingRates,
     isMutating,
   } = useCurrenciesManagement();
+  const { inUse: monedasEnUso } = useCurrenciesUsage();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Currency | null>(null);
@@ -156,6 +160,8 @@ export default function MonedasPage() {
               <TableBody>
                 {currencies.map((c) => {
                   const isVista = c.code === monedaVista;
+                  const enUso = monedasEnUso.has(c.code);
+                  const noBorrable = isVista || enUso;
                   return (
                     <TableRow key={c.code}>
                       <TableCell className="font-mono font-medium">
@@ -196,10 +202,16 @@ export default function MonedasPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setToDelete(c)}
-                            disabled={isVista}
+                            disabled={noBorrable}
                             aria-label="Borrar"
                             className="text-destructive hover:text-destructive disabled:opacity-30"
-                            title={isVista ? "No se puede borrar la moneda de visualizacion" : "Borrar"}
+                            title={
+                              isVista
+                                ? "No se puede borrar la moneda de visualizacion"
+                                : enUso
+                                  ? "En uso: solo se puede editar"
+                                  : "Borrar"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

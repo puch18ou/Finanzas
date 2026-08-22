@@ -22,7 +22,7 @@ import {
   ArrowDown,
   CalendarClock,
 } from "lucide-react";
-import { useCategories } from "@/hooks/useCategories";
+import { useCategories, useCategoriesUsage } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { usePresupuestoTramos } from "@/hooks/usePresupuestoTramos";
@@ -76,6 +76,7 @@ export default function CategoriasPage() {
     reorder,
     isMutating,
   } = useCategories();
+  const { inUse: categoriasEnUso } = useCategoriesUsage();
 
   // Siempre el mes ACTUAL al arrancar (no se persiste).
   const [periodAnio, setPeriodAnio] = useState<number>(today.getFullYear());
@@ -305,8 +306,14 @@ export default function CategoriasPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setToDelete(c)}
+                            disabled={categoriasEnUso.has(c.id)}
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             aria-label="Borrar"
+                            title={
+                              categoriasEnUso.has(c.id)
+                                ? "En uso (tiene movimientos o reglas): solo se puede editar"
+                                : "Borrar"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -350,7 +357,7 @@ export default function CategoriasPage() {
         title="Borrar categoria"
         description={
           toDelete
-            ? `"${toDelete.nombre}" pasara a la papelera. Los gastos que la usaban mantendran la referencia.`
+            ? `"${toDelete.nombre}" pasara a la papelera. Solo se pueden borrar categorias sin movimientos ni reglas.`
             : ""
         }
         loading={isMutating}
