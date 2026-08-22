@@ -38,7 +38,12 @@ export type RecurringRuleOrigen =
   | "interest"
   | "investment";
 
-export type RecurringFrecuencia = "diaria" | "semanal" | "mensual";
+export type RecurringFrecuencia =
+  | "diaria"
+  | "semanal"
+  | "mensual"
+  | "anual"
+  | "varios-mes";
 
 export type CreateRecurringRuleData = {
   nombre: string;
@@ -52,10 +57,17 @@ export type CreateRecurringRuleData = {
   diaDelMes: number;
   fechaInicio: Date;
   fechaFin?: Date | null;
-  /** 'mensual' por defecto. 'semanal' usa diaSemana; 'diaria' ninguno. */
+  /**
+   * 'mensual' por defecto. 'semanal' usa diaSemana; 'anual' usa diaDelMes +
+   * mesDelAnio; 'varios-mes' usa diasDelMes; 'diaria' ninguno.
+   */
   frecuencia?: RecurringFrecuencia;
   /** 0=domingo..6=sabado. Solo para frecuencia 'semanal'. */
   diaSemana?: number | null;
+  /** Lista de dias del mes "1,15". Solo para frecuencia 'varios-mes'. */
+  diasDelMes?: string | null;
+  /** Mes 1-12 de la ocurrencia. Solo para frecuencia 'anual'. */
+  mesDelAnio?: number | null;
   activa?: boolean;
   origenAutomatico?: RecurringRuleOrigen | null;
   origenAutomaticoId?: string | null;
@@ -155,6 +167,8 @@ export class RecurringRuleRepository {
       fechaFin: data.fechaFin ?? null,
       frecuencia: data.frecuencia ?? "mensual",
       diaSemana: data.diaSemana ?? null,
+      diasDelMes: data.diasDelMes ?? null,
+      mesDelAnio: data.mesDelAnio ?? null,
       activa: data.activa ?? true,
       origenAutomatico: data.origenAutomatico ?? null,
       origenAutomaticoId: data.origenAutomaticoId ?? null,

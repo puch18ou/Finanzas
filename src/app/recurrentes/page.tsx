@@ -103,8 +103,9 @@ export default function RecurrentesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Recurrentes</h1>
           <p className="text-sm text-muted-foreground">
-            Reglas que generan movimientos automaticamente cada mes. Se
-            ejecutan al arrancar la app si detectan meses pendientes.
+            Reglas que generan movimientos automaticamente segun su frecuencia
+            (mensual, semanal, anual...). Se ejecutan al arrancar la app si
+            detectan periodos pendientes.
           </p>
         </div>
         <Button
@@ -200,6 +201,10 @@ export default function RecurrentesPage() {
               categoriaId: data.categoriaId ?? null,
               categoriaTexto: data.categoriaTexto ?? null,
               diaDelMes: data.diaDelMes,
+              frecuencia: data.frecuencia,
+              diaSemana: data.diaSemana ?? null,
+              diasDelMes: data.diasDelMes ?? null,
+              mesDelAnio: data.mesDelAnio ?? null,
               fechaInicio: data.fechaInicio,
               fechaFin: data.fechaFin ?? null,
               activa: data.activa,
@@ -230,6 +235,54 @@ export default function RecurrentesPage() {
   );
 }
 
+const DIA_SEMANA_LABEL: Record<number, string> = {
+  0: "domingo",
+  1: "lunes",
+  2: "martes",
+  3: "miércoles",
+  4: "jueves",
+  5: "viernes",
+  6: "sábado",
+};
+
+const MES_LABEL: Record<number, string> = {
+  1: "enero",
+  2: "febrero",
+  3: "marzo",
+  4: "abril",
+  5: "mayo",
+  6: "junio",
+  7: "julio",
+  8: "agosto",
+  9: "septiembre",
+  10: "octubre",
+  11: "noviembre",
+  12: "diciembre",
+};
+
+/** Descripcion legible de la periodicidad de una regla, segun su frecuencia. */
+function describePeriodicidad(r: RecurringRule): string {
+  switch (r.frecuencia) {
+    case "diaria":
+      return "Cada día";
+    case "semanal": {
+      const dia = r.diaSemana ?? 1;
+      return `Cada ${DIA_SEMANA_LABEL[dia] ?? "semana"}`;
+    }
+    case "anual": {
+      const inicio =
+        r.fechaInicio instanceof Date ? r.fechaInicio : new Date(r.fechaInicio);
+      const mes = r.mesDelAnio ?? inicio.getUTCMonth() + 1;
+      return `${r.diaDelMes} de ${MES_LABEL[mes] ?? ""}`.trim();
+    }
+    case "varios-mes":
+      return r.diasDelMes ? `Días ${r.diasDelMes}` : `Día ${r.diaDelMes}`;
+    case "mensual":
+    default:
+      return `Día ${r.diaDelMes}`;
+  }
+}
+
 function RuleTable({
   rules,
   onEdit,
@@ -250,7 +303,7 @@ function RuleTable({
           <TableHead>Nombre</TableHead>
           <TableHead>Tipo</TableHead>
           <TableHead className="text-right">Importe</TableHead>
-          <TableHead>Dia</TableHead>
+          <TableHead>Frecuencia</TableHead>
           <TableHead>Periodo</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead className="w-[80px] text-right">Acciones</TableHead>
@@ -296,7 +349,7 @@ function RuleTable({
               <TableCell className="text-right tabular-nums">
                 {money(r.importe, r.moneda)}
               </TableCell>
-              <TableCell className="tabular-nums">{r.diaDelMes}</TableCell>
+              <TableCell className="text-sm">{describePeriodicidad(r)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
                 {formatDateLong(inicio, false)}
                 {fin ? ` → ${formatDateLong(fin, false)}` : " → ∞"}

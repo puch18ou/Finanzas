@@ -19,9 +19,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar as CalendarIcon } from "lucide-react";
 import {
   recurringRuleFormSchema,
+  parseDiasDelMesInput,
   TIPOS_REGLA_MANUAL,
   type RecurringRuleFormData,
   type TipoReglaManual,
+  type FrecuenciaRegla,
 } from "@/lib/schemas/forms-recurring";
 import type { Currency, Account, Category, RecurringRule } from "@/lib/db/schema";
 import {
@@ -71,6 +73,48 @@ const TIPO_LABELS: Record<TipoReglaManual, string> = {
   transferencia: "Transferencia",
 };
 
+const FRECUENCIA_LABELS: Record<FrecuenciaRegla, string> = {
+  diaria: "Diaria",
+  semanal: "Semanal",
+  mensual: "Mensual (un dia)",
+  anual: "Anual",
+  "varios-mes": "Varios dias al mes",
+};
+
+const FRECUENCIAS_ORDEN: FrecuenciaRegla[] = [
+  "mensual",
+  "varios-mes",
+  "semanal",
+  "anual",
+  "diaria",
+];
+
+// 0=domingo..6=sabado (convencion getUTCDay). Mostramos de lunes a domingo.
+const DIAS_SEMANA: Array<{ value: number; label: string }> = [
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miercoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sabado" },
+  { value: 0, label: "Domingo" },
+];
+
+const MESES: Array<{ value: number; label: string }> = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+];
+
 export function RecurringRuleFormDialog({
   open,
   onOpenChange,
@@ -116,6 +160,10 @@ export function RecurringRuleFormDialog({
       categoriaId: null,
       categoriaTexto: null,
       diaDelMes: 1,
+      frecuencia: "mensual",
+      diaSemana: 1,
+      diasDelMes: "",
+      mesDelAnio: today.getMonth() + 1,
       fechaInicio: normalizeDateToUTCNoon(
         new Date(today.getFullYear(), today.getMonth(), 1),
       ),
@@ -138,6 +186,10 @@ export function RecurringRuleFormDialog({
           categoriaId: initial.categoriaId,
           categoriaTexto: initial.categoriaTexto,
           diaDelMes: initial.diaDelMes,
+          frecuencia: (initial.frecuencia ?? "mensual") as FrecuenciaRegla,
+          diaSemana: initial.diaSemana ?? 1,
+          diasDelMes: initial.diasDelMes ?? "",
+          mesDelAnio: initial.mesDelAnio ?? today.getMonth() + 1,
           fechaInicio:
             initial.fechaInicio instanceof Date
               ? initial.fechaInicio
@@ -161,6 +213,10 @@ export function RecurringRuleFormDialog({
           categoriaId: null,
           categoriaTexto: null,
           diaDelMes: 1,
+          frecuencia: "mensual",
+          diaSemana: 1,
+          diasDelMes: "",
+          mesDelAnio: today.getMonth() + 1,
           fechaInicio: normalizeDateToUTCNoon(
         new Date(today.getFullYear(), today.getMonth(), 1),
       ),
@@ -174,11 +230,22 @@ export function RecurringRuleFormDialog({
   }, [open, initial, monedaLocal]);
 
   const tipo = watch("tipoMovimiento");
+  const frecuencia = watch("frecuencia");
 
   const internalSubmit = handleSubmit(async (data) => {
+    // Solo persistimos los campos de periodicidad relevantes a la frecuencia,
+    // limpiando el resto para no dejar valores obsoletos de otra seleccion.
+    const diasNormalizados =
+      data.frecuencia === "varios-mes"
+        ? (parseDiasDelMesInput(data.diasDelMes ?? "") ?? []).join(",")
+        : null;
+
     // FIX zona horaria: normalizar fechas a mediodia UTC antes de guardar
     const normalized: RecurringRuleFormData = {
       ...data,
+      diaSemana: data.frecuencia === "semanal" ? (data.diaSemana ?? 1) : null,
+      mesDelAnio: data.frecuencia === "anual" ? (data.mesDelAnio ?? null) : null,
+      diasDelMes: diasNormalizados,
       fechaInicio: normalizeDateToUTCNoon(data.fechaInicio),
       fechaFin: data.fechaFin ? normalizeDateToUTCNoon(data.fechaFin) : null,
     };
@@ -196,8 +263,8 @@ export function RecurringRuleFormDialog({
             {initial ? "Editar regla recurrente" : "Nueva regla recurrente"}
           </DialogTitle>
           <DialogDescription>
-            Las reglas activas generan automaticamente un movimiento cada
-            mes desde su fecha de inicio.
+            Las reglas activas generan movimientos automaticamente segun su
+            frecuencia, desde su fecha de inicio.
           </DialogDescription>
         </DialogHeader>
 
@@ -253,6 +320,34 @@ export function RecurringRuleFormDialog({
               />
             </div>
             <div className="space-y-2">
+              <Label>Frecuencia</Label>
+              <Controller
+                control={control}
+                name="frecuencia"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => v && field.onChange(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FRECUENCIAS_ORDEN.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {FRECUENCIA_LABELS[f]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Campos de periodicidad segun la frecuencia elegida. */}
+          {frecuencia === "mensual" && (
+            <div className="space-y-2">
               <Label htmlFor="r-dia">Dia del mes</Label>
               <Input
                 id="r-dia"
@@ -265,7 +360,98 @@ export function RecurringRuleFormDialog({
                 Si el mes no tiene ese dia (e.g. 31 en feb), usa el ultimo.
               </p>
             </div>
-          </div>
+          )}
+
+          {frecuencia === "varios-mes" && (
+            <div className="space-y-2">
+              <Label htmlFor="r-dias">Dias del mes</Label>
+              <Input
+                id="r-dias"
+                {...register("diasDelMes")}
+                placeholder="1,15"
+              />
+              <p className="text-xs text-muted-foreground">
+                Dias separados por comas (ej. 1,15). Se repite en cada uno; si el
+                mes no tiene ese dia, usa el ultimo.
+              </p>
+            </div>
+          )}
+
+          {frecuencia === "semanal" && (
+            <div className="space-y-2">
+              <Label>Dia de la semana</Label>
+              <Controller
+                control={control}
+                name="diaSemana"
+                render={({ field }) => (
+                  <Select
+                    value={field.value != null ? String(field.value) : ""}
+                    onValueChange={(v) => v && field.onChange(Number(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIAS_SEMANA.map((d) => (
+                        <SelectItem key={d.value} value={String(d.value)}>
+                          {d.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                Se repite cada semana ese dia, desde la fecha de inicio.
+              </p>
+            </div>
+          )}
+
+          {frecuencia === "anual" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Mes</Label>
+                <Controller
+                  control={control}
+                  name="mesDelAnio"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value != null ? String(field.value) : ""}
+                      onValueChange={(v) => v && field.onChange(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona mes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MESES.map((m) => (
+                          <SelectItem key={m.value} value={String(m.value)}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="r-dia-anual">Dia</Label>
+                <Input
+                  id="r-dia-anual"
+                  type="number"
+                  min={1}
+                  max={31}
+                  {...register("diaDelMes", { valueAsNumber: true })}
+                />
+              </div>
+            </div>
+          )}
+
+          {frecuencia === "diaria" && (
+            <p className="text-xs text-muted-foreground rounded-md border p-2">
+              Se genera un movimiento cada dia dentro del rango de fechas. Ojo:
+              puede crear muchos movimientos.
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -553,7 +739,7 @@ export function RecurringRuleFormDialog({
               )}
             />
             <Label htmlFor="r-activa" className="cursor-pointer text-sm">
-              Regla activa (generará movimientos cada mes)
+              Regla activa (generará movimientos automáticamente)
             </Label>
           </div>
 
