@@ -143,7 +143,11 @@ export function Tour() {
   let bubbleLeft: number;
   let placeBelow = true;
 
-  if (rect) {
+  if (rect && step.placement === "right" && rect.left + rect.width + GAP + BUBBLE_W <= vw) {
+    // A la derecha del elemento (util para el menu vertical).
+    bubbleLeft = rect.left + rect.width + GAP;
+    bubbleTop = Math.min(Math.max(PAD, rect.top), Math.max(PAD, vh - 200));
+  } else if (rect) {
     const spaceBelow = vh - (rect.top + rect.height);
     placeBelow = step.placement === "top" ? false : spaceBelow > 220;
     bubbleTop = placeBelow

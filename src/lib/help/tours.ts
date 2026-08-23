@@ -12,6 +12,118 @@
 
 import type { TourStep } from "@/contexts/TourProvider";
 
+/**
+ * Tour del MENU izquierdo: recorre cada seccion explicando que es. Lo lanza el
+ * boton "?" junto a "Finanzas" en la cabecera del sidebar. Los items del menu
+ * estan siempre montados, asi que no hace falta cambiar de pagina.
+ */
+export const MENU_TOUR: TourStep[] = [
+  {
+    title: "Guía del menú",
+    content:
+      "A la izquierda tienes todas las secciones, agrupadas. Te cuento en unos pasos qué encontrarás en cada una.",
+  },
+  {
+    target: '[data-tour="menu-dashboard"]',
+    title: "Dashboard",
+    content:
+      "Tu resumen del mes: ingresos, gastos, ahorro y patrimonio, con avisos y previsión de liquidez.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-evolucion"]',
+    title: "Evolución",
+    content:
+      "Cómo evolucionan tus finanzas mes a mes, y comparativas por año y por categoría.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-proyeccion"]',
+    title: "Proyección",
+    content:
+      "Estimación de tu patrimonio futuro según tu ahorro medio, y cuándo alcanzarías tus metas.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-presupuestos"]',
+    title: "Presupuestos",
+    content:
+      "Seguimiento del consumo de cada categoría frente a su presupuesto (mes y acumulado).",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-movimientos"]',
+    title: "Movimientos",
+    content:
+      "Todos tus gastos, ingresos, transferencias y ajustes. Buscar, ordenar y filtrar.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-recurrentes"]',
+    title: "Recurrentes",
+    content:
+      "Reglas que generan movimientos automáticamente (nómina, alquiler, suscripciones…).",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-cuentas"]',
+    title: "Cuentas",
+    content: "Tus cuentas de banco, broker y efectivo, con su saldo calculado.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-inversiones"]',
+    title: "Inversiones",
+    content:
+      "Tu cartera: valor, plusvalía, cotizaciones automáticas y aportaciones.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-metas"]',
+    title: "Metas",
+    content: "Objetivos de ahorro con fecha y seguimiento del progreso.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-hipoteca"]',
+    title: "Hipoteca",
+    content:
+      "Simulador y seguimiento de tu hipoteca: cuota, intereses y amortización.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-deudas"]',
+    title: "Otras deudas",
+    content: "Préstamos personales, coche, tarjetas… con su cuota y progreso.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-categorias"]',
+    title: "Categorías",
+    content: "Organiza tus gastos por categoría, con presupuesto opcional.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-monedas"]',
+    title: "Monedas",
+    content: "Catálogo de monedas y tipos de cambio.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-ajustes"]',
+    title: "Ajustes",
+    content:
+      "Monedas base y de vista, seguridad (PIN), copias de seguridad y sincronización con el móvil.",
+    placement: "right",
+  },
+  {
+    target: '[data-tour="menu-papelera"]',
+    title: "Papelera",
+    content: "Elementos borrados que puedes recuperar.",
+    placement: "right",
+  },
+];
+
 const TOURS: Record<string, TourStep[]> = {
   "/dashboard": [
     {

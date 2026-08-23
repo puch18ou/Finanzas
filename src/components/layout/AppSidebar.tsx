@@ -24,7 +24,11 @@ import {
   Coins,
   Settings,
   Trash2,
+  HelpCircle,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useTour } from "@/contexts/TourProvider";
+import { MENU_TOUR } from "@/lib/help/tours";
 
 import {
   Sidebar,
@@ -104,6 +108,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { startTour } = useTour();
 
   // En movil, al navegar cerramos el panel para ver la pagina completa.
   const handleNav = () => {
@@ -126,6 +131,16 @@ export function AppSidebar() {
               {user ? user.username : "local"}
             </span>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto h-7 w-7"
+            aria-label="Guia del menu"
+            title="Guia: que hay en cada seccion"
+            onClick={() => startTour(MENU_TOUR)}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
         </div>
       </SidebarHeader>
 
@@ -143,7 +158,11 @@ export function AppSidebar() {
                   return (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive}>
-                        <Link href={item.url} onClick={handleNav}>
+                        <Link
+                          href={item.url}
+                          onClick={handleNav}
+                          data-tour={`menu-${item.url.slice(1)}`}
+                        >
                           <item.icon />
                           <span>{item.title}</span>
                         </Link>

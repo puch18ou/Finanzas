@@ -28,7 +28,7 @@ export type TourStep = {
   title: string;
   content: string;
   /** Colocacion preferida de la burbuja respecto al elemento. */
-  placement?: "top" | "bottom" | "auto";
+  placement?: "top" | "bottom" | "right" | "auto";
   /**
    * Selector de un elemento que se PULSA (click) justo antes de mostrar el paso.
    * Util para cambiar de pestaña y revelar el `target` (que estara en un panel
