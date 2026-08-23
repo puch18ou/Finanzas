@@ -69,7 +69,14 @@ const TOURS: Record<string, TourStep[]> = {
       target: '[data-tour="dashboard-categoria"]',
       title: "Gasto por categoría",
       content:
-        "El reparto del gasto del mes por categoría. Con el botón de arriba a la derecha de la tarjeta cambias el tipo de gráfica (tarta, donut o barras).",
+        "El reparto del gasto del mes por categoría. Pasa el ratón por cada porción para ver su importe.",
+    },
+    {
+      target: '[data-tour="dashboard-categoria-tipo"]',
+      title: "Cambiar el tipo de gráfica",
+      content:
+        "Con este botón eliges cómo ver el gasto por categoría: Tarta, Donut o Barras horizontales. Púlsalo y quédate con el que más te guste.",
+      placement: "bottom",
     },
     {
       target: '[data-tour="dashboard-presupuesto"]',

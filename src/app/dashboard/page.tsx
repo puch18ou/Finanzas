@@ -606,6 +606,7 @@ export default function DashboardPage() {
           title="Gasto por categoria"
           description="Distribucion del gasto del mes"
           dataTour="dashboard-categoria"
+          chartTypeTour="dashboard-categoria-tipo"
         />
         <BudgetProgress
           rows={budgetRows}

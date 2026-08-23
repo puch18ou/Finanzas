@@ -60,6 +60,8 @@ type Props = {
   title: string;
   description?: string;
   dataTour?: string;
+  /** Ancla data-tour para el boton de tipo de grafica (paso propio del tour). */
+  chartTypeTour?: string;
 };
 
 const DEFAULT_COLORS = [
@@ -96,6 +98,7 @@ export function CategoryChart({
   title,
   description,
   dataTour,
+  chartTypeTour,
 }: Props) {
   const [chartType, setChartType] = useLocalStorage<ChartType>(
     "chart:categoryType",
@@ -112,7 +115,11 @@ export function CategoryChart({
           <CardTitle>{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </div>
-        <ChartTypeSelector value={chartType} onChange={setChartType} />
+        <ChartTypeSelector
+          value={chartType}
+          onChange={setChartType}
+          dataTour={chartTypeTour}
+        />
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
@@ -138,16 +145,23 @@ export function CategoryChart({
 function ChartTypeSelector({
   value,
   onChange,
+  dataTour,
 }: {
   value: ChartType;
   onChange: (v: ChartType) => void;
+  dataTour?: string;
 }) {
   const Icon =
     value === "pie" ? ChartPie : value === "donut" ? ChartPie : ChartColumnBig;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Cambiar tipo de grafico">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Cambiar tipo de grafico"
+          data-tour={dataTour}
+        >
           <Icon className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
