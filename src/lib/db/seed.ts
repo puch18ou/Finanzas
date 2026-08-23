@@ -159,6 +159,7 @@ async function seedSettings(): Promise<boolean> {
     categoriaHipotecaId: null,
     patrimonioInicial: 0,
     patrimonioInicialMoneda: "EUR",
+    mostrarFab: false,
     tema: "system",
     idioma: "es",
     createdAt: new Date(now),

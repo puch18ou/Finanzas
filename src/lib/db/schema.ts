@@ -141,7 +141,7 @@ export const settings = sqliteTable(
 
     mostrarFab: integer("mostrar_fab", { mode: "boolean" })
       .notNull()
-      .default(true),
+      .default(false),
 
     integrarCuotaHipoteca: integer("integrar_cuota_hipoteca", {
       mode: "boolean",
