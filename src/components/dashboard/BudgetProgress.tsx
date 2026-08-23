@@ -60,7 +60,7 @@ export function BudgetProgress({ rows, viewCurrency, dataTour }: Props) {
             No hay categorias con presupuesto definido.
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             {filtered.map((r) => {
               const pct = r.presupuesto > 0 ? r.gastado / r.presupuesto : 0;
               const pctClamped = Math.min(pct * 100, 100);
@@ -69,29 +69,27 @@ export function BudgetProgress({ rows, viewCurrency, dataTour }: Props) {
 
               return (
                 <div key={r.categoriaId} className="space-y-1">
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="font-medium">{r.nombre}</span>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="truncate font-medium">{r.nombre}</span>
                     <span
                       className={cn(
-                        "tabular-nums",
+                        "whitespace-nowrap text-xs tabular-nums text-muted-foreground",
                         isOver && "font-semibold text-destructive",
                         isWarning && "text-amber-600 dark:text-amber-500",
                       )}
                     >
-                      {money(r.gastado)} / {money(r.presupuesto)}
+                      {money(r.gastado)} / {money(r.presupuesto)} ·{" "}
+                      {(pct * 100).toFixed(0)}%{isOver && " ⚠"}
                     </span>
                   </div>
                   <Progress
                     value={pctClamped}
                     className={cn(
+                      "h-1.5",
                       isOver && "[&>div]:bg-destructive",
                       isWarning && "[&>div]:bg-amber-500",
                     )}
                   />
-                  <p className="text-right text-xs text-muted-foreground">
-                    {(pct * 100).toFixed(0)}%
-                    {isOver && " — excedido"}
-                  </p>
                 </div>
               );
             })}
