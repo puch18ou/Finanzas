@@ -181,7 +181,7 @@ export default function CuentasPage() {
               No hay cuentas todavia. Pulsa "Anadir cuenta" para empezar.
             </p>
           ) : (
-            <Table>
+            <Table data-tour="cuentas-tabla">
               <TableHeader>
                 <TableRow>
                   <TableHead>Alias</TableHead>

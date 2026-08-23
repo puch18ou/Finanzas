@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
 import { ChangelogCard } from "@/components/ajustes/ChangelogCard";
+import { useDemo } from "@/contexts/DemoProvider";
 import { LocalBackupsCard } from "@/components/backup/LocalBackupsCard";
 import { HealthCard } from "@/components/ajustes/HealthCard";
 import { SyncCard } from "@/components/sync/SyncCard";
@@ -84,6 +85,7 @@ function safeSet<T extends string>(
 }
 
 export default function AjustesPage() {
+  const { startDemo } = useDemo();
   const { settings, update, isLoading: settingsLoading } = useSettings();
   const { data: currencies = [], isLoading: currenciesLoading } =
     useCurrencies();
@@ -510,6 +512,21 @@ export default function AjustesPage() {
       <div data-tour="aj-sync">
         <SyncCard />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Guía inicial</CardTitle>
+          <CardDescription>
+            Un recorrido interactivo que crea datos de ejemplo y los borra al
+            terminar. No toca tus datos reales.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" variant="outline" onClick={startDemo}>
+            Iniciar guía
+          </Button>
+        </CardContent>
+      </Card>
 
       <div data-tour="aj-novedades">
         <ChangelogCard />

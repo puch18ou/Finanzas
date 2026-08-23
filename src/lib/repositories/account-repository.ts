@@ -111,6 +111,11 @@ export class AccountRepository extends BaseRepository {
       .where(eq(accounts.id, id));
   }
 
+  /** Borrado FISICO (no papelera). Usado por la demo para limpiar sus datos. */
+  async hardDelete(id: string): Promise<void> {
+    await this.db.delete(accounts).where(eq(accounts.id, id));
+  }
+
   async reorder(orderedIds: string[]): Promise<void> {
     const ts = now();
     for (let i = 0; i < orderedIds.length; i++) {
