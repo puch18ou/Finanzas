@@ -272,6 +272,28 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/categorias": [
+    {
+      target: '[data-tour="cat-nueva"]',
+      title: "Nueva categoría",
+      content:
+        "Crea una categoría de gasto, con presupuesto mensual opcional. El seguimiento del presupuesto se ve en Presupuestos y en el Dashboard.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="cat-editar"]',
+      title: "Editar categoría",
+      content:
+        "Cambia el nombre, color, icono o el presupuesto de la categoría.",
+    },
+    {
+      target: '[data-tour="cat-tramos"]',
+      title: "Cambios de presupuesto con fecha",
+      content:
+        "Define cómo cambia el presupuesto de una categoría a lo largo del tiempo (tramos con fecha). Para cada mes se aplica el tramo vigente.",
+    },
+  ],
+
   "/deudas": [
     {
       target: '[data-tour="deudas-nueva"]',

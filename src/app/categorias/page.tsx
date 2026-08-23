@@ -150,6 +150,7 @@ export default function CategoriasPage() {
             }}
           />
           <Button
+            data-tour="cat-nueva"
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -294,6 +295,7 @@ export default function CategoriasPage() {
                             aria-label="Cambios de presupuesto"
                             title="Cambios de presupuesto con fecha"
                             className="h-8 w-8"
+                            data-tour="cat-tramos"
                           >
                             <CalendarClock className="h-4 w-4" />
                           </Button>
@@ -306,6 +308,7 @@ export default function CategoriasPage() {
                             }}
                             aria-label="Editar"
                             className="h-8 w-8"
+                            data-tour="cat-editar"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
