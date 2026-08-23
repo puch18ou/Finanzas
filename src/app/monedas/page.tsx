@@ -111,6 +111,7 @@ export default function MonedasPage() {
             variant="outline"
             onClick={handleRefreshRates}
             disabled={isRefreshingRates}
+            data-tour="mon-actualizar"
           >
             <DownloadCloud
               className={cn(
@@ -121,6 +122,7 @@ export default function MonedasPage() {
             Actualizar tipos
           </Button>
           <Button
+            data-tour="mon-nueva"
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -151,7 +153,7 @@ export default function MonedasPage() {
               No hay monedas. Algo raro paso con el seed.
             </p>
           ) : (
-            <Table>
+            <Table data-tour="mon-tabla">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[80px]">Codigo</TableHead>

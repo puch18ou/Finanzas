@@ -294,6 +294,29 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/monedas": [
+    {
+      target: '[data-tour="mon-nueva"]',
+      title: "Añadir moneda",
+      content:
+        "Crea una moneda con su código (EUR, USD…), símbolo y un tipo de cambio inicial. Luego pulsa «Actualizar tipos» para fijar el real.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="mon-actualizar"]',
+      title: "Actualizar tipos",
+      content:
+        "Descarga los tipos de cambio actuales del proveedor (BCE) respecto a tu moneda de visualización. Cubre las principales; las que no cubre (p. ej. ARS) mantienen el tipo que pongas a mano.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="mon-tabla"]',
+      title: "Tipos de cambio",
+      content:
+        "Cada moneda con su cambio (cuánto vale 1 unidad en tu moneda de vista). Puedes editarla; no se puede borrar si está en uso o es la moneda de visualización.",
+    },
+  ],
+
   "/deudas": [
     {
       target: '[data-tour="deudas-nueva"]',
