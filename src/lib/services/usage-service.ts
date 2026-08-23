@@ -46,13 +46,13 @@ export class UsageService {
     const set = new Set<string>();
 
     const movs = await this.db
-      .selectDistinct({ id: movements.categoriaId })
+      .select({ id: movements.categoriaId })
       .from(movements)
       .where(isNull(movements.deletedAt));
     for (const r of movs) if (r.id) set.add(r.id);
 
     const rules = await this.db
-      .selectDistinct({ id: recurringRules.categoriaId })
+      .select({ id: recurringRules.categoriaId })
       .from(recurringRules)
       .where(isNull(recurringRules.deletedAt));
     for (const r of rules) if (r.id) set.add(r.id);
@@ -77,25 +77,25 @@ export class UsageService {
 
     addAll(
       await this.db
-        .selectDistinct({ id: movements.cuentaOrigenId })
+        .select({ id: movements.cuentaOrigenId })
         .from(movements)
         .where(isNull(movements.deletedAt)),
     );
     addAll(
       await this.db
-        .selectDistinct({ id: movements.cuentaDestinoId })
+        .select({ id: movements.cuentaDestinoId })
         .from(movements)
         .where(isNull(movements.deletedAt)),
     );
     addAll(
       await this.db
-        .selectDistinct({ id: recurringRules.cuentaOrigenId })
+        .select({ id: recurringRules.cuentaOrigenId })
         .from(recurringRules)
         .where(isNull(recurringRules.deletedAt)),
     );
     addAll(
       await this.db
-        .selectDistinct({ id: recurringRules.cuentaDestinoId })
+        .select({ id: recurringRules.cuentaDestinoId })
         .from(recurringRules)
         .where(isNull(recurringRules.deletedAt)),
     );
@@ -112,40 +112,40 @@ export class UsageService {
       for (const r of rows) if (r.code) set.add(r.code);
     };
 
-    addAll(await this.db.selectDistinct({ code: accounts.moneda }).from(accounts));
-    addAll(await this.db.selectDistinct({ code: movements.moneda }).from(movements));
+    addAll(await this.db.select({ code: accounts.moneda }).from(accounts));
+    addAll(await this.db.select({ code: movements.moneda }).from(movements));
     addAll(
       await this.db
-        .selectDistinct({ code: recurringRules.moneda })
+        .select({ code: recurringRules.moneda })
         .from(recurringRules),
     );
     addAll(
-      await this.db.selectDistinct({ code: investments.moneda }).from(investments),
+      await this.db.select({ code: investments.moneda }).from(investments),
     );
-    addAll(await this.db.selectDistinct({ code: goals.moneda }).from(goals));
-    addAll(await this.db.selectDistinct({ code: mortgage.moneda }).from(mortgage));
+    addAll(await this.db.select({ code: goals.moneda }).from(goals));
+    addAll(await this.db.select({ code: mortgage.moneda }).from(mortgage));
     addAll(
-      await this.db.selectDistinct({ code: otherDebts.moneda }).from(otherDebts),
+      await this.db.select({ code: otherDebts.moneda }).from(otherDebts),
     );
     addAll(
       await this.db
-        .selectDistinct({ code: categories.presupuestoMoneda })
+        .select({ code: categories.presupuestoMoneda })
         .from(categories),
     );
     addAll(
       await this.db
-        .selectDistinct({ code: objetivoAhorroTramos.moneda })
+        .select({ code: objetivoAhorroTramos.moneda })
         .from(objetivoAhorroTramos),
     );
     addAll(
       await this.db
-        .selectDistinct({ code: presupuestoTramos.moneda })
+        .select({ code: presupuestoTramos.moneda })
         .from(presupuestoTramos),
     );
     // Sin FK, pero dejaria snapshots huerfanos: tambien bloquea.
     addAll(
       await this.db
-        .selectDistinct({ code: patrimonioSnapshots.moneda })
+        .select({ code: patrimonioSnapshots.moneda })
         .from(patrimonioSnapshots),
     );
 
