@@ -188,7 +188,7 @@ function PieView({
 }) {
   return (
     <div className="relative">
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
             data={data}
@@ -196,8 +196,8 @@ function PieView({
             nameKey="name"
             cx="50%"
             cy="50%"
-            innerRadius={isDonut ? 45 : 0}
-            outerRadius={80}
+            innerRadius={isDonut ? 60 : 0}
+            outerRadius={110}
             paddingAngle={isDonut ? 2 : 0}
             stroke="var(--color-background)"
             strokeWidth={2}
@@ -223,7 +223,7 @@ function PieView({
         </PieChart>
       </ResponsiveContainer>
       {isDonut && total > 0 && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ paddingBottom: "28px" }}>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ paddingBottom: "40px" }}>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Total</p>
             <p className="text-lg font-semibold tabular-nums">
@@ -252,7 +252,7 @@ function BarsView({
     [data],
   );
 
-  const height = Math.max(160, sorted.length * 24);
+  const height = Math.max(200, sorted.length * 32);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
