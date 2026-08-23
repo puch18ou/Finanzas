@@ -49,6 +49,12 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Category } from "@/lib/db/schema";
 import {
   buildRatesMap,
@@ -125,7 +131,8 @@ export default function CategoriasPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Categorias</h1>
@@ -302,21 +309,27 @@ export default function CategoriasPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setToDelete(c)}
-                            disabled={categoriasEnUso.has(c.id)}
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            aria-label="Borrar"
-                            title={
-                              categoriasEnUso.has(c.id)
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setToDelete(c)}
+                                  disabled={categoriasEnUso.has(c.id)}
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  aria-label="Borrar"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {categoriasEnUso.has(c.id)
                                 ? "En uso (tiene movimientos o reglas): solo se puede editar"
-                                : "Borrar"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                                : "Borrar"}
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -368,6 +381,7 @@ export default function CategoriasPage() {
           }
         }}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

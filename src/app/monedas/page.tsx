@@ -43,6 +43,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import type { Currency } from "@/lib/db/schema";
 
@@ -90,7 +96,8 @@ export default function MonedasPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-6">
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Monedas</h1>
@@ -198,23 +205,29 @@ export default function MonedasPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setToDelete(c)}
-                            disabled={noBorrable}
-                            aria-label="Borrar"
-                            className="text-destructive hover:text-destructive disabled:opacity-30"
-                            title={
-                              isVista
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setToDelete(c)}
+                                  disabled={noBorrable}
+                                  aria-label="Borrar"
+                                  className="text-destructive hover:text-destructive disabled:opacity-30"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {isVista
                                 ? "No se puede borrar la moneda de visualizacion"
                                 : enUso
                                   ? "En uso: solo se puede editar"
-                                  : "Borrar"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                                  : "Borrar"}
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -260,6 +273,7 @@ export default function MonedasPage() {
           }
         }}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
