@@ -29,6 +29,12 @@ export type TourStep = {
   content: string;
   /** Colocacion preferida de la burbuja respecto al elemento. */
   placement?: "top" | "bottom" | "auto";
+  /**
+   * Selector de un elemento que se PULSA (click) justo antes de mostrar el paso.
+   * Util para cambiar de pestaña y revelar el `target` (que estara en un panel
+   * aun no montado). Los pasos con preClick nunca se descartan al iniciar.
+   */
+  preClick?: string;
 };
 
 type TourContextValue = {
@@ -54,7 +60,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
     // que se ocultan hasta que hay datos: avisos, ahorro acumulado, etc.). Los
     // pasos sin target (bienvenida/centrados) siempre se conservan.
     const visible = s.filter(
-      (step) => !step.target || document.querySelector(step.target) != null,
+      (step) =>
+        step.preClick ||
+        !step.target ||
+        document.querySelector(step.target) != null,
     );
     if (visible.length === 0) return;
     setSteps(visible);

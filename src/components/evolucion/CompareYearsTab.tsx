@@ -165,7 +165,7 @@ export function CompareYearsTab({ viewCurrency, rates }: Props) {
             </CardDescription>
           </div>
           <Select value={metric} onValueChange={(v) => v && setMetric(v as MetricKey)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[140px]" data-tour="evo-comparar-metrica">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +176,7 @@ export function CompareYearsTab({ viewCurrency, rates }: Props) {
           </Select>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" data-tour="evo-comparar-anios">
             {yearOptions.map((y) => {
               const active = selectedYears.includes(y);
               return (

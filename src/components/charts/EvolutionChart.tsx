@@ -89,6 +89,8 @@ type Props = {
   title: string;
   description?: string;
   markers?: ChartMarker[];
+  /** Ancla data-tour para el boton de tipo de grafica (paso del tour). */
+  chartTypeTour?: string;
 };
 
 /**
@@ -110,6 +112,7 @@ export function EvolutionChart({
   title,
   description,
   markers = [],
+  chartTypeTour,
 }: Props) {
   const [type, setType] = useLocalStorage<EvolutionType>(
     "chart:evolutionType",
@@ -129,7 +132,7 @@ export function EvolutionChart({
           <CardTitle>{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </div>
-        <EvolutionTypeSelector value={type} onChange={setType} />
+        <EvolutionTypeSelector value={type} onChange={setType} dataTour={chartTypeTour} />
       </CardHeader>
       <CardContent>
         {data.every((d) => d.ingresos === 0 && d.gastos === 0) ? (
@@ -291,9 +294,11 @@ function renderChart(
 function EvolutionTypeSelector({
   value,
   onChange,
+  dataTour,
 }: {
   value: EvolutionType;
   onChange: (v: EvolutionType) => void;
+  dataTour?: string;
 }) {
   const Icon =
     value === "lines"
@@ -309,7 +314,12 @@ function EvolutionTypeSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Cambiar tipo de grafico">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Cambiar tipo de grafico"
+          data-tour={dataTour}
+        >
           <Icon className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

@@ -154,7 +154,7 @@ export function CategoryTrendTab({ viewCurrency, rates }: Props) {
             </CardDescription>
           </div>
           <Select value={String(anio)} onValueChange={(v) => v && setAnio(Number(v))}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[120px]" data-tour="evo-categoria-anio">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -167,7 +167,7 @@ export function CategoryTrendTab({ viewCurrency, rates }: Props) {
           </Select>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="max-w-md">
+          <div className="max-w-md" data-tour="evo-categoria-select">
             <CategoryMultiSelect
               options={catOptions}
               selected={selected}

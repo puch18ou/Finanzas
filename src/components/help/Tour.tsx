@@ -52,14 +52,32 @@ export function Tour() {
     setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
   }, [step]);
 
-  // Medimos al cambiar de paso (tras un frame, para que el scroll se aplique).
+  // Al cambiar de paso: si el paso tiene preClick (p.ej. cambiar de pestaña),
+  // lo pulsamos y esperamos a que monte el panel antes de medir.
   useLayoutEffect(() => {
     if (!active || !step) return;
-    const id = window.requestAnimationFrame(() => {
-      // segundo frame: el scrollIntoView ya movio el viewport
-      window.requestAnimationFrame(measure);
-    });
-    return () => window.cancelAnimationFrame(id);
+    let cancelled = false;
+    let timer = 0;
+
+    const run = () => {
+      if (cancelled) return;
+      let delay = 0;
+      if (step.preClick) {
+        const trigger = document.querySelector<HTMLElement>(step.preClick);
+        trigger?.click();
+        delay = 120; // dar tiempo a que el panel de la pestaña se monte
+      }
+      timer = window.setTimeout(() => {
+        if (!cancelled) measure();
+      }, delay);
+    };
+
+    const raf = window.requestAnimationFrame(run);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
   }, [active, step, index, measure]);
 
   // Recalcular en scroll/resize mientras el tour esta activo.

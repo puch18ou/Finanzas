@@ -92,6 +92,69 @@ const TOURS: Record<string, TourStep[]> = {
     },
     ...OUTRO,
   ],
+
+  "/evolucion": [
+    {
+      target: '[data-tour="evo-tabs"]',
+      title: "Tres vistas",
+      content:
+        "Evolución tiene tres pestañas: General, Comparar años y Por categoría. Te las enseño una a una.",
+    },
+    // --- General ---
+    {
+      target: '[data-tour="evo-general-anio"]',
+      title: "General · año a mostrar",
+      content:
+        "Elige el año (o «Desde objetivo de ahorro»). Todo el resumen mensual se recalcula para ese periodo.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="evo-general-tipo"]',
+      title: "General · tipo de gráfica",
+      content:
+        "Con este botón cambias cómo se ven los datos: líneas, barras agrupadas o apiladas, áreas o combo.",
+      placement: "bottom",
+    },
+    // --- Comparar años ---
+    {
+      preClick: '[data-tour="evo-tab-comparar"]',
+      target: '[data-tour="evo-comparar-anios"]',
+      title: "Comparar años · años",
+      content:
+        "Activa o desactiva los años que quieras comparar. Se dibuja una línea por año sobre el eje enero–diciembre.",
+    },
+    {
+      preClick: '[data-tour="evo-tab-comparar"]',
+      target: '[data-tour="evo-comparar-metrica"]',
+      title: "Comparar años · qué comparar",
+      content: "Elige la métrica de la comparación: gastos, ingresos o ahorro.",
+      placement: "bottom",
+    },
+    // --- Por categoría ---
+    {
+      preClick: '[data-tour="evo-tab-categorias"]',
+      target: '[data-tour="evo-categoria-anio"]',
+      title: "Por categoría · año",
+      content: "Elige el año que quieres desglosar por categorías.",
+      placement: "bottom",
+    },
+    {
+      preClick: '[data-tour="evo-tab-categorias"]',
+      target: '[data-tour="evo-categoria-select"]',
+      title: "Por categoría · categorías",
+      content:
+        "Elige una o varias categorías (multiselección) para ver su gasto neto mes a mes, una línea por categoría.",
+    },
+    // --- Cierre: volver a General ---
+    {
+      preClick: '[data-tour="evo-tab-general"]',
+      target: '[data-tour="evo-tab-general"]',
+      title: "Volvemos a General",
+      content:
+        "Y esto es todo. Puedes reabrir esta ayuda con el botón «?» de arriba cuando quieras.",
+      placement: "bottom",
+    },
+  ],
 };
 
 /**

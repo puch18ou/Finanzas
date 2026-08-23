@@ -263,14 +263,20 @@ export default function EvolucionPage() {
       </header>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="comparar">Comparar años</TabsTrigger>
-          <TabsTrigger value="categorias">Por categoria</TabsTrigger>
+        <TabsList data-tour="evo-tabs">
+          <TabsTrigger value="general" data-tour="evo-tab-general">
+            General
+          </TabsTrigger>
+          <TabsTrigger value="comparar" data-tour="evo-tab-comparar">
+            Comparar años
+          </TabsTrigger>
+          <TabsTrigger value="categorias" data-tour="evo-tab-categorias">
+            Por categoria
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex justify-end" data-tour="evo-general-anio">
             <Select
               value={usaObjetivo ? "objetivo" : String(anio)}
               onValueChange={(v) => {
@@ -333,6 +339,7 @@ export default function EvolucionPage() {
         viewCurrency={viewCurrency}
         title="Mes a mes"
         description={`Ingresos vs gastos en ${viewCurrency}`}
+        chartTypeTour="evo-general-tipo"
         markers={monthlyData
           .filter((r) => cambios.has(r.anio * 100 + r.mes))
           .map((r) => ({
