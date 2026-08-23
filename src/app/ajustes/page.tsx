@@ -62,7 +62,6 @@ import {
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
 import { LocalBackupsCard } from "@/components/backup/LocalBackupsCard";
-import { ExportInvestmentsCard } from "@/components/ajustes/ExportInvestmentsCard";
 import { HealthCard } from "@/components/ajustes/HealthCard";
 import { SyncCard } from "@/components/sync/SyncCard";
 import { SecurityCard } from "@/components/auth/SecurityCard";
@@ -209,7 +208,7 @@ export default function AjustesPage() {
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card>
+        <Card data-tour="aj-monedas">
           <CardHeader>
             <CardTitle>Monedas</CardTitle>
             <CardDescription>
@@ -465,21 +464,29 @@ export default function AjustesPage() {
               {feedback.text}
             </p>
           )}
-          <Button type="submit">Guardar ajustes</Button>
+          <Button type="submit" data-tour="aj-guardar">
+            Guardar ajustes
+          </Button>
         </div>
       </form>
 
-      <SecurityCard />
+      <div data-tour="aj-seguridad">
+        <SecurityCard />
+      </div>
 
-      <HealthCard />
+      <div data-tour="aj-salud">
+        <HealthCard />
+      </div>
 
-      <BackupCard />
+      <div data-tour="aj-backup">
+        <BackupCard />
+      </div>
 
       <LocalBackupsCard />
 
-      <ExportInvestmentsCard />
-
-      <SyncCard />
+      <div data-tour="aj-sync">
+        <SyncCard />
+      </div>
     </div>
   );
 }

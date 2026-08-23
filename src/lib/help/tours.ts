@@ -294,6 +294,45 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/ajustes": [
+    {
+      target: '[data-tour="aj-monedas"]',
+      title: "Monedas",
+      content:
+        "Tu moneda LOCAL (la base, en la que sueles operar) y la de VISTA (en la que se muestran los totales convertidos). Cambiar la de vista recalcula los tipos de cambio.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="aj-guardar"]',
+      title: "Guardar ajustes",
+      content:
+        "Los cambios de este formulario (monedas, hipoteca, patrimonio inicial, apariencia…) se aplican al pulsar aquí.",
+    },
+    {
+      target: '[data-tour="aj-seguridad"]',
+      title: "Seguridad",
+      content: "Cambia tu PIN de acceso.",
+    },
+    {
+      target: '[data-tour="aj-salud"]',
+      title: "Estado de los datos",
+      content:
+        "Frescura de cotizaciones y tipos de cambio, última sincronización y avisos de errores recientes.",
+    },
+    {
+      target: '[data-tour="aj-backup"]',
+      title: "Copias de seguridad",
+      content:
+        "Exporta o importa una copia completa. Además, la app guarda copias automáticas rotadas en tu dispositivo.",
+    },
+    {
+      target: '[data-tour="aj-sync"]',
+      title: "Sincronización",
+      content:
+        "Sincroniza tus datos entre el PC y el móvil por la red local (sin nube). Aquí emparejas los dispositivos.",
+    },
+  ],
+
   "/monedas": [
     {
       target: '[data-tour="mon-nueva"]',
