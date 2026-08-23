@@ -9,7 +9,7 @@
  *  - Las inactivas se ven en gris claro
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pencil,
   Trash2,
@@ -48,6 +48,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Account } from "@/lib/db/schema";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
@@ -58,8 +64,24 @@ export default function CuentasPage() {
   const { accounts, isLoading, create, update, remove, isMutating } = useAccounts();
   const { balances } = useAccountBalances();
   const { inUse: cuentasEnUso } = useAccountsUsage();
-  const { create: createMovement, isMutating: isReconciling } = useMovements();
+  const {
+    movements: allMovs,
+    create: createMovement,
+    isMutating: isReconciling,
+  } = useMovements();
   const mask = useMaskMoney();
+
+  // Deteccion "en uso" a partir de los movimientos reales (los mismos que dan
+  // el saldo): mas fiable que depender solo del servicio. Se combina con el
+  // servicio (que ademas cubre reglas recurrentes).
+  const cuentasConMov = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of allMovs) {
+      if (m.cuentaOrigenId) s.add(m.cuentaOrigenId);
+      if (m.cuentaDestinoId) s.add(m.cuentaDestinoId);
+    }
+    return s;
+  }, [allMovs]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -119,7 +141,8 @@ export default function CuentasPage() {
     }, 0);
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider delayDuration={200}>
+      <div className="space-y-6">
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cuentas</h1>
@@ -179,7 +202,7 @@ export default function CuentasPage() {
                     equivalente = null;
                   }
                   const dim = !a.activa ? "opacity-50" : "";
-                  const enUso = cuentasEnUso.has(a.id);
+                  const enUso = cuentasConMov.has(a.id) || cuentasEnUso.has(a.id);
                   const saldoCero = Math.abs(saldo) < 0.005;
                   return (
                     <TableRow key={a.id} className={dim}>
@@ -225,50 +248,69 @@ export default function CuentasPage() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {a.activa ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={!saldoCero}
-                              onClick={() =>
-                                update({ id: a.id, patch: { activa: false } })
-                              }
-                              aria-label="Archivar"
-                              title={
-                                saldoCero
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={!saldoCero}
+                                    onClick={() =>
+                                      update({
+                                        id: a.id,
+                                        patch: { activa: false },
+                                      })
+                                    }
+                                    aria-label="Archivar"
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {saldoCero
                                   ? "Archivar (cerrar) la cuenta"
-                                  : "Pon el saldo a 0 para poder archivarla"
-                              }
-                            >
-                              <Archive className="h-4 w-4" />
-                            </Button>
+                                  : "Pon el saldo a 0 para poder archivarla"}
+                              </TooltipContent>
+                            </Tooltip>
                           ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                update({ id: a.id, patch: { activa: true } })
-                              }
-                              aria-label="Reactivar"
-                              title="Reactivar la cuenta"
-                            >
-                              <ArchiveRestore className="h-4 w-4" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    update({ id: a.id, patch: { activa: true } })
+                                  }
+                                  aria-label="Reactivar"
+                                >
+                                  <ArchiveRestore className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Reactivar la cuenta</TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setToDelete(a)}
-                            disabled={enUso}
-                            aria-label="Borrar"
-                            className="text-destructive hover:text-destructive"
-                            title={
-                              enUso
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setToDelete(a)}
+                                  disabled={enUso}
+                                  aria-label="Borrar"
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {enUso
                                 ? "Tiene movimientos: archívala en vez de borrarla"
-                                : "Borrar"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                                : "Borrar"}
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -333,6 +375,7 @@ export default function CuentasPage() {
           }
         }}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
