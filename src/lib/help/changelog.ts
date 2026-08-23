@@ -31,7 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Historial completo de versiones en Ajustes.",
       "Cuentas: se pueden archivar (cerrar, con saldo a 0) en vez de borrarlas.",
       "No se pueden borrar cuentas, categorías ni monedas que estén en uso (solo editar), con aviso del motivo.",
-      "Divisa por defecto EUR en instalaciones nuevas.",
+      "Divisa por defecto EUR y presupuestos de categoría a 0 en instalaciones nuevas.",
       "Al crear una moneda, su tipo de cambio se actualiza solo.",
       "Arreglo: los tipos de cambio ya no fallan por monedas no cubiertas (p. ej. peso argentino).",
       "El botón de ocultar importes pasa a la barra lateral.",

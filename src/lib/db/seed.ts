@@ -52,18 +52,18 @@ const MONEDAS_SEED = [
  * Catalogo inicial de categorias de gasto. Presupuestos en EUR (moneda local).
  */
 const CATEGORIAS_SEED = [
-  { nombre: "Vivienda", tipo: "Esencial", presupuesto: 2200, notas: "Alquiler, comunidad" },
-  { nombre: "Suministros", tipo: "Esencial", presupuesto: 250, notas: "Luz, agua, gas, internet" },
-  { nombre: "Supermercado", tipo: "Esencial", presupuesto: 600, notas: "Compra semanal" },
-  { nombre: "Transporte", tipo: "Esencial", presupuesto: 150, notas: "MRT, taxis, combustible" },
-  { nombre: "Salud", tipo: "Esencial", presupuesto: 80, notas: "Farmacia, medico, seguro" },
-  { nombre: "Restaurantes", tipo: "Ocio", presupuesto: 300, notas: null },
-  { nombre: "Ocio y entretenimiento", tipo: "Ocio", presupuesto: 200, notas: "Cine, conciertos, suscripciones" },
-  { nombre: "Ropa y calzado", tipo: "Personal", presupuesto: 120, notas: null },
-  { nombre: "Viajes", tipo: "Ocio", presupuesto: 400, notas: null },
-  { nombre: "Educacion", tipo: "Inversion personal", presupuesto: 100, notas: "Cursos, libros" },
-  { nombre: "Regalos", tipo: "Personal", presupuesto: 80, notas: null },
-  { nombre: "Otros", tipo: "Variable", presupuesto: 100, notas: "Gastos sin clasificar" },
+  { nombre: "Vivienda", tipo: "Esencial", presupuesto: 0, notas: "Alquiler, comunidad" },
+  { nombre: "Suministros", tipo: "Esencial", presupuesto: 0, notas: "Luz, agua, gas, internet" },
+  { nombre: "Supermercado", tipo: "Esencial", presupuesto: 0, notas: "Compra semanal" },
+  { nombre: "Transporte", tipo: "Esencial", presupuesto: 0, notas: "Transporte, taxis, combustible" },
+  { nombre: "Salud", tipo: "Esencial", presupuesto: 0, notas: "Farmacia, medico, seguro" },
+  { nombre: "Restaurantes", tipo: "Ocio", presupuesto: 0, notas: null },
+  { nombre: "Ocio y entretenimiento", tipo: "Ocio", presupuesto: 0, notas: "Cine, conciertos, suscripciones" },
+  { nombre: "Ropa y calzado", tipo: "Personal", presupuesto: 0, notas: null },
+  { nombre: "Viajes", tipo: "Ocio", presupuesto: 0, notas: null },
+  { nombre: "Educacion", tipo: "Inversion personal", presupuesto: 0, notas: "Cursos, libros" },
+  { nombre: "Regalos", tipo: "Personal", presupuesto: 0, notas: null },
+  { nombre: "Otros", tipo: "Variable", presupuesto: 0, notas: "Gastos sin clasificar" },
 ];
 
 /**
