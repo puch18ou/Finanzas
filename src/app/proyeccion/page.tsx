@@ -22,8 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import {
   LineChart,
   Line,
@@ -38,6 +38,7 @@ import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import { MESES_ES_CORTO } from "@/lib/utils/dates";
 import { summarizeMonth } from "@/lib/domain/aggregation";
+import { periodsBetween } from "@/lib/domain/recurring";
 import { summarizePortfolio } from "@/lib/domain/investments";
 import { summarizeMortgage } from "@/lib/domain/mortgage";
 
@@ -55,45 +56,77 @@ export default function ProyeccionPage() {
   const { goals } = useGoals();
 
   const currentYear = today.getFullYear();
+  const currentMes = today.getMonth() + 1;
 
-  const { movements: movsThisYear } = useMovements({ anio: currentYear });
-  const { movements: movsPrevYear } = useMovements({ anio: currentYear - 1 });
-
-  const [horizonMonths, setHorizonMonths] = useState(60);
+  // Cargamos TODOS los movimientos para poder contar el ahorro desde cualquier
+  // fecha con datos.
+  const { movements: allMovements } = useMovements();
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
 
-  const allMovements = useMemo(
-    () => [...movsThisYear, ...movsPrevYear],
-    [movsThisYear, movsPrevYear],
-  );
+  // Primer mes con datos (minimo seleccionable para "contar desde"). Si no hay
+  // movimientos, el mes actual.
+  const earliest = useMemo(() => {
+    let minKey = Infinity;
+    let res = { anio: currentYear, mes: currentMes };
+    for (const m of allMovements) {
+      const k = m.anio * 100 + m.mes;
+      if (k < minKey) {
+        minKey = k;
+        res = { anio: m.anio, mes: m.mes };
+      }
+    }
+    return res;
+  }, [allMovements, currentYear, currentMes]);
 
+  // "Contar el ahorro desde": por defecto, el primer mes con datos.
+  const [desde, setDesde] = useState<{ anio: number; mes: number } | null>(null);
+  const desdeEff = desde ?? earliest;
+
+  // Fecha objetivo (hasta cuando proyectar): por defecto, dentro de 5 años.
+  const defObjetivo = useMemo(() => {
+    const d = new Date(currentYear, today.getMonth() + 60, 1);
+    return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
+  }, [currentYear, today]);
+  const [objetivo, setObjetivo] = useState<{ anio: number; mes: number } | null>(
+    null,
+  );
+  const objetivoEff = objetivo ?? defObjetivo;
+
+  // Meses de proyeccion = desde el mes actual hasta la fecha objetivo (>= 1).
+  const horizonMonths = useMemo(() => {
+    const curK = currentYear * 12 + (currentMes - 1);
+    const objK = objetivoEff.anio * 12 + (objetivoEff.mes - 1);
+    return Math.max(1, objK - curK);
+  }, [objetivoEff, currentYear, currentMes]);
+
+  // Ahorro mensual medio contando SOLO desde `desdeEff` hasta el mes actual
+  // (meses con datos). No cuenta nada anterior a esa fecha.
   const ahorroMensualMedio = useMemo(() => {
     if (!settings) return 0;
+    const periodos = periodsBetween(
+      desdeEff.anio,
+      desdeEff.mes,
+      currentYear,
+      currentMes,
+    );
     const mesesConDatos: number[] = [];
-
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(currentYear, today.getMonth() - i, 1);
-      const mes = d.getMonth() + 1;
-      const anio = d.getFullYear();
-
+    for (const p of periodos) {
       const summary = summarizeMonth({
-        mes,
-        anio,
+        mes: p.mes,
+        anio: p.anio,
         movements: allMovements,
         rates,
         viewCurrency,
       });
-
       if (summary.ingresos > 0 || summary.gastos > 0) {
         mesesConDatos.push(summary.ahorro);
       }
     }
-
     if (mesesConDatos.length === 0) return 0;
     return mesesConDatos.reduce((a, b) => a + b, 0) / mesesConDatos.length;
-  }, [settings, allMovements, rates, viewCurrency, currentYear, today]);
+  }, [settings, desdeEff, allMovements, rates, viewCurrency, currentYear, currentMes]);
 
   const valorCuentas = useMemo(() => {
     let total = 0;
@@ -254,44 +287,76 @@ export default function ProyeccionPage() {
         <CardHeader>
           <CardTitle>Parametros</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Patrimonio inicial declarado</Label>
-            <p className="text-lg font-semibold tabular-nums">
-              {money(patrimonioInicial, viewCurrency)}
-            </p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2" data-tour="proy-desde">
+              <Label className="text-xs">Contar ahorro desde</Label>
+              <div>
+                <PeriodSelector
+                  anio={desdeEff.anio}
+                  mes={desdeEff.mes}
+                  yearsRange={{ from: earliest.anio, to: currentYear }}
+                  onChange={({ anio, mes }) => {
+                    const k = anio * 12 + (mes - 1);
+                    const minK = earliest.anio * 12 + (earliest.mes - 1);
+                    const maxK = currentYear * 12 + (currentMes - 1);
+                    const cl = Math.min(Math.max(k, minK), maxK);
+                    setDesde({ anio: Math.floor(cl / 12), mes: (cl % 12) + 1 });
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Primer mes con datos: {fmtMesAnio(new Date(earliest.anio, earliest.mes - 1, 1))}.
+              </p>
+            </div>
+            <div className="space-y-2" data-tour="proy-objetivo">
+              <Label className="text-xs">Proyectar hasta</Label>
+              <div>
+                <PeriodSelector
+                  anio={objetivoEff.anio}
+                  mes={objetivoEff.mes}
+                  yearsRange={{ from: currentYear, to: currentYear + 30 }}
+                  onChange={({ anio, mes }) => {
+                    const k = anio * 12 + (mes - 1);
+                    const minK = currentYear * 12 + currentMes; // al menos el mes siguiente
+                    const cl = Math.max(k, minK);
+                    setObjetivo({ anio: Math.floor(cl / 12), mes: (cl % 12) + 1 });
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {horizonMonths} meses (aprox. {(horizonMonths / 12).toFixed(1)} años).
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Patrimonio neto actual</Label>
-            <p className="text-lg font-semibold tabular-nums">
-              {money(patrimonioNetoActual, viewCurrency)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Ahorro mensual medio (12m)</Label>
-            <p className="text-lg font-semibold tabular-nums">
-              {money(ahorroMensualMedio, viewCurrency)}
-            </p>
-          </div>
-          <div className="space-y-2 md:col-span-3">
-            <Label htmlFor="horizon">Horizonte (meses)</Label>
-            <Input
-              id="horizon"
-              type="number"
-              min={1}
-              max={600}
-              value={horizonMonths}
-              onChange={(e) => setHorizonMonths(Math.max(1, Number(e.target.value) || 1))}
-              className="max-w-[160px]"
-            />
-            <p className="text-xs text-muted-foreground">
-              Aprox. {(horizonMonths / 12).toFixed(1)} anios
-            </p>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Patrimonio inicial declarado</Label>
+              <p className="text-lg font-semibold tabular-nums">
+                {money(patrimonioInicial, viewCurrency)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Patrimonio neto actual</Label>
+              <p className="text-lg font-semibold tabular-nums">
+                {money(patrimonioNetoActual, viewCurrency)}
+              </p>
+            </div>
+            <div className="space-y-1" data-tour="proy-ahorro">
+              <Label className="text-xs">
+                Ahorro mensual medio (desde{" "}
+                {fmtMesAnio(new Date(desdeEff.anio, desdeEff.mes - 1, 1))})
+              </Label>
+              <p className="text-lg font-semibold tabular-nums">
+                {money(ahorroMensualMedio, viewCurrency)}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="proy-grafica">
         <CardHeader>
           <CardTitle>Proyeccion</CardTitle>
           <CardDescription>
@@ -353,7 +418,7 @@ export default function ProyeccionPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="proy-metas">
         <CardHeader>
           <CardTitle>Metas</CardTitle>
           <CardDescription>

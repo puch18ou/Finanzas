@@ -156,6 +156,43 @@ const TOURS: Record<string, TourStep[]> = {
       content: "",
     },
   ],
+
+  "/proyeccion": [
+    {
+      target: '[data-tour="proy-desde"]',
+      title: "Contar el ahorro desde",
+      content:
+        "Elige desde qué mes se calcula tu ahorro. El mínimo es tu primer mes con datos; no se cuenta nada anterior a esa fecha.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="proy-objetivo"]',
+      title: "Proyectar hasta",
+      content:
+        "La fecha objetivo: la proyección del patrimonio llega hasta ese mes.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="proy-ahorro"]',
+      title: "Ahorro mensual medio",
+      content:
+        "Tu ahorro medio en el periodo elegido. Es el ritmo con el que se estima el crecimiento del patrimonio.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="proy-grafica"]',
+      title: "La proyección",
+      content:
+        "Estimación lineal de tu patrimonio hasta la fecha objetivo (sin inflación ni rendimiento de inversiones). Las líneas punteadas marcan tus metas.",
+    },
+    {
+      target: '[data-tour="proy-metas"]',
+      title: "Metas",
+      content:
+        "Para cada meta, la fecha estimada en la que la alcanzarías con tu ahorro medio, y si vas a tiempo o con retraso.",
+    },
+    ...OUTRO,
+  ],
 };
 
 /**
