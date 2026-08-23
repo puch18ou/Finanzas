@@ -452,17 +452,19 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
-        <PeriodSelector
-          anio={periodAnio}
-          mes={periodMes}
-          onChange={({ anio, mes }) => {
-            setPeriodAnio(anio);
-            setPeriodMes(mes);
-          }}
-        />
+        <div data-tour="dashboard-period">
+          <PeriodSelector
+            anio={periodAnio}
+            mes={periodMes}
+            onChange={({ anio, mes }) => {
+              setPeriodAnio(anio);
+              setPeriodMes(mes);
+            }}
+          />
+        </div>
       </header>
 
-      <div className={`grid gap-4 ${kpiCols}`}>
+      <div data-tour="dashboard-kpis" className={`grid gap-4 ${kpiCols}`}>
         <KpiCard
           label="Ingresos"
           value={money(summary.ingresos)}

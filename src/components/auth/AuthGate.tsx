@@ -29,6 +29,7 @@ import {
 import { QuickAddProvider } from "@/contexts/QuickAddProvider";
 import { ShortcutsProvider } from "@/contexts/ShortcutsProvider";
 import { PrivacyProvider } from "@/contexts/PrivacyProvider";
+import { TourProvider } from "@/contexts/TourProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { MarketAutoRefresh } from "@/components/fx/MarketAutoRefresh";
 import { PatrimonioSnapshotTaker } from "@/components/patrimonio/PatrimonioSnapshotTaker";
@@ -87,11 +88,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <UpdateChecker />
         <MobileUpdateChecker />
         <PrivacyProvider>
-          <QuickAddProvider>
-            <ShortcutsProvider>
-              <AppShell>{children}</AppShell>
-            </ShortcutsProvider>
-          </QuickAddProvider>
+          <TourProvider>
+            <QuickAddProvider>
+              <ShortcutsProvider>
+                <AppShell>{children}</AppShell>
+              </ShortcutsProvider>
+            </QuickAddProvider>
+          </TourProvider>
         </PrivacyProvider>
       </DatabaseReady>
     </DatabaseProvider>
