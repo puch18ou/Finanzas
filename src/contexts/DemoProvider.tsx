@@ -5,10 +5,10 @@
  *  src/contexts/DemoProvider.tsx — Motor del DEMO interactivo (onboarding)
  * ============================================================================
  *
- *  Ejecuta el guion de src/lib/help/demo-script.ts: navega, crea datos de
- *  ejemplo, resalta y explica; al terminar (o al salir) borra todo lo creado.
- *  Renderiza su propio overlay (estilo similar al tour). Se monta una vez en el
- *  shell de escritorio.
+ *  Ejecuta el guion de src/lib/help/demo-script.ts sobre una BD de EJEMPLO
+ *  aislada (sandbox): al iniciar entra en la BD demo (fresca), crea datos,
+ *  navega y explica; al terminar/salir vuelve a tu BD real. Tus datos nunca se
+ *  ven ni se tocan. Renderiza su propio overlay. Se monta una vez en el shell.
  * ============================================================================
  */
 
@@ -24,14 +24,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useRepos } from "@/contexts/DatabaseProvider";
+import { useRepos, useDbControl } from "@/contexts/DatabaseProvider";
 import { useSettings } from "@/hooks/useSettings";
 import {
   DEMO_STEPS,
-  cleanupDemo,
   newDemoTracker,
   type DemoContext as DemoCtx,
   type DemoStep,
@@ -53,8 +51,8 @@ const GAP = 12;
 export function DemoProvider({ children }: { children: ReactNode }) {
   const repos = useRepos();
   const { settings } = useSettings();
+  const { enterDemoMode, exitDemoMode } = useDbControl();
   const router = useRouter();
-  const qc = useQueryClient();
 
   const [running, setRunning] = useState(false);
   const [index, setIndex] = useState(0);
@@ -63,41 +61,55 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   const trackerRef = useRef(newDemoTracker());
-  const monedaLocal = settings?.monedaLocal ?? "EUR";
+  // Refs para que el efecto de pasos NO se re-ejecute al cambiar los repos
+  // (que cambian al entrar/salir del sandbox).
+  const reposRef = useRef(repos);
+  reposRef.current = repos;
+  const monedaRef = useRef(settings?.monedaLocal ?? "EUR");
+  monedaRef.current = settings?.monedaLocal ?? "EUR";
 
   useEffect(() => setMounted(true), []);
 
   const ctx = useCallback(
-    (): DemoCtx => ({ repos, monedaLocal, tracker: trackerRef.current }),
-    [repos, monedaLocal],
+    (): DemoCtx => ({
+      repos: reposRef.current,
+      monedaLocal: monedaRef.current,
+      tracker: trackerRef.current,
+    }),
+    [],
   );
 
   const startDemo = useCallback(() => {
-    trackerRef.current = newDemoTracker();
-    setIndex(0);
-    setRunning(true);
-  }, []);
+    void (async () => {
+      setBusy(true);
+      try {
+        trackerRef.current = newDemoTracker();
+        await enterDemoMode();
+        setIndex(0);
+        setRunning(true);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [enterDemoMode]);
 
   const finish = useCallback(async () => {
     setBusy(true);
     try {
-      await cleanupDemo(ctx());
-    } finally {
-      await qc.invalidateQueries();
+      await exitDemoMode();
       try {
         window.localStorage.setItem("finanzas.demo.seen", "1");
       } catch {
         /* ignorar */
       }
+    } finally {
       setRunning(false);
       setIndex(0);
       setRect(null);
       setBusy(false);
     }
-  }, [ctx, qc]);
+  }, [exitDemoMode]);
 
-  // Localiza el elemento objetivo reintentando (espera a que monte la pagina
-  // tras navegar / refrescar datos). Si no aparece, paso centrado.
   const locate = useCallback(async (selector?: string): Promise<Rect | null> => {
     if (!selector) return null;
     for (let i = 0; i < 25; i++) {
@@ -113,7 +125,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return null;
   }, []);
 
-  // Al entrar en un paso: navega, ejecuta la accion, y localiza el objetivo.
+  // Al entrar en un paso: navega, ejecuta la accion y localiza el objetivo.
   useEffect(() => {
     if (!running) return;
     const step: DemoStep | undefined = DEMO_STEPS[index];
@@ -126,17 +138,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       try {
         if (step.navigate) {
           router.push(step.navigate);
-          await new Promise((r) => window.setTimeout(r, 250));
+          await new Promise((r) => window.setTimeout(r, 300));
         }
         if (cancelled) return;
         if (step.run) {
           await step.run(ctx());
-          await qc.invalidateQueries();
           await new Promise((r) => window.setTimeout(r, 200));
         }
         if (cancelled) return;
         const found = await locate(step.target);
         if (!cancelled) setRect(found);
+      } catch (err) {
+        console.error("[demo] error en paso", index, err);
       } finally {
         if (!cancelled) setBusy(false);
       }
@@ -145,7 +158,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [running, index, ctx, locate, qc, router]);
+  }, [running, index, ctx, locate, router]);
 
   const next = useCallback(() => {
     if (index >= DEMO_STEPS.length - 1) {

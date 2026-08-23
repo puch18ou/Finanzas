@@ -28,12 +28,16 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { getDb, setActiveDbPath } from "@/lib/db/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { getDb, getRawDb, setActiveDbPath } from "@/lib/db/client";
 import { useAuth } from "@/contexts/AuthProvider";
 import { runMigrations } from "@/lib/db/migrate";
 import { runSeed } from "@/lib/db/seed";
@@ -61,6 +65,69 @@ const DatabaseContext = createContext<Status>({ kind: "loading" });
 
 export function useDatabase(): Status {
   return useContext(DatabaseContext);
+}
+
+// ---------------------------------------------------------------------------
+//  Control del MODO DEMO: abre una BD de ejemplo aparte (sandbox) y vuelve.
+// ---------------------------------------------------------------------------
+
+const DEMO_DB_FILE = "finanzas_demo.db";
+
+type DbControl = {
+  demoActive: boolean;
+  /** Entra en la BD de ejemplo (fresca). No toca tus datos reales. */
+  enterDemoMode: () => Promise<void>;
+  /** Vuelve a tu BD real. */
+  exitDemoMode: () => Promise<void>;
+};
+
+const DbControlContext = createContext<DbControl | null>(null);
+
+export function useDbControl(): DbControl {
+  const ctx = useContext(DbControlContext);
+  if (!ctx) {
+    return {
+      demoActive: false,
+      enterDemoMode: async () => {},
+      exitDemoMode: async () => {},
+    };
+  }
+  return ctx;
+}
+
+/** Vacia los datos de usuario de la BD demo (deja categorias/monedas/settings
+ *  del seed) para que cada demo empiece fresco. Se llama con la BD demo activa. */
+async function resetDemoDb(): Promise<void> {
+  const raw = await getRawDb();
+  // Orden respetando FKs: primero lo que referencia a cuentas/categorias.
+  const tables = [
+    "movements",
+    "recurring_rules",
+    "investment_contributions",
+    "investments",
+    "goals",
+    "mortgage",
+    "other_debts",
+    "presupuesto_tramos",
+    "objetivo_ahorro_tramos",
+    "patrimonio_snapshots",
+    "tombstones",
+    "sync_state",
+    "accounts",
+  ];
+  for (const t of tables) {
+    try {
+      await raw.execute(`DELETE FROM ${t}`);
+    } catch {
+      /* tabla inexistente o vacia: ignorar */
+    }
+  }
+  // Presupuestos de categoria a 0 (el demo los editara y asi cada run parte igual).
+  try {
+    await raw.execute("UPDATE categories SET presupuesto_mensual = 0");
+  } catch {
+    /* ignorar */
+  }
 }
 
 export function useDb(): DrizzleDb {
@@ -165,6 +232,9 @@ async function initDatabaseForUser(dbFile: string): Promise<InitResult> {
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
+  const [demoActive, setDemoActive] = useState(false);
+  const demoRef = useRef(false);
+  const qc = useQueryClient();
   // Multiusuario: cada usuario tiene su propio fichero .db (Lote 12).
   const { user } = useAuth();
   const dbFile = user?.dbFile ?? null;
@@ -177,9 +247,11 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         if (!dbFile) {
           throw new Error("No hay fichero de BD para el usuario en sesion.");
         }
+        // Si estamos en demo, no reinicializamos por este efecto.
+        if (demoRef.current) return;
         const { db, repos, migrationsApplied, seed } =
           await initDatabaseForUser(dbFile);
-        if (!cancelled) {
+        if (!cancelled && !demoRef.current) {
           setStatus({ kind: "ready", db, repos, migrationsApplied, seed });
         }
       } catch (error) {
@@ -197,10 +269,49 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     };
   }, [dbFile]);
 
+  const enterDemoMode = useCallback(async () => {
+    demoRef.current = true;
+    // NO ponemos loading: mantenemos la BD real montada hasta que la demo este
+    // lista (evita desmontar la app / el propio motor del demo).
+    const r = await initDatabaseForUser(DEMO_DB_FILE);
+    await resetDemoDb();
+    setStatus({
+      kind: "ready",
+      db: r.db,
+      repos: r.repos,
+      migrationsApplied: r.migrationsApplied,
+      seed: r.seed,
+    });
+    setDemoActive(true);
+    await qc.invalidateQueries();
+  }, [qc]);
+
+  const exitDemoMode = useCallback(async () => {
+    if (!dbFile) return;
+    const r = await initDatabaseForUser(dbFile);
+    demoRef.current = false;
+    setStatus({
+      kind: "ready",
+      db: r.db,
+      repos: r.repos,
+      migrationsApplied: r.migrationsApplied,
+      seed: r.seed,
+    });
+    setDemoActive(false);
+    await qc.invalidateQueries();
+  }, [dbFile, qc]);
+
+  const control = useMemo<DbControl>(
+    () => ({ demoActive, enterDemoMode, exitDemoMode }),
+    [demoActive, enterDemoMode, exitDemoMode],
+  );
+
   return (
-    <DatabaseContext.Provider value={status}>
-      {children}
-    </DatabaseContext.Provider>
+    <DbControlContext.Provider value={control}>
+      <DatabaseContext.Provider value={status}>
+        {children}
+      </DatabaseContext.Provider>
+    </DbControlContext.Provider>
   );
 }
 

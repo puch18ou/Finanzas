@@ -15,7 +15,6 @@
  */
 
 import type { Repositories } from "@/lib/repositories";
-import { MENU_TOUR } from "./tours";
 import { normalizeDateToUTCNoon } from "@/lib/utils/dates";
 
 /** Registro de lo creado por el demo, para poder borrarlo al terminar. */
@@ -300,49 +299,19 @@ const FLUJO: DemoStep[] = [
   },
 ];
 
-/** Guion completo: guia del menu + flujo. */
+/** Guion completo: bienvenida + botón de ayuda + flujo de ejemplo. */
 export const DEMO_STEPS: DemoStep[] = [
   {
     title: "Bienvenido a Finanzas 👋",
     content:
-      "Te enseño la app con un ejemplo práctico. Iré creando datos de prueba y, al terminar, los borro todos. Empecemos por el menú de la izquierda.",
+      "Te enseño la app con un ejemplo práctico, en una cuenta de prueba (tus datos no se tocan). Al terminar, vuelves a lo tuyo.",
   },
-  // Guia del menu (sin su intro propia, ya tenemos la bienvenida).
-  ...(MENU_TOUR.slice(1) as DemoStep[]),
+  {
+    target: '[data-tour="menu-help"]',
+    title: "Ayuda siempre a mano",
+    content:
+      "Con este botón «?» tienes una guía de cada sección. Y en cada pantalla, el «?» de arriba explica lo que ves. Ahora, el ejemplo:",
+    placement: "right",
+  },
   ...FLUJO,
 ];
-
-/** Borra todo lo creado por el demo y restaura los presupuestos tocados. */
-export async function cleanupDemo(ctx: DemoContext): Promise<void> {
-  for (const id of ctx.tracker.movementIds) {
-    try {
-      await ctx.repos.movements.hardDelete(id);
-    } catch {
-      /* ignorar */
-    }
-  }
-  for (const id of ctx.tracker.ruleIds) {
-    try {
-      await ctx.repos.recurringRules.hardDelete(id);
-    } catch {
-      /* ignorar */
-    }
-  }
-  for (const id of ctx.tracker.accountIds) {
-    try {
-      await ctx.repos.accounts.hardDelete(id);
-    } catch {
-      /* ignorar */
-    }
-  }
-  for (const b of ctx.tracker.budgetBackups) {
-    try {
-      await ctx.repos.categories.update(b.id, {
-        presupuestoMensual: b.importe,
-        presupuestoMoneda: b.moneda,
-      });
-    } catch {
-      /* ignorar */
-    }
-  }
-}

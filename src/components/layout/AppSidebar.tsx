@@ -140,6 +140,7 @@ export function AppSidebar() {
               className="h-7 w-7"
               aria-label="Guia del menu"
               title="Guia: que hay en cada seccion"
+              data-tour="menu-help"
               onClick={() => startTour(MENU_TOUR)}
             >
               <HelpCircle className="h-4 w-4" />
