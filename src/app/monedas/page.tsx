@@ -253,6 +253,20 @@ export default function MonedasPage() {
             await update({ code: editing.code, patch });
           } else {
             await create(data);
+            // Auto-actualiza los tipos para que la moneda nueva coja su cambio
+            // real del proveedor. Si no la cubre, avisamos para ajustarla a mano.
+            try {
+              const r = await refreshRates({ viewCurrency: monedaVista });
+              if (r.noCubiertas.includes(data.code)) {
+                toast.info(
+                  `${data.code}: el proveedor no tiene su tipo de cambio; ajústalo a mano.`,
+                );
+              } else {
+                toast.success(`Tipo de cambio de ${data.code} actualizado`);
+              }
+            } catch {
+              // Si el refresco falla, la moneda queda creada con el tipo manual.
+            }
           }
         }}
       />
