@@ -111,11 +111,14 @@ export default function ProyeccionPage() {
   // (meses con datos). No cuenta nada anterior a esa fecha.
   const ahorroMensualMedio = useMemo(() => {
     if (!settings) return 0;
+    // Hasta el mes ANTERIOR al actual: el mes en curso no ha terminado y
+    // falsearia la media.
+    const endD = new Date(currentYear, currentMes - 2, 1);
     const periodos = periodsBetween(
       desdeEff.anio,
       desdeEff.mes,
-      currentYear,
-      currentMes,
+      endD.getFullYear(),
+      endD.getMonth() + 1,
     );
     const mesesConDatos: number[] = [];
     for (const p of periodos) {
