@@ -271,6 +271,22 @@ const TOURS: Record<string, TourStep[]> = {
         "Reglas creadas automáticamente al configurar la hipoteca, deudas o intereses de cuentas. Para cambiarlas, ve a su pantalla (no se editan aquí).",
     },
   ],
+
+  "/cuentas": [
+    {
+      target: '[data-tour="cuentas-nueva"]',
+      title: "Añadir cuenta",
+      content:
+        "Crea una cuenta (banco, broker o efectivo) con su moneda y saldo inicial. Los saldos se calculan a partir de los movimientos.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="cuentas-conciliar"]',
+      title: "Conciliar saldo",
+      content:
+        "Si el saldo real de la cuenta no coincide con el calculado, este botón crea un ajuste para cuadrarlo con lo que dice el banco.",
+    },
+  ],
 };
 
 /**

@@ -116,6 +116,7 @@ export default function CuentasPage() {
           </p>
         </div>
         <Button
+          data-tour="cuentas-nueva"
           onClick={() => {
             setEditing(null);
             setFormOpen(true);
@@ -193,6 +194,7 @@ export default function CuentasPage() {
                             onClick={() => setToReconcile(a)}
                             aria-label="Conciliar"
                             title="Conciliar saldo"
+                            data-tour="cuentas-conciliar"
                           >
                             <Scale className="h-4 w-4" />
                           </Button>
