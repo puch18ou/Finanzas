@@ -1,6 +1,6 @@
 [package]
 name = "finanzas"
-version = "0.1.26"
+version = "0.1.27"
 description = "Aplicacion personal de finanzas"
 authors = ["you"]
 edition = "2021"

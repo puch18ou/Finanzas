@@ -193,10 +193,83 @@ export class DbSyncStore implements SyncStore {
 
   async deleteRows(table: SyncTable, ids: string[]): Promise<void> {
     if (ids.length === 0) return;
+    // Antes de un borrado FISICO hay que anular las referencias (FK) que otras
+    // filas VIVAS tengan hacia estas (si no, SQLite las rechaza con RESTRICT).
+    // Al aplicar una lapida de borrado, la fila referenciada desaparece pero la
+    // que la apunta puede seguir viva; cada dispositivo descuelga sus propias
+    // referencias al integrar el borrado (converge igual que la papelera local,
+    // ver trash-service.ts). Solo tres tablas son DESTINO de FK.
+    if (table === "movements") await this.nullRefsToMovements(ids);
+    else if (table === "accounts") await this.nullRefsToAccounts(ids);
+    else if (table === "categories") await this.nullRefsToCategories(ids);
+
     const t = TABLE_BY_NAME[table];
     const cols = getTableColumns(t) as Record<string, AnySQLiteColumn>;
     const pkCol = cols[PK_PROP[table]] as AnySQLiteColumn;
     await this.db.delete(t).where(inArray(pkCol, ids));
+  }
+
+  /** Anula las referencias (FK) de otras tablas hacia estos movimientos. */
+  private async nullRefsToMovements(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(investmentContributions)
+      .set({ movimientoId: null })
+      .where(inArray(investmentContributions.movimientoId, ids));
+  }
+
+  /** Anula las referencias (FK) de otras tablas hacia estas cuentas. */
+  private async nullRefsToAccounts(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(movements)
+      .set({ cuentaOrigenId: null })
+      .where(inArray(movements.cuentaOrigenId, ids));
+    await this.db
+      .update(movements)
+      .set({ cuentaDestinoId: null })
+      .where(inArray(movements.cuentaDestinoId, ids));
+    await this.db
+      .update(recurringRules)
+      .set({ cuentaOrigenId: null })
+      .where(inArray(recurringRules.cuentaOrigenId, ids));
+    await this.db
+      .update(recurringRules)
+      .set({ cuentaDestinoId: null })
+      .where(inArray(recurringRules.cuentaDestinoId, ids));
+    await this.db
+      .update(investmentContributions)
+      .set({ cuentaOrigenId: null })
+      .where(inArray(investmentContributions.cuentaOrigenId, ids));
+    await this.db
+      .update(investments)
+      .set({ cuentaId: null })
+      .where(inArray(investments.cuentaId, ids));
+    await this.db
+      .update(otherDebts)
+      .set({ cuentaPagoId: null })
+      .where(inArray(otherDebts.cuentaPagoId, ids));
+    await this.db
+      .update(mortgage)
+      .set({ cuentaPagoId: null })
+      .where(inArray(mortgage.cuentaPagoId, ids));
+    await this.db
+      .update(goals)
+      .set({ cuentaVinculadaId: null })
+      .where(inArray(goals.cuentaVinculadaId, ids));
+  }
+
+  /** Anula las referencias (FK) de otras tablas hacia estas categorias. */
+  private async nullRefsToCategories(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(movements)
+      .set({ categoriaId: null })
+      .where(inArray(movements.categoriaId, ids));
+    await this.db
+      .update(recurringRules)
+      .set({ categoriaId: null })
+      .where(inArray(recurringRules.categoriaId, ids));
   }
 
   // -- Lapidas ---------------------------------------------------------------

@@ -22,6 +22,13 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.27",
+    fecha: "2026-08",
+    cambios: [
+      "Arreglo importante de sincronización: al propagarse un borrado entre dispositivos, la sync ya no falla cuando el dato borrado (un movimiento, una cuenta o una categoría) todavía estaba referenciado por otros datos; ahora esas referencias se descuelgan igual que al vaciar la papelera.",
+    ],
+  },
+  {
     version: "0.1.26",
     fecha: "2026-08",
     cambios: [
