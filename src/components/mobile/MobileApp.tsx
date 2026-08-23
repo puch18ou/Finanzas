@@ -33,7 +33,6 @@ import { MobileAccounts } from "./screens/MobileAccounts";
 import { MobileInvestments } from "./screens/MobileInvestments";
 import { MobileBudgets } from "./screens/MobileBudgets";
 import { MobileSettings } from "./screens/MobileSettings";
-import { useSettings } from "@/hooks/useSettings";
 
 type TabId =
   | "inicio"
@@ -67,7 +66,6 @@ export function MobileApp() {
 function MobileShell() {
   const [tab, setTab] = useState<TabId>("inicio");
   const editor = useMovementEditor();
-  const { settings } = useSettings();
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/20">
@@ -89,9 +87,10 @@ function MobileShell() {
         {tab === "ajustes" && <MobileSettings />}
       </main>
 
-      {/* Boton flotante: nuevo movimiento. No en Ajustes; y solo si el ajuste
-          "boton flotante de gasto rapido" esta activo (compartido con PC). */}
-      {tab !== "ajustes" && settings?.mostrarFab && (
+      {/* Boton flotante: nuevo movimiento. Siempre visible en movil (es la via
+          principal para anadir); el ajuste mostrarFab solo afecta al FAB de PC.
+          No aparece en Ajustes. */}
+      {tab !== "ajustes" && (
         <button
           type="button"
           onClick={editor.openCreate}

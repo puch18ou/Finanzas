@@ -397,10 +397,11 @@ export default function AjustesPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-md border p-3">
               <Label htmlFor="mostrar-fab" className="flex flex-col gap-1">
-                <span>Boton flotante de gasto rapido</span>
+                <span>Boton flotante de gasto rapido (escritorio)</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Muestra el boton + en la esquina inferior derecha. Aunque lo
-                  ocultes, el atajo Ctrl+Shift+G sigue funcionando.
+                  Muestra el boton + en la esquina inferior derecha en el PC.
+                  Aunque lo ocultes, el atajo Ctrl+Shift+G sigue funcionando. En
+                  el movil el boton + siempre esta disponible.
                 </span>
               </Label>
               <Switch
