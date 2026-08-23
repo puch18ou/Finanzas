@@ -531,7 +531,7 @@ export default function DashboardPage() {
       </div>
 
       {mostrarAcumulado && ahorroAcumulado && (
-        <Card>
+        <Card data-tour="dashboard-ahorro">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <PiggyBank className="h-4 w-4" />
@@ -591,9 +591,13 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <AlertsCard rows={budgetRows} viewCurrency={viewCurrency} />
+      <AlertsCard
+        rows={budgetRows}
+        viewCurrency={viewCurrency}
+        dataTour="dashboard-avisos"
+      />
 
-      <CashflowCard />
+      <CashflowCard dataTour="dashboard-cashflow" />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryChart
@@ -601,8 +605,13 @@ export default function DashboardPage() {
           viewCurrency={viewCurrency}
           title="Gasto por categoria"
           description="Distribucion del gasto del mes"
+          dataTour="dashboard-categoria"
         />
-        <BudgetProgress rows={budgetRows} viewCurrency={viewCurrency} />
+        <BudgetProgress
+          rows={budgetRows}
+          viewCurrency={viewCurrency}
+          dataTour="dashboard-presupuesto"
+        />
       </div>
 
       <RecentMovements
@@ -610,6 +619,7 @@ export default function DashboardPage() {
         categoryNames={categoryNamesMap}
         accountNames={accountNamesMap}
         max={8}
+        dataTour="dashboard-recientes"
       />
     </div>
   );

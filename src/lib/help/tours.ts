@@ -47,6 +47,42 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Ingresos, gastos, ahorro (con su tasa) y patrimonio neto. Incluyen los movimientos previstos del mes (recurrentes que aún no han ocurrido).",
     },
+    {
+      target: '[data-tour="dashboard-ahorro"]',
+      title: "Ahorro acumulado vs objetivo",
+      content:
+        "Si tienes fijado un objetivo de ahorro, aquí ves cuánto llevas acumulado desde esa fecha y si vas cumpliendo el objetivo (por importe y por tasa).",
+    },
+    {
+      target: '[data-tour="dashboard-avisos"]',
+      title: "Avisos",
+      content:
+        "Te avisa cuando una categoría se acerca a su presupuesto (ámbar) o lo supera (rojo). Solo aparece si hay algo que avisar.",
+    },
+    {
+      target: '[data-tour="dashboard-cashflow"]',
+      title: "Previsión de liquidez",
+      content:
+        "Proyecta tu saldo de las próximas semanas con los recurrentes previstos: saldo de hoy, previsto a fin de mes y aviso si te pondrías en números rojos.",
+    },
+    {
+      target: '[data-tour="dashboard-categoria"]',
+      title: "Gasto por categoría",
+      content:
+        "El reparto del gasto del mes por categoría. Con el botón de arriba a la derecha de la tarjeta cambias el tipo de gráfica (tarta, donut o barras).",
+    },
+    {
+      target: '[data-tour="dashboard-presupuesto"]',
+      title: "Presupuesto del mes",
+      content:
+        "Progreso de cada categoría con presupuesto: cuánto llevas gastado respecto al límite del mes.",
+    },
+    {
+      target: '[data-tour="dashboard-recientes"]',
+      title: "Movimientos recientes",
+      content:
+        "Los últimos movimientos registrados. Para verlos todos, filtrar u ordenar, ve a la pantalla Movimientos.",
+    },
     ...OUTRO,
   ],
 };

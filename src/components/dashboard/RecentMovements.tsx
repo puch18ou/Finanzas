@@ -34,6 +34,7 @@ type Props = {
   categoryNames: Record<string, string>;
   accountNames: Record<string, string>;
   max?: number;
+  dataTour?: string;
 };
 
 export function RecentMovements({
@@ -41,6 +42,7 @@ export function RecentMovements({
   categoryNames,
   accountNames,
   max = 8,
+  dataTour,
 }: Props) {
   const recent = [...movements]
     .sort((a, b) => {
@@ -51,7 +53,7 @@ export function RecentMovements({
     .slice(0, max);
 
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader>
         <CardTitle>Movimientos recientes</CardTitle>
         <CardDescription>

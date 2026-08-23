@@ -58,7 +58,7 @@ function deltaRegla(
   }
 }
 
-export function CashflowCard() {
+export function CashflowCard({ dataTour }: { dataTour?: string } = {}) {
   const { settings } = useSettings();
   const { data: currencies = [] } = useCurrencies();
   const { accounts, balances } = useAccountBalances();
@@ -141,7 +141,7 @@ export function CashflowCard() {
     .slice(0, 5);
 
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4" />

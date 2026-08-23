@@ -59,6 +59,7 @@ type Props = {
   viewCurrency: string;
   title: string;
   description?: string;
+  dataTour?: string;
 };
 
 const DEFAULT_COLORS = [
@@ -89,7 +90,13 @@ function tooltipNumberFormatter(viewCurrency: string, hidden: boolean) {
   };
 }
 
-export function CategoryChart({ data, viewCurrency, title, description }: Props) {
+export function CategoryChart({
+  data,
+  viewCurrency,
+  title,
+  description,
+  dataTour,
+}: Props) {
   const [chartType, setChartType] = useLocalStorage<ChartType>(
     "chart:categoryType",
     "donut",
@@ -99,7 +106,7 @@ export function CategoryChart({ data, viewCurrency, title, description }: Props)
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div>
           <CardTitle>{title}</CardTitle>

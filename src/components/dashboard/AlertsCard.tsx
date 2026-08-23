@@ -23,9 +23,11 @@ import { cn } from "@/lib/utils/cn";
 export function AlertsCard({
   rows,
   viewCurrency,
+  dataTour,
 }: {
   rows: BudgetInput[];
   viewCurrency: string;
+  dataTour?: string;
 }) {
   const mask = useMaskMoney();
   const money = (n: number) => mask(formatAmount(n, viewCurrency));
@@ -33,7 +35,7 @@ export function AlertsCard({
   if (alerts.length === 0) return null;
 
   return (
-    <Card className="border-amber-500/40">
+    <Card className="border-amber-500/40" data-tour={dataTour}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <AlertTriangle className="h-4 w-4 text-amber-500" />

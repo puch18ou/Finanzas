@@ -36,9 +36,10 @@ export type BudgetRow = {
 type Props = {
   rows: BudgetRow[];
   viewCurrency: string;
+  dataTour?: string;
 };
 
-export function BudgetProgress({ rows, viewCurrency }: Props) {
+export function BudgetProgress({ rows, viewCurrency, dataTour }: Props) {
   const mask = useMaskMoney();
   const money = (n: number) => mask(formatAmount(n, viewCurrency));
   // Solo mostramos categorias con presupuesto > 0 (las que no tienen
@@ -46,7 +47,7 @@ export function BudgetProgress({ rows, viewCurrency }: Props) {
   const filtered = rows.filter((r) => r.presupuesto > 0);
 
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader>
         <CardTitle>Presupuesto del mes</CardTitle>
         <CardDescription>

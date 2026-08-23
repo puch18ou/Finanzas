@@ -50,7 +50,14 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
   const startTour = useCallback((s: TourStep[]) => {
     if (!s || s.length === 0) return;
-    setSteps(s);
+    // Saltamos los pasos cuyo elemento no esta en pantalla ahora mismo (tarjetas
+    // que se ocultan hasta que hay datos: avisos, ahorro acumulado, etc.). Los
+    // pasos sin target (bienvenida/centrados) siempre se conservan.
+    const visible = s.filter(
+      (step) => !step.target || document.querySelector(step.target) != null,
+    );
+    if (visible.length === 0) return;
+    setSteps(visible);
     setIndex(0);
     setActive(true);
   }, []);
