@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.24",
+    fecha: "2026-08",
+    cambios: [
+      "Categorías: el «Gastado» del mes ahora incluye los gastos previstos (recurrentes aún no cargados), igual que Dashboard y Presupuestos.",
+      "Ajustes: nuevo interruptor «Incluir gastos previstos del mes» que activa o desactiva contar los previstos en Dashboard, Presupuestos, Categorías y Evolución.",
+      "El botón flotante de gasto rápido queda desactivado por defecto en el escritorio (se activa en Ajustes); en el móvil sigue siempre disponible.",
+    ],
+  },
+  {
     version: "0.1.23",
     fecha: "2026-08",
     cambios: [
