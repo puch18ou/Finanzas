@@ -6,8 +6,9 @@
  * Eliminada la dependencia de monthlyIncomes.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useMovements } from "@/hooks/useMovements";
 import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
 import { useInvestments } from "@/hooks/useInvestments";
@@ -80,8 +81,12 @@ export default function ProyeccionPage() {
     return res;
   }, [allMovements, currentYear, currentMes]);
 
-  // "Contar el ahorro desde": por defecto, el primer mes con datos.
-  const [desde, setDesde] = useState<{ anio: number; mes: number } | null>(null);
+  // "Contar el ahorro desde": por defecto, el primer mes con datos. Se persiste
+  // (localStorage) para conservarlo al cambiar de pestaña.
+  const [desde, setDesde] = useLocalStorage<{ anio: number; mes: number } | null>(
+    "proyeccion:desde",
+    null,
+  );
   const desdeEff = desde ?? earliest;
 
   // Fecha objetivo (hasta cuando proyectar): por defecto, dentro de 5 años.
@@ -89,9 +94,10 @@ export default function ProyeccionPage() {
     const d = new Date(currentYear, today.getMonth() + 60, 1);
     return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
   }, [currentYear, today]);
-  const [objetivo, setObjetivo] = useState<{ anio: number; mes: number } | null>(
-    null,
-  );
+  const [objetivo, setObjetivo] = useLocalStorage<{
+    anio: number;
+    mes: number;
+  } | null>("proyeccion:objetivo", null);
   const objetivoEff = objetivo ?? defObjetivo;
 
   // Meses de proyeccion = desde el mes actual hasta la fecha objetivo (>= 1).
