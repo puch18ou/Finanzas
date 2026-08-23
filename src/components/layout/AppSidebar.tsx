@@ -27,6 +27,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PrivacyToggle } from "@/components/system/PrivacyToggle";
 import { useTour } from "@/contexts/TourProvider";
 import { MENU_TOUR } from "@/lib/help/tours";
 
@@ -131,16 +132,19 @@ export function AppSidebar() {
               {user ? user.username : "local"}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto h-7 w-7"
-            aria-label="Guia del menu"
-            title="Guia: que hay en cada seccion"
-            onClick={() => startTour(MENU_TOUR)}
-          >
-            <HelpCircle className="h-4 w-4" />
-          </Button>
+          <div className="ml-auto flex items-center">
+            <PrivacyToggle className="h-7 w-7" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Guia del menu"
+              title="Guia: que hay en cada seccion"
+              onClick={() => startTour(MENU_TOUR)}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </SidebarHeader>
 
