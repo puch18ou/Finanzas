@@ -273,7 +273,7 @@ export default function HipotecaPage() {
       )}
 
       <form onSubmit={internalSubmit} className="space-y-6">
-        <Card>
+        <Card data-tour="hip-parametros">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -362,7 +362,10 @@ export default function HipotecaPage() {
             </div>
 
             {/* Cuenta de pago (Lote 11c-fix) */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div
+              className="grid grid-cols-1 gap-3 md:grid-cols-2"
+              data-tour="hip-cuenta"
+            >
               <div className="space-y-1.5">
                 <Label className="text-xs">Cuenta de pago</Label>
                 <Controller
@@ -461,14 +464,14 @@ export default function HipotecaPage() {
 
         {calculations && (
           <>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="hip-kpis">
               <KpiMortgage icon={Calculator} label="Cuota mensual" value={money(calculations.summary.cuotaMensual, moneda)} hint={`${calculations.summary.numeroCuotas} cuotas`} intent="primary" />
               <KpiMortgage icon={Home} label="Capital prestado" value={money(calculations.summary.capitalPrestado, moneda)} />
               <KpiMortgage icon={TrendingUp} label="Total intereses" value={money(calculations.summary.totalIntereses, moneda)} intent="negative" />
               <KpiMortgage icon={Home} label="Total a pagar" value={money(calculations.summary.totalAPagar, moneda)} />
             </div>
 
-            <Card>
+            <Card data-tour="hip-amortizacion">
               <CardHeader><CardTitle>Evolucion de la amortizacion</CardTitle></CardHeader>
               <CardContent>
                 <AmortizationChart data={calculations.annual} capitalInicial={calculations.summary.capitalPrestado} moneda={moneda} />

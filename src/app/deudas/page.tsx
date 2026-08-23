@@ -137,6 +137,7 @@ export default function DeudasPage() {
           </p>
         </div>
         <Button
+          data-tour="deudas-nueva"
           onClick={() => {
             setEditing(null);
             setFormOpen(true);
@@ -147,7 +148,7 @@ export default function DeudasPage() {
         </Button>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-tour="deudas-resumen">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -182,7 +183,7 @@ export default function DeudasPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card data-tour="deudas-lista">
         <CardHeader>
           <CardTitle>Prestamos</CardTitle>
           <CardDescription>

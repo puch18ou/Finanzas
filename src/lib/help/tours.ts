@@ -272,6 +272,55 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/deudas": [
+    {
+      target: '[data-tour="deudas-nueva"]',
+      title: "Añadir deuda",
+      content:
+        "Registra un préstamo (personal, coche, tarjeta…) con su capital, cuota y plazo. Para la hipoteca usa su sección propia.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="deudas-resumen"]',
+      title: "Resumen",
+      content:
+        "Deuda total pendiente y suma de cuotas mensuales de todos los préstamos activos, en tu moneda de vista.",
+    },
+    {
+      target: '[data-tour="deudas-lista"]',
+      title: "Tus préstamos",
+      content:
+        "Cada préstamo con su progreso de amortización. Puedes editarlo o borrarlo. La cuota genera un movimiento automático.",
+    },
+  ],
+
+  "/hipoteca": [
+    {
+      target: '[data-tour="hip-parametros"]',
+      title: "Parámetros",
+      content:
+        "Precio, entrada, TIN, plazo… Cambia los valores para ver al momento el efecto en la cuota y la amortización. El interruptor «Hipoteca activa» la incluye en tus cálculos.",
+    },
+    {
+      target: '[data-tour="hip-cuenta"]',
+      title: "Cuenta de pago",
+      content:
+        "La cuenta de la que sale la cuota. Si la asignas, la cuota mensual se genera como movimiento automático desde esa cuenta.",
+    },
+    {
+      target: '[data-tour="hip-kpis"]',
+      title: "Resultados",
+      content:
+        "Cuota mensual, capital prestado, total de intereses y total a pagar según los parámetros.",
+    },
+    {
+      target: '[data-tour="hip-amortizacion"]',
+      title: "Amortización",
+      content:
+        "Cómo evoluciona la deuda año a año (capital vs intereses). Debajo tienes el plan de amortización detallado.",
+    },
+  ],
+
   "/metas": [
     {
       target: '[data-tour="metas-nueva"]',
