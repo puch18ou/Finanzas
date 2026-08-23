@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.26",
+    fecha: "2026-08",
+    cambios: [
+      "Arreglo: ya se puede vaciar la papelera (y borrar elementos definitivamente) sin que falle por referencias entre datos.",
+      "Movimientos: si un movimiento usa una cuenta archivada, ahora se puede editar sin quedarse atascado (la cuenta aparece marcada como «archivada» y puedes mantenerla o cambiarla).",
+      "Devoluciones: puedes añadir una anotación a cada devolución (y se ve en la lista).",
+    ],
+  },
+  {
     version: "0.1.25",
     fecha: "2026-08",
     cambios: [

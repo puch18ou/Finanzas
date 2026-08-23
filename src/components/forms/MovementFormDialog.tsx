@@ -323,6 +323,23 @@ export function MovementFormDialog({
     () => accounts.filter((a) => a.activa),
     [accounts],
   );
+  const accountById = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a])),
+    [accounts],
+  );
+
+  // Opciones de cuenta para un select: las activas + la cuenta ya seleccionada
+  // aunque este ARCHIVADA (asi se puede editar/mantener un movimiento de una
+  // cuenta archivada). Las archivadas se muestran marcadas.
+  const optionsFor = (selectedId?: string | null): Account[] => {
+    if (selectedId && !cuentasActivas.some((a) => a.id === selectedId)) {
+      const acc = accountById.get(selectedId);
+      if (acc) return [acc, ...cuentasActivas];
+    }
+    return cuentasActivas;
+  };
+  const cuentaLabel = (a: Account): string =>
+    a.activa ? a.alias : `${a.alias} (archivada)`;
 
   const handleGastoSubmit = gastoForm.handleSubmit(async (data) => {
     const fecha = normalizeDateToUTCNoon(data.fecha);
@@ -583,9 +600,9 @@ export function MovementFormDialog({
                         <SelectValue placeholder="Cuenta" />
                       </SelectTrigger>
                       <SelectContent>
-                        {cuentasActivas.map((a) => (
+                        {optionsFor(field.value).map((a) => (
                           <SelectItem key={a.id} value={a.id}>
-                            {a.alias}
+                            {cuentaLabel(a)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -671,9 +688,9 @@ export function MovementFormDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">Sin asignar</SelectItem>
-                        {cuentasActivas.map((a) => (
+                        {optionsFor(field.value).map((a) => (
                           <SelectItem key={a.id} value={a.id}>
-                            {a.alias}
+                            {cuentaLabel(a)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -743,9 +760,9 @@ export function MovementFormDialog({
                         <SelectValue placeholder="Origen" />
                       </SelectTrigger>
                       <SelectContent>
-                        {cuentasActivas.map((a) => (
+                        {optionsFor(field.value).map((a) => (
                           <SelectItem key={a.id} value={a.id}>
-                            {a.alias}
+                            {cuentaLabel(a)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -764,9 +781,9 @@ export function MovementFormDialog({
                         <SelectValue placeholder="Destino" />
                       </SelectTrigger>
                       <SelectContent>
-                        {cuentasActivas.map((a) => (
+                        {optionsFor(field.value).map((a) => (
                           <SelectItem key={a.id} value={a.id}>
-                            {a.alias}
+                            {cuentaLabel(a)}
                           </SelectItem>
                         ))}
                       </SelectContent>

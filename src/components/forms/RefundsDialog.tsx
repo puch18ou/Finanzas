@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -71,6 +72,7 @@ export function RefundsDialog({
   // Una devolucion SIEMPRE entra en una cuenta: sin cuenta por defecto obligamos
   // a elegirla ("" = sin elegir).
   const [cuentaId, setCuentaId] = useState<string>(defaultAccountId ?? "");
+  const [notas, setNotas] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
@@ -83,6 +85,7 @@ export function RefundsDialog({
       setImporte("");
       setFecha(todayStr());
       setCuentaId(defaultAccountId ?? "");
+      setNotas("");
       setError(null);
     }
   }, [open, gasto?.id, gasto?.moneda, defaultAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,12 +121,13 @@ export function RefundsDialog({
       categoriaId: gasto.categoriaId, // hereda -> resta de la categoria del gasto
       categoriaTexto: null,
       gastoAsociadoId: gasto.id,
-      notas: null,
+      notas: notas.trim() || null,
       esAutomatico: false,
       origenAutomatico: null,
       origenAutomaticoId: null,
     });
     setImporte("");
+    setNotas("");
   };
 
   return (
@@ -187,8 +191,15 @@ export function RefundsDialog({
                       key={r.id}
                       className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
                     >
-                      <div className="text-muted-foreground">
-                        {formatDateLong(f)} · {cuenta}
+                      <div className="min-w-0 text-muted-foreground">
+                        <div>
+                          {formatDateLong(f)} · {cuenta}
+                        </div>
+                        {r.notas && (
+                          <div className="truncate text-xs italic">
+                            {r.notas}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium tabular-nums text-primary">
@@ -269,6 +280,16 @@ export function RefundsDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="r-notas">Anotación (opcional)</Label>
+                <Textarea
+                  id="r-notas"
+                  rows={2}
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="Ej: parte de Ana por la cena"
+                />
               </div>
               {error && <p className="text-xs text-destructive">{error}</p>}
               <Button
