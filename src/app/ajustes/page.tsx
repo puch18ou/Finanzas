@@ -262,7 +262,7 @@ export default function AjustesPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card data-tour="aj-cuenta-principal">
           <CardHeader>
             <CardTitle>Movimientos</CardTitle>
             <CardDescription>

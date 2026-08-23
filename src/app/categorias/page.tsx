@@ -205,7 +205,7 @@ export default function CategoriasPage() {
               Aun no hay categorias. Pulsa "Categoria" para crear una.
             </p>
           ) : (
-            <Table>
+            <Table data-tour="cat-tabla">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>

@@ -606,7 +606,7 @@ export default function MovimientosPage() {
                 : "No hay movimientos en este periodo."}
             </p>
           ) : (
-            <Table>
+            <Table data-tour="mov-lista">
               <TableHeader>
                 <TableRow data-tour="mov-ordenar">
                   <TableHead className="w-[110px]">
