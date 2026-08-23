@@ -57,9 +57,10 @@ const METRIC_LABEL: Record<MetricKey, string> = {
 type Props = {
   viewCurrency: string;
   rates: RatesMap;
+  incluirPrevistos: boolean;
 };
 
-export function CompareYearsTab({ viewCurrency, rates }: Props) {
+export function CompareYearsTab({ viewCurrency, rates, incluirPrevistos }: Props) {
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(
     () => Array.from({ length: 6 }, (_, i) => currentYear - i),
@@ -95,6 +96,7 @@ export function CompareYearsTab({ viewCurrency, rates }: Props) {
   // Sumamos los PREVISTOS del mes actual (recurrentes aun no generados) a la
   // celda del año en curso, igual que la pestaña General.
   const rows = useMemo(() => {
+    if (!incluirPrevistos) return rawRows;
     const now = new Date();
     const cy = now.getFullYear();
     const cm = now.getMonth() + 1;
@@ -112,7 +114,7 @@ export function CompareYearsTab({ viewCurrency, rates }: Props) {
         ? { ...r, values: { ...r.values, [cy]: (r.values[cy] ?? 0) + add } }
         : r,
     );
-  }, [rawRows, activeRules, years, metric, rates, viewCurrency]);
+  }, [rawRows, activeRules, years, metric, rates, viewCurrency, incluirPrevistos]);
 
   const totals = useMemo(() => totalsByYear(rows, years), [rows, years]);
 

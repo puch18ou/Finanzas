@@ -149,6 +149,12 @@ export const settings = sqliteTable(
       .notNull()
       .default(false),
 
+    // Incluir los gastos PREVISTOS del mes (recurrentes aun no generados) en
+    // los totales de consumo (dashboard, presupuestos, categorias, evolucion).
+    incluirPrevistos: integer("incluir_previstos", { mode: "boolean" })
+      .notNull()
+      .default(true),
+
     tema: text("tema", { enum: ["light", "dark", "system"] })
       .notNull()
       .default("system"),

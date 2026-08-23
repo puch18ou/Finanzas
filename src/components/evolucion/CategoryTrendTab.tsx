@@ -50,11 +50,16 @@ import { CategoryMultiSelect } from "@/components/evolucion/CategoryMultiSelect"
 type Props = {
   viewCurrency: string;
   rates: RatesMap;
+  incluirPrevistos: boolean;
 };
 
 const MAX_CATS = 6;
 
-export function CategoryTrendTab({ viewCurrency, rates }: Props) {
+export function CategoryTrendTab({
+  viewCurrency,
+  rates,
+  incluirPrevistos,
+}: Props) {
   const currentYear = new Date().getFullYear();
   const yearOptions = useMemo(
     () => Array.from({ length: 6 }, (_, i) => currentYear - i),
@@ -105,6 +110,7 @@ export function CategoryTrendTab({ viewCurrency, rates }: Props) {
   // Sumamos el GASTO PREVISTO del mes actual (recurrentes aun no generados) por
   // categoria, igual que la pestaña General. Solo si el año mostrado es el actual.
   const rows = useMemo(() => {
+    if (!incluirPrevistos) return rawRows;
     const now = new Date();
     const cy = now.getFullYear();
     const cm = now.getMonth() + 1;
@@ -119,7 +125,7 @@ export function CategoryTrendTab({ viewCurrency, rates }: Props) {
       }
       return { ...r, values };
     });
-  }, [rawRows, activeRules, anio, selected, rates, viewCurrency]);
+  }, [rawRows, activeRules, anio, selected, rates, viewCurrency, incluirPrevistos]);
 
   const chartData = useMemo(
     () =>

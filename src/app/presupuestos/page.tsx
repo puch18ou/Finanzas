@@ -137,9 +137,10 @@ export default function PresupuestosPage() {
     const now = new Date();
     const esMesActual =
       anio === now.getFullYear() && mes === now.getMonth() + 1;
-    const previstosByCat = esMesActual
-      ? previstoItemsByCategory(activeRules, anio, mes, now, rates, viewCurrency)
-      : {};
+    const previstosByCat =
+      esMesActual && settings?.incluirPrevistos
+        ? previstoItemsByCategory(activeRules, anio, mes, now, rates, viewCurrency)
+        : {};
     const previstoTotalByCat: Record<string, number> = {};
     for (const [catId, items] of Object.entries(previstosByCat)) {
       previstoTotalByCat[catId] = items.reduce((s, i) => s + i.valorVista, 0);
@@ -192,6 +193,7 @@ export default function PresupuestosPage() {
     startMes,
     rates,
     viewCurrency,
+    settings?.incluirPrevistos,
   ]);
 
   const totals = useMemo(

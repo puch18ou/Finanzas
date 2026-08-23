@@ -65,7 +65,9 @@ import { useMaskMoney } from "@/contexts/PrivacyProvider";
 import {
   sumMovementsByCategory,
   filterMovementsByPeriod,
+  previstosDelMes,
 } from "@/lib/domain/aggregation";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 
 export default function CategoriasPage() {
   const mask = useMaskMoney();
@@ -90,6 +92,7 @@ export default function CategoriasPage() {
 
   const { movements } = useMovements({ anio: periodAnio, mes: periodMes });
   const { tramos: presupuestoTramos } = usePresupuestoTramos();
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -101,8 +104,35 @@ export default function CategoriasPage() {
 
   const gastosPorCategoria = useMemo(() => {
     const filtered = filterMovementsByPeriod(movements, periodMes, periodAnio);
-    return sumMovementsByCategory(filtered, rates, viewCurrency);
-  }, [movements, periodMes, periodAnio, rates, viewCurrency]);
+    const base = sumMovementsByCategory(filtered, rates, viewCurrency);
+    // Sumamos los gastos PREVISTOS del mes (si el ajuste lo permite y es el mes
+    // actual), igual que en Dashboard y Presupuestos.
+    const now = new Date();
+    const esMesActual =
+      periodAnio === now.getFullYear() && periodMes === now.getMonth() + 1;
+    if (settings?.incluirPrevistos && esMesActual) {
+      const prev = previstosDelMes(
+        activeRules,
+        periodAnio,
+        periodMes,
+        now,
+        rates,
+        viewCurrency,
+      );
+      for (const [id, val] of Object.entries(prev.porCategoria)) {
+        base[id] = (base[id] ?? 0) + val;
+      }
+    }
+    return base;
+  }, [
+    movements,
+    periodMes,
+    periodAnio,
+    rates,
+    viewCurrency,
+    activeRules,
+    settings?.incluirPrevistos,
+  ]);
 
   // Cambios de presupuesto agrupados por categoria (la base vive en la propia
   // categoria; estos son solo los cambios con fecha).

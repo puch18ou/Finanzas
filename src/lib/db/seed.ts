@@ -154,6 +154,7 @@ async function seedSettings(): Promise<boolean> {
     mesActual: today.getMonth() + 1,
     objetivoAhorroPct: 0.2,
     tieneHipoteca: false,
+    incluirPrevistos: true,
     monedaHipoteca: "EUR",
     categoriaHipotecaId: null,
     patrimonioInicial: 0,

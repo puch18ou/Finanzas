@@ -130,7 +130,7 @@ export default function DashboardPage() {
       gastos: 0,
       gastosPorCategoria: {} as Record<string, number>,
     };
-    if (!settings) return zero;
+    if (!settings || !settings.incluirPrevistos) return zero;
     const now = new Date();
     const isCurrentMonth =
       periodAnio === now.getFullYear() && periodMes === now.getMonth() + 1;

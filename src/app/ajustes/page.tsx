@@ -102,6 +102,7 @@ export default function AjustesPage() {
   const [patrimonioInicialMoneda, setPatrimonioInicialMoneda] = useState("");
   const [mostrarFab, setMostrarFab] = useState(true);
   const [integrarCuotaHipoteca, setIntegrarCuotaHipoteca] = useState(false);
+  const [incluirPrevistos, setIncluirPrevistos] = useState(true);
   const [cuentaPorDefectoId, setCuentaPorDefectoId] = useState("");
 
   // El tema es GLOBAL del equipo (no por usuario): vive en localStorage.
@@ -119,6 +120,7 @@ export default function AjustesPage() {
     setPatrimonioInicialMoneda(settings.patrimonioInicialMoneda ?? "");
     setMostrarFab(settings.mostrarFab);
     setIntegrarCuotaHipoteca(settings.integrarCuotaHipoteca);
+    setIncluirPrevistos(settings.incluirPrevistos);
     setCuentaPorDefectoId(settings.cuentaPorDefectoId ?? "");
   }, [settings]);
 
@@ -161,6 +163,7 @@ export default function AjustesPage() {
         patrimonioInicialMoneda: emptyToNull(patrimonioInicialMoneda),
         mostrarFab,
         integrarCuotaHipoteca,
+        incluirPrevistos,
         cuentaPorDefectoId: emptyToNull(cuentaPorDefectoId),
       });
 
@@ -422,6 +425,24 @@ export default function AjustesPage() {
                 id="integrar-hipoteca"
                 checked={integrarCuotaHipoteca}
                 onCheckedChange={setIntegrarCuotaHipoteca}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <Label
+                htmlFor="incluir-previstos"
+                className="flex flex-col gap-1"
+              >
+                <span>Incluir gastos previstos del mes</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Suma los recurrentes del mes que aún no han ocurrido a los
+                  totales de Dashboard, Presupuestos, Categorías y Evolución.
+                </span>
+              </Label>
+              <Switch
+                id="incluir-previstos"
+                checked={incluirPrevistos}
+                onCheckedChange={setIncluirPrevistos}
               />
             </div>
 

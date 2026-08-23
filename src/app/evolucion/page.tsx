@@ -168,7 +168,7 @@ export default function EvolucionPage() {
     const anioActual = now.getFullYear();
     const mesActual = now.getMonth() + 1;
     const zero = { anio: anioActual, mes: mesActual, ingresos: 0, gastos: 0 };
-    if (!settings) return zero;
+    if (!settings || !settings.incluirPrevistos) return zero;
     const nowMs = now.getTime();
     let ingresos = 0;
     let gastos = 0;
@@ -418,11 +418,19 @@ export default function EvolucionPage() {
         </TabsContent>
 
         <TabsContent value="comparar">
-          <CompareYearsTab viewCurrency={viewCurrency} rates={rates} />
+          <CompareYearsTab
+            viewCurrency={viewCurrency}
+            rates={rates}
+            incluirPrevistos={settings.incluirPrevistos}
+          />
         </TabsContent>
 
         <TabsContent value="categorias">
-          <CategoryTrendTab viewCurrency={viewCurrency} rates={rates} />
+          <CategoryTrendTab
+            viewCurrency={viewCurrency}
+            rates={rates}
+            incluirPrevistos={settings.incluirPrevistos}
+          />
         </TabsContent>
       </Tabs>
     </div>
