@@ -12,22 +12,6 @@
 
 import type { TourStep } from "@/contexts/TourProvider";
 
-// Pasos comunes al final de cada tour (botones globales de la barra superior).
-const OUTRO: TourStep[] = [
-  {
-    target: '[data-tour="privacy-toggle"]',
-    title: "Modo privacidad",
-    content:
-      "Con este ojo ocultas todos los importes de la app (se ven como ••••), manteniendo nombres, fechas y porcentajes. Es local de este dispositivo.",
-  },
-  {
-    target: '[data-tour="help-button"]',
-    title: "Ayuda de cada pantalla",
-    content:
-      "Pulsa este botón en cualquier pantalla para volver a ver su guía paso a paso.",
-  },
-];
-
 const TOURS: Record<string, TourStep[]> = {
   "/dashboard": [
     {
@@ -90,7 +74,6 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Los últimos movimientos registrados. Para verlos todos, filtrar u ordenar, ve a la pantalla Movimientos.",
     },
-    ...OUTRO,
   ],
 
   "/evolucion": [
@@ -191,7 +174,6 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Para cada meta, la fecha estimada en la que la alcanzarías con tu ahorro medio, y si vas a tiempo o con retraso.",
     },
-    ...OUTRO,
   ],
 
   "/presupuestos": [
@@ -214,7 +196,6 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Cuando una categoría tiene gastos, pulsa la flecha para desplegar en qué se ha ido el dinero. Los previstos aparecen marcados con su fecha.",
     },
-    ...OUTRO,
   ],
 
   "/movimientos": [
@@ -267,7 +248,6 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "En cada gasto, este botón registra devoluciones (reembolsos). Se restan del gasto y verás su «coste real» sin que cuenten como ingreso.",
     },
-    ...OUTRO,
   ],
 
   "/recurrentes": [
@@ -290,7 +270,6 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Reglas creadas automáticamente al configurar la hipoteca, deudas o intereses de cuentas. Para cambiarlas, ve a su pantalla (no se editan aquí).",
     },
-    ...OUTRO,
   ],
 };
 
