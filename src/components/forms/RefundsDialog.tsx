@@ -36,8 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NO_CUENTA = "__none__";
-
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -51,6 +49,8 @@ type Props = {
   accById: Record<string, string>;
   currencies: Currency[];
   defaultAccountId?: string | null;
+  /** modal=false + sin cierre por click-fuera/Escape: lo usa el demo. */
+  modal?: boolean;
 };
 
 export function RefundsDialog({
@@ -61,13 +61,16 @@ export function RefundsDialog({
   accById,
   currencies,
   defaultAccountId,
+  modal = true,
 }: Props) {
   const { refunds, add, remove, isMutating } = useRefunds(gasto?.id ?? null);
 
   const [importe, setImporte] = useState("");
   const [moneda, setMoneda] = useState("EUR");
   const [fecha, setFecha] = useState(todayStr());
-  const [cuentaId, setCuentaId] = useState<string>(defaultAccountId ?? NO_CUENTA);
+  // Una devolucion SIEMPRE entra en una cuenta: sin cuenta por defecto obligamos
+  // a elegirla ("" = sin elegir).
+  const [cuentaId, setCuentaId] = useState<string>(defaultAccountId ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
@@ -79,7 +82,7 @@ export function RefundsDialog({
       setMoneda(gasto.moneda);
       setImporte("");
       setFecha(todayStr());
-      setCuentaId(defaultAccountId ?? NO_CUENTA);
+      setCuentaId(defaultAccountId ?? "");
       setError(null);
     }
   }, [open, gasto?.id, gasto?.moneda, defaultAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -96,6 +99,10 @@ export function RefundsDialog({
       setError("El importe debe ser mayor que 0.");
       return;
     }
+    if (!cuentaId) {
+      setError("Elige la cuenta donde entra el dinero.");
+      return;
+    }
     setError(null);
     const f = new Date(fecha + "T12:00:00Z");
     await add({
@@ -107,7 +114,7 @@ export function RefundsDialog({
       importe: val,
       moneda, // por defecto la del gasto, pero puede ser otra
       cuentaOrigenId: null,
-      cuentaDestinoId: cuentaId === NO_CUENTA ? null : cuentaId,
+      cuentaDestinoId: cuentaId,
       categoriaId: gasto.categoriaId, // hereda -> resta de la categoria del gasto
       categoriaTexto: null,
       gastoAsociadoId: gasto.id,
@@ -120,8 +127,17 @@ export function RefundsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+      <DialogContent
+        className="sm:max-w-lg"
+        data-tour="refunds-dialog"
+        onInteractOutside={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Undo2 className="h-5 w-5" />
@@ -243,10 +259,9 @@ export function RefundsDialog({
                 <Label>Entra en la cuenta</Label>
                 <Select value={cuentaId} onValueChange={setCuentaId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Elige una cuenta" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_CUENTA}>Sin cuenta</SelectItem>
                     {cuentasActivas.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.alias}
@@ -261,6 +276,7 @@ export function RefundsDialog({
                 onClick={handleAdd}
                 disabled={isMutating}
                 className="w-full gap-2"
+                data-tour="refund-add"
               >
                 <Plus className="h-4 w-4" />
                 {isMutating ? "Guardando..." : "Añadir devolución"}

@@ -46,6 +46,11 @@ type Props = {
   currencies: Currency[];
   onSubmit: (data: AccountFormData) => Promise<void>;
   loading?: boolean;
+  /** Valores con los que precargar el formulario al CREAR (usado por el demo). */
+  prefill?: Partial<AccountFormData>;
+  /** modal=false + sin cierre por click-fuera/Escape: lo usa el demo para poder
+   *  mostrar su explicacion encima sin que Radix bloquee la interaccion. */
+  modal?: boolean;
 };
 
 export function AccountFormDialog({
@@ -56,6 +61,8 @@ export function AccountFormDialog({
   currencies,
   onSubmit,
   loading = false,
+  prefill,
+  modal = true,
 }: Props) {
   const isEdit = !!initial;
 
@@ -99,10 +106,11 @@ export function AccountFormDialog({
           moneda: monedaLocal,
           activa: true,
           notas: "",
+          ...prefill,
         });
       }
     }
-  }, [initial, open, monedaLocal, reset]);
+  }, [initial, open, monedaLocal, reset, prefill]);
 
   const internalSubmit = handleSubmit(async (data) => {
     try {
@@ -114,8 +122,18 @@ export function AccountFormDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+      <DialogContent
+        className="sm:max-w-md"
+        data-tour="account-form"
+        showCloseButton={modal}
+        onInteractOutside={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar cuenta" : "Nueva cuenta"}</DialogTitle>
           <DialogDescription>
@@ -248,15 +266,17 @@ export function AccountFormDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
+            {modal && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+            )}
+            <Button type="submit" disabled={loading} data-tour="account-form-submit">
               {loading ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear cuenta"}
             </Button>
           </DialogFooter>

@@ -217,7 +217,7 @@ function PieView({
             strokeWidth={2}
           >
             {data.map((entry, idx) => (
-              <Cell key={entry.name} fill={pickColor(entry, idx)} />
+              <Cell key={`${entry.name}-${idx}`} fill={pickColor(entry, idx)} />
             ))}
           </Pie>
           <RTooltip
@@ -298,7 +298,7 @@ function BarsView({
         />
         <Bar dataKey="value" radius={[0, 4, 4, 0]}>
           {sorted.map((entry, idx) => (
-            <Cell key={entry.name} fill={pickColor(entry, idx)} />
+            <Cell key={`${entry.name}-${idx}`} fill={pickColor(entry, idx)} />
           ))}
         </Bar>
       </BarChart>

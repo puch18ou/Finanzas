@@ -22,6 +22,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.25",
+    fecha: "2026-08",
+    cambios: [
+      "Guía interactiva de bienvenida: un recorrido práctico donde TÚ creas las cuentas, movimientos, devoluciones y reglas recurrentes paso a paso (rellenando y validando cada campo), sobre una base de datos de ejemplo aislada — tus datos reales no se tocan.",
+      "Se lanza desde Ajustes › «Guía inicial».",
+      "Arreglo: una devolución (botón ↩ de un gasto) ahora exige elegir la cuenta donde entra el dinero; ya no se puede dejar «sin cuenta».",
+      "Arreglo: el gráfico de gasto por categoría agrupa las categorías borradas en una sola porción (antes podían duplicarse).",
+    ],
+  },
+  {
     version: "0.1.24",
     fecha: "2026-08",
     cambios: [

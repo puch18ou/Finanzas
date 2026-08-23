@@ -11,7 +11,7 @@
  * pendientes (eso se hace en el DatabaseProvider modificado en este lote).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -27,6 +27,8 @@ import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { RecurringRuleFormDialog } from "@/components/forms/RecurringRuleFormDialog";
+import type { RecurringRuleFormData } from "@/lib/schemas/forms-recurring";
+import { useDemoForm, useDemo } from "@/contexts/DemoProvider";
 import { DeleteConfirmation } from "@/components/crud/DeleteConfirmation";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +91,20 @@ export default function RecurrentesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringRule | null>(null);
   const [toDelete, setToDelete] = useState<RecurringRule | null>(null);
+
+  // El demo pide abrir el formulario de regla recurrente ya rellenado.
+  const demoForm = useDemoForm();
+  const { running: demoRunning } = useDemo();
+  const [demoPrefill, setDemoPrefill] =
+    useState<Partial<RecurringRuleFormData> | null>(null);
+  useEffect(() => {
+    if (demoForm.req?.name === "recurring") {
+      setEditing(null);
+      setDemoPrefill(demoForm.req.values as Partial<RecurringRuleFormData>);
+      setFormOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoForm.req]);
 
   if (!settings) {
     return <p className="text-sm text-muted-foreground">Cargando...</p>;
@@ -181,13 +197,22 @@ export default function RecurrentesPage() {
 
       <RecurringRuleFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(v) => {
+          setFormOpen(v);
+          if (!v) {
+            setEditing(null);
+            setDemoPrefill(null);
+            demoForm.clear();
+          }
+        }}
         initial={editing}
         currencies={currencies}
         accounts={accounts}
         categories={categories}
         monedaLocal={settings.monedaLocal}
         loading={isMutating}
+        prefill={demoPrefill ?? undefined}
+        modal={demoRunning ? false : undefined}
         onSubmit={async (data) => {
           if (editing) {
             await update({ id: editing.id, patch: data });

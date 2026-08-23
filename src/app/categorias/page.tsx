@@ -62,6 +62,7 @@ import {
   formatAmount,
 } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
+import { useDemo } from "@/contexts/DemoProvider";
 import {
   sumMovementsByCategory,
   filterMovementsByPeriod,
@@ -85,6 +86,7 @@ export default function CategoriasPage() {
     isMutating,
   } = useCategories();
   const { inUse: categoriasEnUso } = useCategoriesUsage();
+  const { running: demoRunning } = useDemo();
 
   // Siempre el mes ACTUAL al arrancar (no se persiste).
   const [periodAnio, setPeriodAnio] = useState<number>(today.getFullYear());
@@ -339,6 +341,7 @@ export default function CategoriasPage() {
                             aria-label="Editar"
                             className="h-8 w-8"
                             data-tour="cat-editar"
+                            data-demo={`cat-editar-${c.nombre}`}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -381,6 +384,7 @@ export default function CategoriasPage() {
         currencies={currencies}
         monedaLocal={settings.monedaLocal}
         loading={isMutating}
+        modal={demoRunning ? false : undefined}
         onSubmit={async (data) => {
           if (editing) {
             await update({ id: editing.id, patch: data });

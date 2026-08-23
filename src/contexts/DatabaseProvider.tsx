@@ -73,6 +73,17 @@ export function useDatabase(): Status {
 
 const DEMO_DB_FILE = "finanzas_demo.db";
 
+// Bandera SINCRONA de "demo en curso". Existe ademas del estado React
+// (demoActive) porque hay codigo no-React que necesita saberlo de inmediato,
+// sin esperar a un re-render: sobre todo el listener del servidor de sync, que
+// NO debe tocar ninguna BD mientras la de ejemplo esta activa. La activamos
+// ANTES de cambiar de BD y la desactivamos DESPUES de volver a la real, para
+// que no quede ninguna ventana en la que se pueda escribir en la BD equivocada.
+let _demoModeActive = false;
+export function isDemoModeActive(): boolean {
+  return _demoModeActive;
+}
+
 type DbControl = {
   demoActive: boolean;
   /** Entra en la BD de ejemplo (fresca). No toca tus datos reales. */
@@ -270,6 +281,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   }, [dbFile]);
 
   const enterDemoMode = useCallback(async () => {
+    // Activamos las banderas ANTES de cambiar de BD: asi el servidor de sync y
+    // demas ya saben que estamos en demo antes de que la BD de ejemplo pase a
+    // ser la activa (no hay ventana para escribir datos reales en la de ejemplo).
+    _demoModeActive = true;
     demoRef.current = true;
     // NO ponemos loading: mantenemos la BD real montada hasta que la demo este
     // lista (evita desmontar la app / el propio motor del demo).
@@ -283,11 +298,22 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       seed: r.seed,
     });
     setDemoActive(true);
-    await qc.invalidateQueries();
-  }, [qc]);
+    // OJO: NO invalidamos aqui. Si lo hicieramos ahora, React aun no ha aplicado
+    // el nuevo status, asi que las queries montadas refrescarian con los repos
+    // ANTERIORES (la BD real) y verias datos reales dentro del demo. La
+    // invalidacion la hace un efecto post-render segun cambia la instancia de BD.
+  }, []);
 
   const exitDemoMode = useCallback(async () => {
-    if (!dbFile) return;
+    if (!dbFile) {
+      // Sin BD real a la que volver: al menos salimos del modo demo.
+      _demoModeActive = false;
+      demoRef.current = false;
+      setDemoActive(false);
+      return;
+    }
+    // Primero volvemos a la BD real; la bandera sincrona sigue activa durante el
+    // cambio para que nada de sync toque BD hasta que estemos de vuelta.
     const r = await initDatabaseForUser(dbFile);
     demoRef.current = false;
     setStatus({
@@ -297,9 +323,20 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       migrationsApplied: r.migrationsApplied,
       seed: r.seed,
     });
+    _demoModeActive = false;
     setDemoActive(false);
-    await qc.invalidateQueries();
-  }, [dbFile, qc]);
+    // Igual que al entrar: la invalidacion la dispara el efecto post-render.
+  }, [dbFile]);
+
+  // Cada vez que la INSTANCIA de BD lista cambia (arranque, entrar al demo,
+  // salir del demo) invalidamos TODAS las queries. Al ser un efecto, corre
+  // DESPUES de que React haya aplicado el nuevo status: para entonces las
+  // queries montadas ya cierran sobre los repos correctos, asi que el refetch
+  // lee de la BD adecuada (real o de ejemplo).
+  const readyDb = status.kind === "ready" ? status.db : null;
+  useEffect(() => {
+    if (readyDb) void qc.invalidateQueries();
+  }, [readyDb, qc]);
 
   const control = useMemo<DbControl>(
     () => ({ demoActive, enterDemoMode, exitDemoMode }),

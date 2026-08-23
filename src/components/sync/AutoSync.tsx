@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { useLanSync } from "@/hooks/useLanSync";
+import { useDbControl } from "@/contexts/DatabaseProvider";
 
 const PC_ADDRESS_KEY = "sync:serverAddress";
 const AUTO_KEY = "sync:auto";
@@ -20,8 +21,12 @@ const INTERVAL_MS = 30_000;
 
 export function AutoSync() {
   const sync = useLanSync();
+  // Durante el DEMO la BD activa es la de ejemplo (sandbox). NO sincronizamos:
+  // evitaria mezclar datos reales del PC con la BD de ejemplo (y viceversa).
+  const { demoActive } = useDbControl();
 
   useEffect(() => {
+    if (demoActive) return;
     if (typeof localStorage === "undefined") return;
     const address = localStorage.getItem(PC_ADDRESS_KEY);
     const enabled = localStorage.getItem(AUTO_KEY) !== "0"; // por defecto ON
@@ -48,7 +53,7 @@ export function AutoSync() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [sync]);
+  }, [sync, demoActive]);
 
   return null;
 }

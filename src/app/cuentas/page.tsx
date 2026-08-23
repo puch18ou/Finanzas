@@ -9,7 +9,7 @@
  *  - Las inactivas se ven en gris claro
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Pencil,
   Trash2,
@@ -55,8 +55,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Account } from "@/lib/db/schema";
+import type { AccountFormData } from "@/lib/schemas/forms";
 import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import { useMaskMoney } from "@/contexts/PrivacyProvider";
+import { useDemoForm, useDemo } from "@/contexts/DemoProvider";
 
 export default function CuentasPage() {
   const { settings } = useSettings();
@@ -87,6 +89,20 @@ export default function CuentasPage() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [toDelete, setToDelete] = useState<Account | null>(null);
   const [toReconcile, setToReconcile] = useState<Account | null>(null);
+  const [demoPrefill, setDemoPrefill] = useState<Partial<AccountFormData> | null>(
+    null,
+  );
+
+  // El demo pide abrir el formulario de cuenta ya rellenado para explicarlo.
+  const demoForm = useDemoForm();
+  const { running: demoRunning } = useDemo();
+  useEffect(() => {
+    if (demoForm.req?.name === "account") {
+      setEditing(null);
+      setDemoPrefill(demoForm.req.values as Partial<AccountFormData>);
+      setFormOpen(true);
+    }
+  }, [demoForm.req]);
 
   if (!settings || isLoading) {
     return <p className="text-sm text-muted-foreground">Cargando cuentas...</p>;
@@ -335,11 +351,19 @@ export default function CuentasPage() {
 
       <AccountFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(v) => {
+          setFormOpen(v);
+          if (!v) {
+            setDemoPrefill(null);
+            demoForm.clear();
+          }
+        }}
         initial={editing}
         monedaLocal={settings.monedaLocal}
         currencies={currencies}
         loading={isMutating}
+        prefill={demoPrefill ?? undefined}
+        modal={demoRunning ? false : undefined}
         onSubmit={async (data) => {
           if (editing) {
             await update({ id: editing.id, patch: data });

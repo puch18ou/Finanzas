@@ -18,6 +18,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthProvider";
+import { isDemoModeActive } from "@/contexts/DatabaseProvider";
 import { createSyncSession } from "@/lib/sync/session-factory";
 import { payloadToWire, type ExchangeRequest } from "@/lib/domain/sync-session";
 import { verifyLogin } from "@/lib/auth/registry";
@@ -37,6 +38,21 @@ export function SyncServerHandler() {
       const { id, body } = event.payload;
       let respBody: string;
       let changed = false;
+      // Demo en curso: no tocamos ninguna BD. Respondemos con error para que el
+      // movil reintente mas tarde (cuando el demo termine y vuelva la BD real).
+      if (isDemoModeActive()) {
+        try {
+          await invoke("sync_respond", {
+            id,
+            body: JSON.stringify({
+              error: "El PC esta mostrando la guia de ejemplo. Reintenta en un momento.",
+            }),
+          });
+        } catch {
+          /* el servidor ya no espera: ignorar */
+        }
+        return;
+      }
       try {
         const msg = JSON.parse(body) as {
           kind?: string;

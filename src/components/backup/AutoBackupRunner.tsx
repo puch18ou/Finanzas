@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useRepos } from "@/contexts/DatabaseProvider";
+import { useRepos, useDbControl } from "@/contexts/DatabaseProvider";
 import { useAuth } from "@/contexts/AuthProvider";
 import {
   createDailyBackup,
@@ -20,10 +20,14 @@ import {
 export function AutoBackupRunner() {
   const repos = useRepos();
   const { user } = useAuth();
+  // Durante el DEMO la BD activa es la de ejemplo: no queremos que la copia
+  // diaria guarde datos de ejemplo en lugar de los reales.
+  const { demoActive } = useDbControl();
   const lanzado = useRef(false);
 
   useEffect(() => {
     if (lanzado.current) return;
+    if (demoActive) return;
     if (!isTauriRuntime()) return;
     if (!user) return;
     lanzado.current = true;
@@ -38,7 +42,7 @@ export function AutoBackupRunner() {
         console.error("[backup] no se pudo crear la copia diaria", e);
       }
     })();
-  }, [repos, user]);
+  }, [repos, user, demoActive]);
 
   return null;
 }

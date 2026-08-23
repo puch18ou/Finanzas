@@ -18,7 +18,7 @@
  * ============================================================================
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -44,6 +44,7 @@ import { useRefundTotals } from "@/hooks/useRefunds";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { useRepos } from "@/contexts/DatabaseProvider";
+import { useDemoForm, useDemo } from "@/contexts/DemoProvider";
 import { occurrencesForRule } from "@/lib/domain/recurring";
 import type { RecurringRule } from "@/lib/db/schema";
 import { MovementFormDialog } from "@/components/forms/MovementFormDialog";
@@ -381,6 +382,25 @@ export default function MovimientosPage() {
   const [toDelete, setToDelete] = useState<Movement | null>(null);
   const [refundsFor, setRefundsFor] = useState<Movement | null>(null);
 
+  // El demo pide abrir el formulario de movimiento ya rellenado.
+  type DemoMovPrefill = {
+    tipo: "gasto" | "ingreso" | "transferencia" | "devolucion";
+    values: Record<string, unknown>;
+  };
+  const demoForm = useDemoForm();
+  const { running: demoRunning } = useDemo();
+  const [demoMovPrefill, setDemoMovPrefill] = useState<DemoMovPrefill | null>(
+    null,
+  );
+  useEffect(() => {
+    if (demoForm.req?.name === "movement") {
+      setEditing(null);
+      setDemoMovPrefill(demoForm.req.values as unknown as DemoMovPrefill);
+      setFormOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoForm.req]);
+
   const tabToFormTipo = (
     t: TabKey,
   ): "gasto" | "ingreso" | "transferencia" => {
@@ -681,16 +701,22 @@ export default function MovimientosPage() {
         open={formOpen}
         onOpenChange={(v) => {
           setFormOpen(v);
-          if (!v) setEditing(null);
+          if (!v) {
+            setEditing(null);
+            setDemoMovPrefill(null);
+            demoForm.clear();
+          }
         }}
         initial={editing}
-        initialTipo={tabToFormTipo(tab)}
+        initialTipo={demoMovPrefill ? demoMovPrefill.tipo : tabToFormTipo(tab)}
         currencies={currencies}
         categories={categories}
         accounts={accounts}
         monedaLocal={settings.monedaLocal}
         defaultAccountId={settings.cuentaPorDefectoId ?? null}
         loading={isMutating}
+        prefill={demoMovPrefill ?? undefined}
+        modal={demoRunning ? false : undefined}
         onSubmit={handleSubmit}
       />
 
@@ -702,6 +728,7 @@ export default function MovimientosPage() {
         accById={accById}
         currencies={currencies}
         defaultAccountId={settings.cuentaPorDefectoId ?? null}
+        modal={demoRunning ? false : undefined}
       />
 
       <DeleteConfirmation

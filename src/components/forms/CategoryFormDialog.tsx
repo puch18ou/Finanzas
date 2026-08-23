@@ -75,6 +75,8 @@ type Props = {
   currencies: Currency[];
   onSubmit: (data: CategoryFormData) => Promise<void>;
   loading?: boolean;
+  /** modal=false + sin cierre por click-fuera/Escape: lo usa el demo. */
+  modal?: boolean;
 };
 
 export function CategoryFormDialog({
@@ -85,6 +87,7 @@ export function CategoryFormDialog({
   currencies,
   onSubmit,
   loading = false,
+  modal = true,
 }: Props) {
   const isEdit = !!initial;
 
@@ -146,8 +149,18 @@ export function CategoryFormDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+      <DialogContent
+        className="sm:max-w-md"
+        data-tour="category-form"
+        showCloseButton={modal}
+        onInteractOutside={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar categoria" : "Nueva categoria"}</DialogTitle>
           <DialogDescription>
@@ -248,15 +261,17 @@ export function CategoryFormDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
+            {modal && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+            )}
+            <Button type="submit" disabled={loading} data-tour="category-form-submit">
               {loading ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear categoria"}
             </Button>
           </DialogFooter>

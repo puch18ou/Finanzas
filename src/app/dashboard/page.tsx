@@ -340,15 +340,25 @@ export default function DashboardPage() {
   ]);
 
   const categoryChartData = useMemo(() => {
-    return Object.entries(gastosPorCategoriaConPrevistos)
-      .map(([catId, value]) => {
-        const cat = categoryById[catId];
-        return {
-          name: cat?.nombre ?? "(eliminada)",
-          value,
-          color: cat?.color ?? undefined,
-        };
-      })
+    // Agrupamos por NOMBRE: varias categorias borradas caen todas en
+    // "(eliminada)" y deben sumarse en una sola porcion (no duplicarse).
+    const porNombre = new Map<
+      string,
+      { name: string; value: number; color?: string }
+    >();
+    for (const [catId, value] of Object.entries(
+      gastosPorCategoriaConPrevistos,
+    )) {
+      const cat = categoryById[catId];
+      const name = cat?.nombre ?? "(eliminada)";
+      const prev = porNombre.get(name);
+      if (prev) {
+        prev.value += value;
+      } else {
+        porNombre.set(name, { name, value, color: cat?.color ?? undefined });
+      }
+    }
+    return [...porNombre.values()]
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value);
   }, [gastosPorCategoriaConPrevistos, categoryById]);

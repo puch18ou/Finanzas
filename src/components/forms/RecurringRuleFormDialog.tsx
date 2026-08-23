@@ -65,6 +65,10 @@ type Props = {
   monedaLocal: string;
   loading: boolean;
   onSubmit: (data: RecurringRuleFormData) => Promise<void>;
+  /** Precarga el formulario al CREAR (usado por el demo). */
+  prefill?: Partial<RecurringRuleFormData>;
+  /** modal=false + sin cierre por click-fuera/Escape: lo usa el demo. */
+  modal?: boolean;
 };
 
 const TIPO_LABELS: Record<TipoReglaManual, string> = {
@@ -125,6 +129,8 @@ export function RecurringRuleFormDialog({
   monedaLocal,
   loading,
   onSubmit,
+  prefill,
+  modal = true,
 }: Props) {
   const [calInicioOpen, setCalInicioOpen] = useState(false);
   const [calFinOpen, setCalFinOpen] = useState(false);
@@ -223,11 +229,12 @@ export function RecurringRuleFormDialog({
           fechaFin: null,
           activa: true,
           notas: "",
+          ...prefill,
         });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initial, monedaLocal]);
+  }, [open, initial, monedaLocal, prefill]);
 
   const tipo = watch("tipoMovimiento");
   const frecuencia = watch("frecuencia");
@@ -256,8 +263,18 @@ export function RecurringRuleFormDialog({
   const erroresKeys = Object.keys(errors);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+      <DialogContent
+        className="sm:max-w-lg max-h-[90vh] overflow-y-auto"
+        data-tour="recurring-form"
+        showCloseButton={modal}
+        onInteractOutside={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {initial ? "Editar regla recurrente" : "Nueva regla recurrente"}
@@ -749,15 +766,17 @@ export function RecurringRuleFormDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
+            {modal && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+            )}
+            <Button type="submit" disabled={loading} data-tour="recurring-form-submit">
               {loading ? "Guardando..." : initial ? "Guardar cambios" : "Crear regla"}
             </Button>
           </DialogFooter>

@@ -79,6 +79,10 @@ type Props = {
   defaultAccountId?: string | null;
   onSubmit: (data: CreateMovementData) => Promise<void>;
   loading?: boolean;
+  /** Precarga el formulario al CREAR (usado por el demo). */
+  prefill?: { tipo: FormTipo; values: Record<string, unknown> };
+  /** modal=false + sin cierre por click-fuera/Escape: lo usa el demo. */
+  modal?: boolean;
 };
 
 export function MovementFormDialog({
@@ -93,6 +97,8 @@ export function MovementFormDialog({
   defaultAccountId,
   onSubmit,
   loading = false,
+  prefill,
+  modal = true,
 }: Props) {
   const isEdit = !!initial;
 
@@ -258,12 +264,54 @@ export function MovementFormDialog({
         cuentaDestinoId: "",
         notas: "",
       });
+
+      // Precarga del demo: sobreescribimos el sub-form del tipo indicado.
+      if (prefill) {
+        const fecha = normalizeDateToUTCNoon(new Date());
+        if (prefill.tipo === "gasto" || prefill.tipo === "devolucion") {
+          gastoForm.reset({
+            fecha,
+            concepto: "",
+            importe: 0,
+            moneda: monedaLocal,
+            cuentaOrigenId: defaultAccountId ?? "",
+            categoriaId: "",
+            notas: "",
+            etiquetas: "",
+            ...(prefill.values as Partial<GastoFormData>),
+          });
+        } else if (prefill.tipo === "ingreso") {
+          ingresoForm.reset({
+            fecha,
+            concepto: "",
+            importe: 0,
+            moneda: monedaLocal,
+            cuentaDestinoId: defaultAccountId ?? null,
+            categoriaTexto: "Bonus",
+            notas: "",
+            etiquetas: "",
+            ...(prefill.values as Partial<IngresoFormData>),
+          });
+        } else if (prefill.tipo === "transferencia") {
+          transferenciaForm.reset({
+            fecha,
+            concepto: "Transferencia",
+            importe: 0,
+            moneda: monedaLocal,
+            cuentaOrigenId: "",
+            cuentaDestinoId: "",
+            notas: "",
+            ...(prefill.values as Partial<TransferenciaFormData>),
+          });
+        }
+      }
     }
   }, [
     open,
     initial,
     monedaLocal,
     defaultAccountId,
+    prefill,
     gastoForm,
     ingresoForm,
     transferenciaForm,
@@ -391,8 +439,18 @@ export function MovementFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] gap-3 overflow-y-auto p-4 sm:max-w-lg sm:gap-4 sm:p-6">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+      <DialogContent
+        className="max-h-[85vh] gap-3 overflow-y-auto p-4 sm:max-w-lg sm:gap-4 sm:p-6"
+        data-tour="movement-form"
+        showCloseButton={modal}
+        onInteractOutside={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!modal) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Editar movimiento" : "Nuevo movimiento"}
@@ -572,6 +630,7 @@ export function MovementFormDialog({
             <FooterButtons
               loading={loading}
               isEdit={isEdit}
+              showCancel={modal}
               onCancel={() => onOpenChange(false)}
             />
           </form>
@@ -649,6 +708,7 @@ export function MovementFormDialog({
             <FooterButtons
               loading={loading}
               isEdit={isEdit}
+              showCancel={modal}
               onCancel={() => onOpenChange(false)}
             />
           </form>
@@ -724,6 +784,7 @@ export function MovementFormDialog({
             <FooterButtons
               loading={loading}
               isEdit={isEdit}
+              showCancel={modal}
               onCancel={() => onOpenChange(false)}
             />
           </form>
@@ -926,6 +987,7 @@ function FechaImporteMoneda({ control, register, currencies, errors }: any) {
           type="number"
           step="0.01"
           min={0}
+          data-tour="mov-form-importe"
           {...register("importe", { valueAsNumber: true })}
         />
         {errors.importe && (
@@ -985,22 +1047,26 @@ function FooterButtons({
   loading,
   isEdit,
   onCancel,
+  showCancel = true,
 }: {
   loading: boolean;
   isEdit: boolean;
   onCancel: () => void;
+  showCancel?: boolean;
 }) {
   return (
     <DialogFooter>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onCancel}
-        disabled={loading}
-      >
-        Cancelar
-      </Button>
-      <Button type="submit" disabled={loading}>
+      {showCancel && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancelar
+        </Button>
+      )}
+      <Button type="submit" disabled={loading} data-tour="movement-form-submit">
         {loading
           ? "Guardando..."
           : isEdit
