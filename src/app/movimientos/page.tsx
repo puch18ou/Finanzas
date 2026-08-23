@@ -861,6 +861,7 @@ function MovementRow({
               onClick={onRefunds}
               aria-label="Devoluciones"
               title="Devoluciones de este gasto"
+              data-tour="mov-devolucion"
             >
               <Undo2 className="h-4 w-4" />
             </Button>

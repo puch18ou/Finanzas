@@ -261,6 +261,12 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Pulsa las cabeceras (fecha, concepto, categoría o importe) para ordenar la lista.",
     },
+    {
+      target: '[data-tour="mov-devolucion"]',
+      title: "Devoluciones de un gasto",
+      content:
+        "En cada gasto, este botón registra devoluciones (reembolsos). Se restan del gasto y verás su «coste real» sin que cuenten como ingreso.",
+    },
     ...OUTRO,
   ],
 };
