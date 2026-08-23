@@ -109,6 +109,7 @@ export default function RecurrentesPage() {
           </p>
         </div>
         <Button
+          data-tour="rec-nuevo"
           onClick={() => {
             setEditing(null);
             setFormOpen(true);
@@ -119,7 +120,7 @@ export default function RecurrentesPage() {
         </Button>
       </header>
 
-      <Card>
+      <Card data-tour="rec-manuales">
         <CardHeader>
           <CardTitle>Tus reglas ({reglasManuales.length})</CardTitle>
           <CardDescription>
@@ -154,7 +155,7 @@ export default function RecurrentesPage() {
       </Card>
 
       {reglasVinculadas.length > 0 && (
-        <Card>
+        <Card data-tour="rec-vinculadas">
           <CardHeader>
             <CardTitle>Reglas vinculadas ({reglasVinculadas.length})</CardTitle>
             <CardDescription>

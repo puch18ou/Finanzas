@@ -269,6 +269,29 @@ const TOURS: Record<string, TourStep[]> = {
     },
     ...OUTRO,
   ],
+
+  "/recurrentes": [
+    {
+      target: '[data-tour="rec-nuevo"]',
+      title: "Nueva regla",
+      content:
+        "Crea una regla que genera movimientos automáticamente. Puede ser diaria, semanal, mensual, anual o de varios días al mes (p. ej. días 1 y 15).",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="rec-manuales"]',
+      title: "Tus reglas",
+      content:
+        "Las reglas que has creado tú (salario, alquiler, suscripciones…). Aquí ves su frecuencia, periodo y estado, y puedes editarlas o borrarlas.",
+    },
+    {
+      target: '[data-tour="rec-vinculadas"]',
+      title: "Reglas vinculadas",
+      content:
+        "Reglas creadas automáticamente al configurar la hipoteca, deudas o intereses de cuentas. Para cambiarlas, ve a su pantalla (no se editan aquí).",
+    },
+    ...OUTRO,
+  ],
 };
 
 /**
