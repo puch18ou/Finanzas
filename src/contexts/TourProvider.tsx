@@ -35,6 +35,12 @@ export type TourStep = {
    * aun no montado). Los pasos con preClick nunca se descartan al iniciar.
    */
   preClick?: string;
+  /**
+   * Paso "silencioso": ejecuta su preClick y avanza automaticamente SIN mostrar
+   * burbuja. Util para acciones de cierre (p.ej. volver a la pestaña General al
+   * terminar) sin explicarlas. title/content pueden ir vacios.
+   */
+  auto?: boolean;
 };
 
 type TourContextValue = {

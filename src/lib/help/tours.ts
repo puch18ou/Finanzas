@@ -95,6 +95,7 @@ const TOURS: Record<string, TourStep[]> = {
 
   "/evolucion": [
     {
+      preClick: '[data-tour="evo-tab-general"]',
       target: '[data-tour="evo-tabs"]',
       title: "Tres vistas",
       content:
@@ -102,6 +103,7 @@ const TOURS: Record<string, TourStep[]> = {
     },
     // --- General ---
     {
+      preClick: '[data-tour="evo-tab-general"]',
       target: '[data-tour="evo-general-anio"]',
       title: "General · año a mostrar",
       content:
@@ -109,6 +111,7 @@ const TOURS: Record<string, TourStep[]> = {
       placement: "bottom",
     },
     {
+      preClick: '[data-tour="evo-tab-general"]',
       target: '[data-tour="evo-general-tipo"]',
       title: "General · tipo de gráfica",
       content:
@@ -145,14 +148,12 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Elige una o varias categorías (multiselección) para ver su gasto neto mes a mes, una línea por categoría.",
     },
-    // --- Cierre: volver a General ---
+    // --- Cierre: volver a General en silencio (sin burbuja) ---
     {
       preClick: '[data-tour="evo-tab-general"]',
-      target: '[data-tour="evo-tab-general"]',
-      title: "Volvemos a General",
-      content:
-        "Y esto es todo. Puedes reabrir esta ayuda con el botón «?» de arriba cuando quieras.",
-      placement: "bottom",
+      auto: true,
+      title: "",
+      content: "",
     },
   ],
 };

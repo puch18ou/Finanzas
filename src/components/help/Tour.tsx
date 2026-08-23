@@ -80,15 +80,21 @@ export function Tour() {
 
     const run = () => {
       if (cancelled) return;
-      let delay = 0;
       if (step.preClick) {
         const trigger = document.querySelector<HTMLElement>(step.preClick);
         if (trigger) activate(trigger);
-        delay = 120; // dar tiempo a que el panel de la pestaña se monte
       }
+      // Paso silencioso: tras la accion, avanza solo (sin burbuja).
+      if (step.auto) {
+        timer = window.setTimeout(() => {
+          if (!cancelled) next();
+        }, step.preClick ? 140 : 0);
+        return;
+      }
+      // dar tiempo a que el panel de la pestaña se monte antes de medir
       timer = window.setTimeout(() => {
         if (!cancelled) measure();
-      }, delay);
+      }, step.preClick ? 120 : 0);
     };
 
     const raf = window.requestAnimationFrame(run);
@@ -97,7 +103,7 @@ export function Tour() {
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timer);
     };
-  }, [active, step, index, measure]);
+  }, [active, step, index, measure, next]);
 
   // Recalcular en scroll/resize mientras el tour esta activo.
   useEffect(() => {
@@ -124,6 +130,8 @@ export function Tour() {
   }, [active, next, prev, stop]);
 
   if (!mounted || !active || !step) return null;
+  // Paso silencioso (accion sin burbuja): no renderizamos nada.
+  if (step.auto) return null;
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
