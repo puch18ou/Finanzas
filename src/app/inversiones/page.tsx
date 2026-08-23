@@ -464,6 +464,8 @@ export default function InversionesPage() {
                           size="icon"
                           onClick={() => setContributionsFor(inv)}
                           aria-label="Aportaciones"
+                          title="Aportaciones: histórico y aportación periódica"
+                          data-tour="inv-aportaciones"
                         >
                           <Layers className="h-4 w-4" />
                         </Button>
@@ -542,6 +544,7 @@ export default function InversionesPage() {
             </Button>
           )}
           <Button
+            data-tour="inv-nueva"
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -554,7 +557,10 @@ export default function InversionesPage() {
       </header>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div
+        className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+        data-tour="inv-resumen"
+      >
         <KpiPortfolio
           icon={Banknote}
           label="Valor cartera"

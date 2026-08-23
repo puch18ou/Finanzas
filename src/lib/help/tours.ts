@@ -272,6 +272,28 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/inversiones": [
+    {
+      target: '[data-tour="inv-nueva"]',
+      title: "Añadir inversión",
+      content:
+        "Crea una posición (acción/ETF, fondo, cripto, cuenta remunerada…). Al crearla registras la primera aportación (compra).",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="inv-resumen"]',
+      title: "Resumen de la cartera",
+      content:
+        "Valor actual de la cartera, coste total invertido y plusvalía (con su %). Se recalcula al actualizar cotizaciones.",
+    },
+    {
+      target: '[data-tour="inv-aportaciones"]',
+      title: "Aportaciones",
+      content:
+        "En cada posición, este botón abre su historial de aportaciones y te permite configurar aportaciones periódicas automáticas.",
+    },
+  ],
+
   "/cuentas": [
     {
       target: '[data-tour="cuentas-nueva"]',
