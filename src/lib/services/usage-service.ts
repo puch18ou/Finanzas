@@ -66,6 +66,43 @@ export class UsageService {
   }
 
   /**
+   * Ids de cuentas EN USO: referenciadas por movimientos VIVOS (origen o
+   * destino) o por reglas recurrentes vivas. No se pueden borrar (se archivan).
+   */
+  async accountsInUse(): Promise<Set<string>> {
+    const set = new Set<string>();
+    const addAll = (rows: { id: string | null }[]) => {
+      for (const r of rows) if (r.id) set.add(r.id);
+    };
+
+    addAll(
+      await this.db
+        .selectDistinct({ id: movements.cuentaOrigenId })
+        .from(movements)
+        .where(isNull(movements.deletedAt)),
+    );
+    addAll(
+      await this.db
+        .selectDistinct({ id: movements.cuentaDestinoId })
+        .from(movements)
+        .where(isNull(movements.deletedAt)),
+    );
+    addAll(
+      await this.db
+        .selectDistinct({ id: recurringRules.cuentaOrigenId })
+        .from(recurringRules)
+        .where(isNull(recurringRules.deletedAt)),
+    );
+    addAll(
+      await this.db
+        .selectDistinct({ id: recurringRules.cuentaDestinoId })
+        .from(recurringRules)
+        .where(isNull(recurringRules.deletedAt)),
+    );
+    return set;
+  }
+
+  /**
    * Codigos de moneda en uso por CUALQUIER referencia (incluida la papelera) o
    * por ajustes. Un DELETE fisico de estas fallaria o dejaria datos huerfanos.
    */

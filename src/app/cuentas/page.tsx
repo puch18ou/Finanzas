@@ -10,8 +10,20 @@
  */
 
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Landmark, Scale } from "lucide-react";
-import { useAccounts, useAccountBalances } from "@/hooks/useAccounts";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  Landmark,
+  Scale,
+  Archive,
+  ArchiveRestore,
+} from "lucide-react";
+import {
+  useAccounts,
+  useAccountBalances,
+  useAccountsUsage,
+} from "@/hooks/useAccounts";
 import { useMovements } from "@/hooks/useMovements";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { AccountFormDialog } from "@/components/forms/AccountFormDialog";
@@ -45,6 +57,7 @@ export default function CuentasPage() {
   const { data: currencies = [] } = useCurrencies();
   const { accounts, isLoading, create, update, remove, isMutating } = useAccounts();
   const { balances } = useAccountBalances();
+  const { inUse: cuentasEnUso } = useAccountsUsage();
   const { create: createMovement, isMutating: isReconciling } = useMovements();
   const mask = useMaskMoney();
 
@@ -153,7 +166,7 @@ export default function CuentasPage() {
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead className="text-right">Equivalente</TableHead>
-                  <TableHead className="w-[140px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[180px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,6 +179,8 @@ export default function CuentasPage() {
                     equivalente = null;
                   }
                   const dim = !a.activa ? "opacity-50" : "";
+                  const enUso = cuentasEnUso.has(a.id);
+                  const saldoCero = Math.abs(saldo) < 0.005;
                   return (
                     <TableRow key={a.id} className={dim}>
                       <TableCell className="font-medium">{a.alias}</TableCell>
@@ -209,12 +224,48 @@ export default function CuentasPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
+                          {a.activa ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={!saldoCero}
+                              onClick={() =>
+                                update({ id: a.id, patch: { activa: false } })
+                              }
+                              aria-label="Archivar"
+                              title={
+                                saldoCero
+                                  ? "Archivar (cerrar) la cuenta"
+                                  : "Pon el saldo a 0 para poder archivarla"
+                              }
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                update({ id: a.id, patch: { activa: true } })
+                              }
+                              aria-label="Reactivar"
+                              title="Reactivar la cuenta"
+                            >
+                              <ArchiveRestore className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => setToDelete(a)}
+                            disabled={enUso}
                             aria-label="Borrar"
                             className="text-destructive hover:text-destructive"
+                            title={
+                              enUso
+                                ? "Tiene movimientos: archívala en vez de borrarla"
+                                : "Borrar"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -271,7 +322,7 @@ export default function CuentasPage() {
         title="Borrar cuenta"
         description={
           toDelete
-            ? `La cuenta "${toDelete.alias}" pasara a la papelera. Los gastos asociados se conservan.`
+            ? `La cuenta "${toDelete.alias}" pasara a la papelera. Solo se pueden borrar cuentas sin movimientos; si los tiene, archívala.`
             : ""
         }
         loading={isMutating}

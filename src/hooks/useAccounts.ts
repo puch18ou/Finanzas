@@ -25,6 +25,24 @@ import { buildRatesMap } from "@/lib/domain/currency";
 import { MOVEMENTS_KEY } from "./useMovements";
 
 export const ACCOUNTS_KEY = ["accounts"] as const;
+// Prefijo compartido con ACCOUNTS_KEY: al invalidar ["accounts"] se refresca.
+export const ACCOUNTS_USAGE_KEY = ["accounts", "usage"] as const;
+
+/**
+ * Ids de cuentas EN USO (con movimientos o reglas). La UI lo usa para impedir
+ * el borrado (se archivan en su lugar).
+ */
+export function useAccountsUsage() {
+  const repos = useRepos();
+  const query = useQuery({
+    queryKey: ACCOUNTS_USAGE_KEY,
+    queryFn: () => repos.usage.accountsInUse(),
+  });
+  return {
+    inUse: query.data ?? new Set<string>(),
+    isLoading: query.isLoading,
+  };
+}
 
 export function useAccounts() {
   const repos = useRepos();
@@ -60,7 +78,16 @@ export function useAccounts() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => repos.accounts.softDelete(id),
+    // Red de seguridad: no se borra una cuenta con movimientos (se archiva).
+    mutationFn: async (id: string) => {
+      const inUse = await repos.usage.accountsInUse();
+      if (inUse.has(id)) {
+        throw new Error(
+          "La cuenta tiene movimientos. Archívala en vez de borrarla.",
+        );
+      }
+      return repos.accounts.softDelete(id);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ACCOUNTS_KEY });
       toast.success("Cuenta movida a la papelera");
