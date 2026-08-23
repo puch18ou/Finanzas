@@ -22,6 +22,7 @@ import { Wallet, ChevronRight } from "lucide-react";
 import { useSettings, useCurrencies } from "@/hooks/useSettings";
 import { useCategories } from "@/hooks/useCategories";
 import { useMovements } from "@/hooks/useMovements";
+import { useActiveRecurringRules } from "@/hooks/useRecurringRules";
 import { PeriodSelector } from "@/components/crud/PeriodSelector";
 import {
   Card,
@@ -44,7 +45,9 @@ import {
   filterMovementsByPeriod,
   sumMovementsByCategory,
   listMovementsByCategory,
+  previstoItemsByCategory,
   type CategoryMovementItem,
+  type PrevistoItem,
 } from "@/lib/domain/aggregation";
 import { MESES_ES, MESES_ES_CORTO, formatDateLong } from "@/lib/utils/dates";
 import { useObjetivoTramos } from "@/hooks/useObjetivoTramos";
@@ -63,6 +66,9 @@ type Row = {
   // Desglose de los gastos de ESTE mes que componen `gastadoMes`, ordenado de
   // mayor a menor, para poder desplegar la fila.
   gastosMes: CategoryMovementItem[];
+  // Gastos PREVISTOS del mes (recurrentes aun no generados). Solo se rellena si
+  // el periodo mostrado es el mes actual. Ya sumados en gastadoMes/gastadoAcum.
+  previstos: PrevistoItem[];
 };
 
 export default function PresupuestosPage() {
@@ -82,6 +88,7 @@ export default function PresupuestosPage() {
   const [expandida, setExpandida] = useState<string | null>(null);
 
   const { movements } = useMovements({ anio });
+  const { data: activeRules = [] } = useActiveRecurringRules();
 
   const rates = useMemo(() => buildRatesMap(currencies), [currencies]);
   const viewCurrency = settings?.monedaVista ?? "EUR";
@@ -124,6 +131,20 @@ export default function PresupuestosPage() {
     );
     const gastosMesByCat = listMovementsByCategory(movsMes, rates, viewCurrency);
 
+    // Gastos PREVISTOS del mes (recurrentes aun no generados). Solo aplican si
+    // el periodo mostrado es el mes ACTUAL real. Se suman al gastado del mes y,
+    // como el mes actual entra en el acumulado, tambien al acumulado.
+    const now = new Date();
+    const esMesActual =
+      anio === now.getFullYear() && mes === now.getMonth() + 1;
+    const previstosByCat = esMesActual
+      ? previstoItemsByCategory(activeRules, anio, mes, now, rates, viewCurrency)
+      : {};
+    const previstoTotalByCat: Record<string, number> = {};
+    for (const [catId, items] of Object.entries(previstosByCat)) {
+      previstoTotalByCat[catId] = items.reduce((s, i) => s + i.valorVista, 0);
+    }
+
     // Presupuesto resuelto y convertido a moneda vista para (anio, m).
     const presView = (c: (typeof categories)[number], m: number): number => {
       const p = resolvePresupuesto(
@@ -149,20 +170,23 @@ export default function PresupuestosPage() {
       .map((c) => {
         let presupuestoAcum = 0;
         for (let m = startMes; m <= mes; m++) presupuestoAcum += presView(c, m);
+        const previstoTotal = previstoTotalByCat[c.id] ?? 0;
         return {
           categoriaId: c.id,
           nombre: c.nombre,
           presupuestoMes: presView(c, mes),
-          gastadoMes: gastadoMesByCat[c.id] ?? 0,
+          gastadoMes: (gastadoMesByCat[c.id] ?? 0) + previstoTotal,
           presupuestoAcum,
-          gastadoAcum: gastadoAcumByCat[c.id] ?? 0,
+          gastadoAcum: (gastadoAcumByCat[c.id] ?? 0) + previstoTotal,
           gastosMes: gastosMesByCat[c.id] ?? [],
+          previstos: previstosByCat[c.id] ?? [],
         };
       });
   }, [
     categories,
     tramosByCat,
     movements,
+    activeRules,
     mes,
     anio,
     startMes,
@@ -202,14 +226,16 @@ export default function PresupuestosPage() {
             se definen en Categorias.
           </p>
         </div>
-        <PeriodSelector
-          anio={anio}
-          mes={mes}
-          onChange={({ anio: a, mes: m }) => {
-            setAnio(a);
-            setMes(m);
-          }}
-        />
+        <div data-tour="presu-periodo">
+          <PeriodSelector
+            anio={anio}
+            mes={mes}
+            onChange={({ anio: a, mes: m }) => {
+              setAnio(a);
+              setMes(m);
+            }}
+          />
+        </div>
       </header>
 
       <Card>
@@ -232,7 +258,7 @@ export default function PresupuestosPage() {
               </p>
             </div>
           ) : (
-            <Table>
+            <Table data-tour="presu-consumo">
               <TableHeader>
                 <TableRow>
                   <TableHead>Categoria</TableHead>
@@ -246,7 +272,8 @@ export default function PresupuestosPage() {
               <TableBody>
                 {rows.map((r) => {
                   const abierta = expandida === r.categoriaId;
-                  const tieneGastos = r.gastosMes.length > 0;
+                  const numItems = r.gastosMes.length + r.previstos.length;
+                  const tieneGastos = numItems > 0;
                   return (
                     <Fragment key={r.categoriaId}>
                       <TableRow>
@@ -254,6 +281,7 @@ export default function PresupuestosPage() {
                           <button
                             type="button"
                             disabled={!tieneGastos}
+                            data-tour={tieneGastos ? "presu-flecha" : undefined}
                             onClick={() =>
                               setExpandida(abierta ? null : r.categoriaId)
                             }
@@ -274,7 +302,7 @@ export default function PresupuestosPage() {
                             <span>{r.nombre}</span>
                             {tieneGastos && (
                               <span className="text-xs text-muted-foreground tabular-nums">
-                                ({r.gastosMes.length})
+                                ({numItems})
                               </span>
                             )}
                           </button>
@@ -302,6 +330,7 @@ export default function PresupuestosPage() {
                           <TableCell colSpan={4} className="py-0">
                             <BudgetBreakdown
                               items={r.gastosMes}
+                              previstos={r.previstos}
                               viewCurrency={viewCurrency}
                             />
                           </TableCell>
@@ -341,9 +370,11 @@ export default function PresupuestosPage() {
 
 function BudgetBreakdown({
   items,
+  previstos,
   viewCurrency,
 }: {
   items: CategoryMovementItem[];
+  previstos: PrevistoItem[];
   viewCurrency: string;
 }) {
   const mask = useMaskMoney();
@@ -390,6 +421,33 @@ function BudgetBreakdown({
                     <div className="text-xs text-muted-foreground">
                       ≈ {esDev ? "−" : ""}
                       {money(Math.abs(valorVista), viewCurrency)}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {previstos.map((p) => {
+            const otraDivisa = p.moneda !== viewCurrency;
+            return (
+              <tr
+                key={p.id}
+                className="border-b bg-amber-500/5 last:border-b-0"
+              >
+                <td className="w-[110px] whitespace-nowrap px-3 py-1.5 align-top tabular-nums text-muted-foreground">
+                  {formatDateLong(p.fecha)}
+                </td>
+                <td className="px-3 py-1.5">
+                  {p.concepto}
+                  <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-500">
+                    previsto
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-3 py-1.5 text-right align-top tabular-nums text-amber-600 dark:text-amber-500">
+                  <div>{money(p.importe, p.moneda)}</div>
+                  {otraDivisa && (
+                    <div className="text-xs text-muted-foreground">
+                      ≈ {money(p.valorVista, viewCurrency)}
                     </div>
                   )}
                 </td>

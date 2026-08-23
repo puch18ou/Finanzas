@@ -280,6 +280,70 @@ export function previstosDelMes(
   return { ingresos, gastos, porCategoria };
 }
 
+/** Una ocurrencia de gasto PREVISTA (recurrente aun no generada) de un mes. */
+export type PrevistoItem = {
+  /** Clave estable para React (regla + fecha). */
+  id: string;
+  concepto: string;
+  fecha: Date;
+  /** Importe en la moneda de la regla. */
+  importe: number;
+  moneda: string;
+  /** Importe convertido a moneda vista. */
+  valorVista: number;
+};
+
+/**
+ * Gastos PREVISTOS por categoria de un mes, detallados (fecha + concepto +
+ * importe), para mostrarlos en el desglose del presupuesto. Solo gasto/cuota
+ * con categoria, ocurrencias con fecha > now, excluye inversion. Cada lista va
+ * ordenada por fecha.
+ */
+export function previstoItemsByCategory(
+  rules: RecurringRule[],
+  anio: number,
+  mes: number,
+  now: Date,
+  rates: RatesMap,
+  viewCurrency: string,
+): Record<string, PrevistoItem[]> {
+  const nowMs = now.getTime();
+  const out: Record<string, PrevistoItem[]> = {};
+
+  for (const rule of rules) {
+    if (!rule.activa) continue;
+    if (rule.origenAutomatico === "investment") continue;
+    const esGasto =
+      rule.tipoMovimiento === "gasto" || rule.tipoMovimiento === "cuota";
+    if (!esGasto || !rule.categoriaId) continue;
+
+    let valorVista: number;
+    try {
+      valorVista = convert(rule.importe, rule.moneda, viewCurrency, rates);
+    } catch {
+      continue;
+    }
+
+    for (const fecha of occurrencesForRule(rule, anio, mes)) {
+      if (fecha.getTime() <= nowMs) continue;
+      const key = `${rule.id}:${fecha.getUTCFullYear()}-${fecha.getUTCMonth() + 1}-${fecha.getUTCDate()}`;
+      (out[rule.categoriaId] ??= []).push({
+        id: key,
+        concepto: rule.nombre,
+        fecha,
+        importe: rule.importe,
+        moneda: rule.moneda,
+        valorVista,
+      });
+    }
+  }
+
+  for (const list of Object.values(out)) {
+    list.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  }
+  return out;
+}
+
 // ============================================================================
 //  COMPARATIVAS (pagina Evolucion, solo PC)
 // ============================================================================

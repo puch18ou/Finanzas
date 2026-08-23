@@ -11,6 +11,7 @@ import {
   totalsByYear,
   categorySeriesByMonth,
   previstosDelMes,
+  previstoItemsByCategory,
 } from "@/lib/domain/aggregation";
 import type { Movement, RecurringRule } from "@/lib/db/schema";
 
@@ -271,6 +272,32 @@ describe("previstosDelMes", () => {
     // Lunes de marzo 2026 futuros: 2,9,16,23,30 = 5 -> 50
     const p = previstosDelMes(rules, 2026, 3, now, RATES, "EUR");
     expect(p.gastos).toBe(50);
+  });
+
+  it("previstoItemsByCategory: detalla ocurrencias futuras por categoria", () => {
+    const now = new Date(Date.UTC(2026, 2, 1, 12)); // 01/03/2026
+    const rules = [
+      rule({
+        id: "r1",
+        tipoMovimiento: "gasto",
+        importe: 10,
+        frecuencia: "varios-mes",
+        diasDelMes: "5,20",
+        categoriaId: "transporte",
+      }),
+      rule({
+        id: "r2",
+        tipoMovimiento: "gasto",
+        importe: 50,
+        diaDelMes: 15,
+        categoriaId: "ocio",
+      }),
+    ];
+    const items = previstoItemsByCategory(rules, 2026, 3, now, RATES, "EUR");
+    expect(items["transporte"]!.map((i) => i.fecha.getUTCDate())).toEqual([5, 20]);
+    expect(items["transporte"]!.every((i) => i.valorVista === 10)).toBe(true);
+    expect(items["ocio"]).toHaveLength(1);
+    expect(items["ocio"]![0]!.concepto).toBe("regla");
   });
 });
 

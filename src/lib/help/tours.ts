@@ -193,6 +193,29 @@ const TOURS: Record<string, TourStep[]> = {
     },
     ...OUTRO,
   ],
+
+  "/presupuestos": [
+    {
+      target: '[data-tour="presu-periodo"]',
+      title: "Mes que ves",
+      content:
+        "Elige el mes y año. El seguimiento de cada presupuesto se recalcula para ese periodo.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="presu-consumo"]',
+      title: "Consumo por categoría",
+      content:
+        "Cada categoría con presupuesto: lo gastado este mes y el acumulado del año, con su barra. Se incluyen los gastos previstos del mes (recurrentes aún no cargados).",
+    },
+    {
+      target: '[data-tour="presu-flecha"]',
+      title: "Ver el detalle",
+      content:
+        "Cuando una categoría tiene gastos, pulsa la flecha para desplegar en qué se ha ido el dinero. Los previstos aparecen marcados con su fecha.",
+    },
+    ...OUTRO,
+  ],
 };
 
 /**
