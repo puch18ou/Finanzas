@@ -287,6 +287,12 @@ const TOURS: Record<string, TourStep[]> = {
         "Valor actual de la cartera, coste total invertido y plusvalía (con su %). Se recalcula al actualizar cotizaciones.",
     },
     {
+      target: '[data-tour="inv-valor-manual"]',
+      title: "Actualizar valor a mano",
+      content:
+        "Pon el valor actual de la posición manualmente. Útil cuando la inversión no tiene cotización automática (sin ticker ni ISIN), como una cuenta remunerada o un activo no cotizado.",
+    },
+    {
       target: '[data-tour="inv-aportaciones"]',
       title: "Aportaciones",
       content:

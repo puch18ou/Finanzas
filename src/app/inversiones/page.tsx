@@ -456,6 +456,7 @@ export default function InversionesPage() {
                           onClick={() => openValueUpdate(inv)}
                           aria-label="Actualizar valor"
                           title="Actualizar valor a mano"
+                          data-tour="inv-valor-manual"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </Button>
