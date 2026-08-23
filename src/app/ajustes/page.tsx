@@ -61,6 +61,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackupCard } from "@/components/papelera/BackupCard";
+import { ChangelogCard } from "@/components/ajustes/ChangelogCard";
 import { LocalBackupsCard } from "@/components/backup/LocalBackupsCard";
 import { HealthCard } from "@/components/ajustes/HealthCard";
 import { SyncCard } from "@/components/sync/SyncCard";
@@ -486,6 +487,10 @@ export default function AjustesPage() {
 
       <div data-tour="aj-sync">
         <SyncCard />
+      </div>
+
+      <div data-tour="aj-novedades">
+        <ChangelogCard />
       </div>
     </div>
   );

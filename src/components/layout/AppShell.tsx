@@ -19,6 +19,7 @@ import { QuickAddFab } from "./QuickAddFab";
 import { MobileApp } from "@/components/mobile/MobileApp";
 import { HelpButton } from "@/components/help/HelpButton";
 import { Tour } from "@/components/help/Tour";
+import { WhatsNewDialog } from "@/components/help/WhatsNewDialog";
 import { isMobileApp } from "@/lib/utils/platform";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </SidebarInset>
       <QuickAddFab />
       <Tour />
+      <WhatsNewDialog />
     </SidebarProvider>
   );
 }

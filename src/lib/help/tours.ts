@@ -443,6 +443,12 @@ const TOURS: Record<string, TourStep[]> = {
       content:
         "Sincroniza tus datos entre el PC y el móvil por la red local (sin nube). Aquí emparejas los dispositivos.",
     },
+    {
+      target: '[data-tour="aj-novedades"]',
+      title: "Novedades y versiones",
+      content:
+        "El historial de cambios de la app. Al actualizar también verás un aviso con lo nuevo.",
+    },
   ],
 
   "/monedas": [
