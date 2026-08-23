@@ -23,6 +23,25 @@ import { useTour } from "@/contexts/TourProvider";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
+/**
+ * Activa un elemento de forma robusta. Un `.click()` normal NO cambia las
+ * pestañas de Radix (que reaccionan a foco/pointerdown, no a un click
+ * sintetico), asi que enfocamos (activacion automatica de Tabs) y ademas
+ * disparamos la secuencia pointer/mouse + click.
+ */
+function activate(el: HTMLElement) {
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    el.focus();
+  }
+  for (const type of ["pointerdown", "mousedown", "mouseup", "click"]) {
+    el.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }),
+    );
+  }
+}
+
 const BUBBLE_W = 340;
 const PAD = 8; // margen del foco alrededor del elemento
 const GAP = 12; // separacion burbuja-elemento
@@ -64,7 +83,7 @@ export function Tour() {
       let delay = 0;
       if (step.preClick) {
         const trigger = document.querySelector<HTMLElement>(step.preClick);
-        trigger?.click();
+        if (trigger) activate(trigger);
         delay = 120; // dar tiempo a que el panel de la pestaña se monte
       }
       timer = window.setTimeout(() => {

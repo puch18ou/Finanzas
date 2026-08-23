@@ -22,7 +22,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils/cn";
 
 export type CategoryOption = {
@@ -114,40 +113,38 @@ export function CategoryMultiSelect({
             </p>
           )}
         </div>
-        <ScrollArea className="max-h-64">
-          <div className="p-1">
-            {filtered.length === 0 ? (
-              <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                Sin resultados
-              </p>
-            ) : (
-              filtered.map((o) => {
-                const checked = selectedSet.has(o.id);
-                const disabled = !checked && atMax;
-                return (
-                  <button
-                    key={o.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => toggle(o.id)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                      disabled && "cursor-not-allowed opacity-40",
-                    )}
-                  >
-                    <Checkbox checked={checked} className="pointer-events-none" />
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full border"
-                      style={{ backgroundColor: o.color ?? "transparent" }}
-                    />
-                    <span className="flex-1 truncate">{o.nombre}</span>
-                    {checked && <Check className="h-4 w-4 text-primary" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </ScrollArea>
+        <div className="max-h-80 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+              Sin resultados
+            </p>
+          ) : (
+            filtered.map((o) => {
+              const checked = selectedSet.has(o.id);
+              const disabled = !checked && atMax;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => toggle(o.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+                    disabled && "cursor-not-allowed opacity-40",
+                  )}
+                >
+                  <Checkbox checked={checked} className="pointer-events-none" />
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full border"
+                    style={{ backgroundColor: o.color ?? "transparent" }}
+                  />
+                  <span className="flex-1 truncate">{o.nombre}</span>
+                  {checked && <Check className="h-4 w-4 text-primary" />}
+                </button>
+              );
+            })
+          )}
+        </div>
         {selected.length > 0 && (
           <div className="border-t p-2">
             <Button
