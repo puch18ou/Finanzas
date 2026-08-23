@@ -16,11 +16,11 @@
  *  usuario podra editarlos en la pantalla de Monedas.
  *
  *  Las categorias replican exactamente las del Excel con sus presupuestos
- *  mensuales en moneda local (SGD), para que el usuario tenga un punto de
+ *  mensuales en moneda local (EUR), para que el usuario tenga un punto de
  *  partida razonable.
  *
  *  La fila singleton de settings se crea con valores sensatos: moneda
- *  local SGD, moneda vista EUR, anio y mes actuales reales del sistema.
+ *  local EUR, moneda vista EUR, anio y mes actuales reales del sistema.
  * ============================================================================
  */
 
@@ -49,7 +49,7 @@ const MONEDAS_SEED = [
 ];
 
 /**
- * Catalogo inicial de categorias de gasto. Presupuestos en SGD (moneda local).
+ * Catalogo inicial de categorias de gasto. Presupuestos en EUR (moneda local).
  */
 const CATEGORIAS_SEED = [
   { nombre: "Vivienda", tipo: "Esencial", presupuesto: 2200, notas: "Alquiler, comunidad" },
@@ -117,7 +117,7 @@ async function seedCategories(): Promise<number> {
     nombre: c.nombre,
     tipo: c.tipo,
     presupuestoMensual: c.presupuesto,
-    presupuestoMoneda: "SGD",
+    presupuestoMoneda: "EUR",
     notas: c.notas,
     orden: idx,
     color: null,
@@ -148,7 +148,7 @@ async function seedSettings(): Promise<boolean> {
 
   await db.insert(schema.settings).values({
     id: "singleton",
-    monedaLocal: "SGD",
+    monedaLocal: "EUR",
     monedaVista: "EUR",
     anioActual: today.getFullYear(),
     mesActual: today.getMonth() + 1,
@@ -157,7 +157,7 @@ async function seedSettings(): Promise<boolean> {
     monedaHipoteca: "EUR",
     categoriaHipotecaId: null,
     patrimonioInicial: 0,
-    patrimonioInicialMoneda: "SGD",
+    patrimonioInicialMoneda: "EUR",
     tema: "system",
     idioma: "es",
     createdAt: new Date(now),
