@@ -96,6 +96,7 @@ export default function MetasPage() {
           </p>
         </div>
         <Button
+          data-tour="metas-nueva"
           onClick={() => {
             setEditing(null);
             setFormOpen(true);
@@ -106,7 +107,9 @@ export default function MetasPage() {
         </Button>
       </header>
 
-      <SavingsRateCard />
+      <div data-tour="metas-tasa">
+        <SavingsRateCard />
+      </div>
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando metas...</p>
@@ -122,7 +125,7 @@ export default function MetasPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {goals.map((rawGoal) => {
+          {goals.map((rawGoal, idx) => {
             const goal = effectiveGoal(rawGoal);
             const progress = calculateGoalProgress(goal);
             const accountAlias = goal.cuentaVinculadaId
@@ -134,6 +137,7 @@ export default function MetasPage() {
                 goal={goal}
                 accountAlias={accountAlias}
                 progress={progress}
+                dataTour={idx === 0 ? "metas-card" : undefined}
                 onEdit={() => {
                   setEditing(rawGoal);
                   setFormOpen(true);
@@ -215,12 +219,14 @@ function GoalCard({
   progress,
   onEdit,
   onDelete,
+  dataTour,
 }: {
   goal: Goal;
   accountAlias: string | null;
   progress: ReturnType<typeof calculateGoalProgress>;
   onEdit: () => void;
   onDelete: () => void;
+  dataTour?: string;
 }) {
   const mask = useMaskMoney();
   const money = (n: number, cur: string) => mask(formatAmount(n, cur));
@@ -244,7 +250,7 @@ function GoalCard({
   );
 
   return (
-    <Card>
+    <Card data-tour={dataTour}>
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <CardTitle className="truncate">{goal.nombre}</CardTitle>

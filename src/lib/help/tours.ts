@@ -272,6 +272,28 @@ const TOURS: Record<string, TourStep[]> = {
     },
   ],
 
+  "/metas": [
+    {
+      target: '[data-tour="metas-nueva"]',
+      title: "Nueva meta",
+      content:
+        "Crea un objetivo de ahorro (entrada de un piso, viaje, fondo de emergencia…) con su importe y fecha objetivo.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="metas-tasa"]',
+      title: "Tu ahorro medio",
+      content:
+        "Tu ritmo de ahorro, que se usa para estimar cuándo alcanzarás cada meta (el detalle por meta está en Proyección).",
+    },
+    {
+      target: '[data-tour="metas-card"]',
+      title: "Una meta",
+      content:
+        "Progreso de la meta (ya ahorrado vs objetivo) y su estado. Si vinculas una cuenta, el ahorrado se toma automáticamente de su saldo.",
+    },
+  ],
+
   "/inversiones": [
     {
       target: '[data-tour="inv-nueva"]',
