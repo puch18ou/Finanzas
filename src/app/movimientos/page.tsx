@@ -413,7 +413,10 @@ export default function MovimientosPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Modo mes / rango */}
-          <div className="inline-flex items-center rounded-md border p-0.5">
+          <div
+            className="inline-flex items-center rounded-md border p-0.5"
+            data-tour="mov-modo"
+          >
             <Button
               size="sm"
               variant={periodMode === "mes" ? "secondary" : "ghost"}
@@ -475,6 +478,7 @@ export default function MovimientosPage() {
           )}
 
           <Button
+            data-tour="mov-nuevo"
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
@@ -487,7 +491,7 @@ export default function MovimientosPage() {
       </header>
 
       {periodMode === "mes" && upcomings.length > 0 && (
-        <Card className="border-dashed">
+        <Card className="border-dashed" data-tour="mov-proximos">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -531,7 +535,7 @@ export default function MovimientosPage() {
         </CardHeader>
         <CardContent>
           <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-            <TabsList className="mb-4 grid w-full grid-cols-5">
+            <TabsList className="mb-4 grid w-full grid-cols-5" data-tour="mov-tabs">
               <TabTrigger value="todos" label="Todos" count={counts.todos} />
               <TabTrigger value="gasto" label="Gastos" count={counts.gasto} />
               <TabTrigger value="ingreso" label="Ingresos" count={counts.ingreso} />
@@ -546,7 +550,7 @@ export default function MovimientosPage() {
 
           {/* Buscador + total de lo que se esta viendo */}
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[220px] flex-1">
+            <div className="relative min-w-[220px] flex-1" data-tour="mov-buscar">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -564,7 +568,10 @@ export default function MovimientosPage() {
                 </button>
               )}
             </div>
-            <div className="text-sm text-muted-foreground tabular-nums">
+            <div
+              className="text-sm text-muted-foreground tabular-nums"
+              data-tour="mov-total"
+            >
               {procesados.length} mov · gasto neto{" "}
               <span className="font-medium text-foreground">
                 {money(totalVista, viewCurrency)}
@@ -601,7 +608,7 @@ export default function MovimientosPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow data-tour="mov-ordenar">
                   <TableHead className="w-[110px]">
                     <SortHeader
                       label="Fecha"

@@ -216,6 +216,53 @@ const TOURS: Record<string, TourStep[]> = {
     },
     ...OUTRO,
   ],
+
+  "/movimientos": [
+    {
+      target: '[data-tour="mov-modo"]',
+      title: "Mes o rango",
+      content:
+        "Elige ver un solo mes o un rango de fechas. En modo Rango aparecen «Desde/Hasta» y unos atajos (últimos 3/6/12 meses, este año, año pasado).",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="mov-nuevo"]',
+      title: "Nuevo movimiento",
+      content:
+        "Crea un gasto, ingreso, transferencia o ajuste. También puedes usar el botón flotante «+».",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="mov-proximos"]',
+      title: "Próximos en el periodo",
+      content:
+        "Movimientos recurrentes que aún no han ocurrido este mes (previstos). Se materializan solos al llegar su día.",
+    },
+    {
+      target: '[data-tour="mov-tabs"]',
+      title: "Filtrar por tipo",
+      content:
+        "Todos, gastos, ingresos, transferencias o ajustes. El número es cuántos hay de cada uno.",
+    },
+    {
+      target: '[data-tour="mov-buscar"]',
+      title: "Buscar",
+      content: "Filtra por concepto, categoría o etiqueta.",
+    },
+    {
+      target: '[data-tour="mov-total"]',
+      title: "Total en gasto neto",
+      content:
+        "El total de lo que estás viendo: los gastos cuentan a coste real (con devoluciones restadas); ingresos, transferencias y ajustes no suman.",
+    },
+    {
+      target: '[data-tour="mov-ordenar"]',
+      title: "Ordenar",
+      content:
+        "Pulsa las cabeceras (fecha, concepto, categoría o importe) para ordenar la lista.",
+    },
+    ...OUTRO,
+  ],
 };
 
 /**
