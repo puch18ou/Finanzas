@@ -341,6 +341,14 @@ export const transferenciaFormSchema = z
     ...baseMovementShape,
     cuentaOrigenId: z.string().min(1, "Selecciona cuenta origen"),
     cuentaDestinoId: z.string().min(1, "Selecciona cuenta destino"),
+    // Solo cuando origen y destino tienen DISTINTA divisa: tipo de cambio
+    // (unidades de la moneda destino por 1 de la origen). Editable; por
+    // defecto el actual. No se guarda tal cual: al enviar se convierte en
+    // `importeDestino`. Ver MovementFormDialog / domain/accounts.ts.
+    tipoCambio: z
+      .number({ message: "Debe ser un numero" })
+      .positive("El tipo de cambio debe ser positivo")
+      .optional(),
   })
   .refine((d) => d.cuentaOrigenId !== d.cuentaDestinoId, {
     message: "Las cuentas origen y destino deben ser distintas",

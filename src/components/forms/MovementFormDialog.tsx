@@ -16,8 +16,14 @@
  * crea uno nuevo.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useForm,
+  Controller,
+  useWatch,
+  type Control,
+  type UseFormSetValue,
+} from "react-hook-form";
 import { useCategorySuggestion } from "@/hooks/useCategorySuggestion";
 import { serializeTags } from "@/lib/domain/tags";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -63,6 +69,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils/cn";
 import { formatDateLong, normalizeDateToUTCNoon } from "@/lib/utils/dates";
+import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 
 type FormTipo = "gasto" | "ingreso" | "transferencia" | "ajuste" | "devolucion";
 
@@ -101,6 +108,13 @@ export function MovementFormDialog({
   modal = true,
 }: Props) {
   const isEdit = !!initial;
+
+  // Mapa cuenta por id (lo usan el hydrate de transferencias entre divisas y
+  // los selectores). Definido arriba para estar disponible en los effects.
+  const accountById = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a])),
+    [accounts],
+  );
 
   // El tipo del formulario. En edicion viene del initial. En creacion del
   // initialTipo o lo que elija el usuario en las tabs.
@@ -154,6 +168,7 @@ export function MovementFormDialog({
       cuentaOrigenId: "",
       cuentaDestinoId: "",
       notas: "",
+      tipoCambio: undefined,
     },
   });
 
@@ -221,6 +236,14 @@ export function MovementFormDialog({
           cuentaOrigenId: initial.cuentaOrigenId ?? "",
           cuentaDestinoId: initial.cuentaDestinoId ?? "",
           notas: initial.notas ?? "",
+          // Reconstruye el tipo de cambio guardado (importeDestino / lo que
+          // sale del origen) para precargar el campo editable. Si no hay
+          // importeDestino, se deja vacio y el formulario mostrara el actual.
+          tipoCambio: rateFromImporteDestino(
+            initial,
+            accountById,
+            currencies,
+          ),
         });
       } else if (initial.tipo === "ajuste") {
         ajusteForm.reset({
@@ -312,6 +335,8 @@ export function MovementFormDialog({
     monedaLocal,
     defaultAccountId,
     prefill,
+    accountById,
+    currencies,
     gastoForm,
     ingresoForm,
     transferenciaForm,
@@ -321,10 +346,6 @@ export function MovementFormDialog({
   // Lista de cuentas activas (para los selects)
   const cuentasActivas = useMemo(
     () => accounts.filter((a) => a.activa),
-    [accounts],
-  );
-  const accountById = useMemo(
-    () => new Map(accounts.map((a) => [a.id, a])),
     [accounts],
   );
 
@@ -393,6 +414,15 @@ export function MovementFormDialog({
   const handleTransferenciaSubmit = transferenciaForm.handleSubmit(
     async (data) => {
       const fecha = normalizeDateToUTCNoon(data.fecha);
+      // Transferencia entre divisas distintas: fijamos el importe que entra en
+      // el destino (en su moneda) con el tipo de cambio elegido (o el actual si
+      // no se toco). Mismo par de divisas -> null (el destino recibe el mismo
+      // importe sin conversion).
+      const importeDestino = computeImporteDestino(
+        data,
+        accountById,
+        currencies,
+      );
       await onSubmit({
         tipo: "transferencia",
         fecha,
@@ -403,6 +433,7 @@ export function MovementFormDialog({
         moneda: data.moneda,
         cuentaOrigenId: data.cuentaOrigenId,
         cuentaDestinoId: data.cuentaDestinoId,
+        importeDestino,
         categoriaId: null,
         categoriaTexto: null,
         notas: data.notas ?? null,
@@ -797,6 +828,12 @@ export function MovementFormDialog({
                 )}
               </div>
             </div>
+            <TransferCambioInfo
+              control={transferenciaForm.control}
+              setValue={transferenciaForm.setValue}
+              accountById={accountById}
+              currencies={currencies}
+            />
             <Notas register={transferenciaForm.register} name="notas" />
             <FooterButtons
               loading={loading}
@@ -1032,6 +1069,193 @@ function FechaImporteMoneda({ control, register, currencies, errors }: any) {
           )}
         />
       </div>
+    </div>
+  );
+}
+
+/** convert() que devuelve NaN en vez de lanzar si falta un tipo de cambio. */
+function safeConvert(
+  amount: number,
+  from: string,
+  to: string,
+  rates: ReturnType<typeof buildRatesMap>,
+): number {
+  try {
+    return convert(amount, from, to, rates);
+  } catch {
+    return NaN;
+  }
+}
+
+/**
+ * Importe que entra en el destino (en la moneda del destino) para una
+ * transferencia entre divisas distintas, fijando el tipo de cambio elegido
+ * (`tipoCambio`) o el actual si no se toco. Devuelve null si el par comparte
+ * divisa o no hay tipo de cambio (entonces el saldo cae al calculo en vivo).
+ */
+function computeImporteDestino(
+  data: TransferenciaFormData,
+  accountById: Map<string, Account>,
+  currencies: Currency[],
+): number | null {
+  const origen = data.cuentaOrigenId
+    ? accountById.get(data.cuentaOrigenId)
+    : undefined;
+  const destino = data.cuentaDestinoId
+    ? accountById.get(data.cuentaDestinoId)
+    : undefined;
+  if (!origen || !destino || origen.moneda === destino.moneda) return null;
+
+  const rates = buildRatesMap(currencies);
+  const saleOrigen = safeConvert(data.importe, data.moneda, origen.moneda, rates);
+  const liveRate = safeConvert(1, origen.moneda, destino.moneda, rates);
+  const rate =
+    typeof data.tipoCambio === "number" && data.tipoCambio > 0
+      ? data.tipoCambio
+      : liveRate;
+  if (!Number.isFinite(saleOrigen) || !Number.isFinite(rate)) return null;
+  return saleOrigen * rate;
+}
+
+/**
+ * Reconstruye el tipo de cambio guardado de una transferencia (para precargar
+ * el campo editable al editar): importeDestino / lo que sale del origen.
+ */
+function rateFromImporteDestino(
+  initial: Movement,
+  accountById: Map<string, Account>,
+  currencies: Currency[],
+): number | undefined {
+  if (initial.importeDestino == null) return undefined;
+  const origen = initial.cuentaOrigenId
+    ? accountById.get(initial.cuentaOrigenId)
+    : undefined;
+  const destino = initial.cuentaDestinoId
+    ? accountById.get(initial.cuentaDestinoId)
+    : undefined;
+  if (!origen || !destino || origen.moneda === destino.moneda) return undefined;
+
+  const rates = buildRatesMap(currencies);
+  const saleOrigen = safeConvert(
+    initial.importe,
+    initial.moneda,
+    origen.moneda,
+    rates,
+  );
+  if (!Number.isFinite(saleOrigen) || saleOrigen === 0) return undefined;
+  return initial.importeDestino / saleOrigen;
+}
+
+/**
+ * Tipo de cambio EDITABLE en una transferencia entre cuentas de DISTINTA
+ * divisa. Por defecto muestra el cambio actual; el usuario puede sobrescribirlo
+ * (p.ej. si hizo la transferencia a otra hora con otro cambio). Al guardar, el
+ * formulario deriva `importeDestino` (ver computeImporteDestino) y el saldo del
+ * destino queda fijado. Si ambas cuentas comparten divisa, no se muestra.
+ */
+function TransferCambioInfo({
+  control,
+  setValue,
+  accountById,
+  currencies,
+}: {
+  control: Control<TransferenciaFormData>;
+  setValue: UseFormSetValue<TransferenciaFormData>;
+  accountById: Map<string, Account>;
+  currencies: Currency[];
+}) {
+  const origenId = useWatch({ control, name: "cuentaOrigenId" });
+  const destinoId = useWatch({ control, name: "cuentaDestinoId" });
+  const importe = useWatch({ control, name: "importe" });
+  const monedaMov = useWatch({ control, name: "moneda" });
+  const tipoCambio = useWatch({ control, name: "tipoCambio" });
+
+  const origen = origenId ? accountById.get(origenId) : undefined;
+  const destino = destinoId ? accountById.get(destinoId) : undefined;
+  const pairKey = origen && destino ? `${origen.id}->${destino.id}` : "";
+
+  // Al cambiar el PAR de cuentas volvemos al cambio actual por defecto (sin
+  // pisar el valor hidratado en la primera carga de una edicion).
+  const lastPairRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastPairRef.current === null) {
+      lastPairRef.current = pairKey;
+      return;
+    }
+    if (lastPairRef.current !== pairKey) {
+      lastPairRef.current = pairKey;
+      setValue("tipoCambio", undefined, { shouldDirty: false });
+    }
+  }, [pairKey, setValue]);
+
+  // Solo aplica si ambas cuentas existen y sus divisas difieren.
+  if (!origen || !destino || origen.moneda === destino.moneda) return null;
+
+  const rates = buildRatesMap(currencies);
+  const liveRate = safeConvert(1, origen.moneda, destino.moneda, rates);
+  if (!Number.isFinite(liveRate)) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No hay tipo de cambio disponible para {origen.moneda}/{destino.moneda}.
+      </p>
+    );
+  }
+
+  const overridden = typeof tipoCambio === "number" && tipoCambio > 0;
+  const rate = overridden ? (tipoCambio as number) : liveRate;
+  const imp = Number.isFinite(importe) && importe > 0 ? importe : 0;
+  const saleOrigen = safeConvert(imp, monedaMov, origen.moneda, rates);
+  const entraDestino = Number.isFinite(saleOrigen) ? saleOrigen * rate : NaN;
+
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="t-tipocambio" className="text-xs font-medium">
+          Tipo de cambio (1 {origen.moneda} = ? {destino.moneda})
+        </Label>
+        {overridden && (
+          <button
+            type="button"
+            className="text-primary underline underline-offset-2"
+            onClick={() =>
+              setValue("tipoCambio", undefined, { shouldDirty: true })
+            }
+          >
+            Usar el actual
+          </button>
+        )}
+      </div>
+      <Input
+        // key: remonta (input NO controlado) al cambiar de par o de cambio
+        // actual, para que el defecto se refresque sin estorbar al teclear.
+        key={`${pairKey}:${liveRate.toFixed(6)}`}
+        id="t-tipocambio"
+        type="number"
+        step="any"
+        min={0}
+        defaultValue={overridden ? (tipoCambio as number) : Number(liveRate.toFixed(6))}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value);
+          setValue("tipoCambio", Number.isFinite(v) && v > 0 ? v : undefined, {
+            shouldDirty: true,
+          });
+        }}
+      />
+      <div className="text-muted-foreground">
+        {overridden ? "Cambio aplicado" : "Cambio actual"}: 1 {origen.moneda} ={" "}
+        {rate.toFixed(4)} {destino.moneda}
+      </div>
+      {imp > 0 && Number.isFinite(entraDestino) && (
+        <div className="space-y-0.5 text-muted-foreground">
+          <div>
+            Sale de «{origen.alias}»: −{formatAmount(saleOrigen, origen.moneda)}
+          </div>
+          <div>
+            Entra en «{destino.alias}»: +
+            {formatAmount(entraDestino, destino.moneda)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

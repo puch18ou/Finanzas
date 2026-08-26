@@ -22,6 +22,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.28",
+    fecha: "2026-08",
+    cambios: [
+      "Transferencias entre cuentas de distinta divisa: ahora se muestra el tipo de cambio actual y puedes editarlo (por si la hiciste con otro cambio). Se ve cuánto sale del origen y cuánto entra en el destino.",
+      "El cambio queda fijado con la transferencia: el saldo del destino ya no fluctúa con el tipo de cambio de cada día.",
+    ],
+  },
+  {
     version: "0.1.27",
     fecha: "2026-08",
     cambios: [

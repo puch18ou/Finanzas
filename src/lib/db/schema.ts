@@ -585,6 +585,14 @@ export const movements = sqliteTable(
     cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
     cuentaDestinoId: text("cuenta_destino_id").references(() => accounts.id),
 
+    // Solo en transferencias entre cuentas de DISTINTA divisa: importe que
+    // ENTRA en la cuenta destino, ya en la moneda del destino. Fija el tipo de
+    // cambio en el momento de la transferencia (editable por el usuario) para
+    // que el saldo del destino no fluctue con el cambio actual. NULL = mismo
+    // par de divisas u otros tipos, y transferencias antiguas (que caen al
+    // calculo en vivo). Ver domain/accounts.ts.
+    importeDestino: real("importe_destino"),
+
     categoriaId: text("categoria_id").references(() => categories.id),
     categoriaTexto: text("categoria_texto"),
 

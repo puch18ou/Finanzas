@@ -16,6 +16,7 @@ const mov = (
     moneda: string;
     cuentaOrigenId: string | null;
     cuentaDestinoId: string | null;
+    importeDestino: number | null;
     deletedAt: Date | string | null;
   }>,
 ) => ({
@@ -23,6 +24,7 @@ const mov = (
   moneda: "EUR",
   cuentaOrigenId: null,
   cuentaDestinoId: null,
+  importeDestino: null,
   deletedAt: null,
   ...partial,
 });
@@ -92,6 +94,52 @@ describe("computeNetImpactByAccount", () => {
       RATES,
     );
     expect(impact.get("a")).toBeCloseTo(-72.463768, 4);
+  });
+
+  it("transferencia entre divisas: importeDestino fija el ingreso del destino", () => {
+    // 100 EUR salen de la cuenta EUR; en el destino SGD se fija 150 SGD
+    // (cambio elegido por el usuario, NO el 100/0.69 del cambio actual).
+    const impact = computeNetImpactByAccount(
+      [
+        { id: "a", moneda: "EUR" },
+        { id: "b", moneda: "SGD" },
+      ],
+      [
+        mov({
+          importe: 100,
+          moneda: "EUR",
+          cuentaOrigenId: "a",
+          cuentaDestinoId: "b",
+          importeDestino: 150,
+        }),
+      ],
+      RATES,
+    );
+    expect(impact.get("a")).toBe(-100); // sale 100 EUR del origen
+    expect(impact.get("b")).toBe(150); // entra el importe fijado, sin reconvertir
+  });
+
+  it("transferencia entre divisas sin importeDestino: cae al cambio actual", () => {
+    // Retrocompatible: transferencias antiguas (importeDestino null) convierten
+    // el importe a la moneda del destino con el tipo de cambio actual.
+    const impact = computeNetImpactByAccount(
+      [
+        { id: "a", moneda: "EUR" },
+        { id: "b", moneda: "SGD" },
+      ],
+      [
+        mov({
+          importe: 100,
+          moneda: "EUR",
+          cuentaOrigenId: "a",
+          cuentaDestinoId: "b",
+          importeDestino: null,
+        }),
+      ],
+      RATES,
+    );
+    expect(impact.get("a")).toBe(-100);
+    expect(impact.get("b")).toBeCloseTo(100 / 0.69, 4); // 144.9... SGD
   });
 });
 

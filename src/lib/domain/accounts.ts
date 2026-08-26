@@ -29,6 +29,10 @@ type MovementLike = {
   moneda: string;
   cuentaOrigenId: string | null;
   cuentaDestinoId: string | null;
+  // Transferencia entre divisas distintas: importe que entra en el destino,
+  // ya en la moneda del destino (tipo de cambio fijado). Si viene, se usa tal
+  // cual en vez de convertir con el tipo de cambio actual. Ver schema.
+  importeDestino?: number | null;
   deletedAt?: Date | string | null;
 };
 
@@ -67,7 +71,12 @@ export function computeNetImpactByAccount(
     if (m.deletedAt) continue;
 
     if (m.cuentaDestinoId && monedaById.has(m.cuentaDestinoId)) {
-      const v = toAccountCurrency(m.importe, m.moneda, m.cuentaDestinoId);
+      // Si la transferencia trae `importeDestino` (cambio fijado), ese es el
+      // importe que entra en el destino, ya en su moneda: no reconvertimos.
+      const v =
+        m.importeDestino != null
+          ? m.importeDestino
+          : toAccountCurrency(m.importe, m.moneda, m.cuentaDestinoId);
       impact.set(m.cuentaDestinoId, (impact.get(m.cuentaDestinoId) ?? 0) + v);
     }
     if (m.cuentaOrigenId && monedaById.has(m.cuentaOrigenId)) {
