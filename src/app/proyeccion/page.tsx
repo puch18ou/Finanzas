@@ -201,22 +201,81 @@ export default function ProyeccionPage() {
   const patrimonioNetoActual =
     valorCuentas + portfolio.valorActualVista - deudaTotal;
 
-  const projectionData = useMemo(() => {
-    const data: { mes: number; patrimonio: number; label: string }[] = [];
-    let current = patrimonioNetoActual;
-    for (let i = 0; i <= horizonMonths; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-      data.push({
-        mes: i,
-        patrimonio: Math.round(current * 100) / 100,
-        label: `${d.getMonth() + 1}/${d.getFullYear()}`,
-      });
-      current += ahorroMensualMedio;
-    }
-    return data;
-  }, [patrimonioNetoActual, ahorroMensualMedio, horizonMonths, today]);
+  // Etiqueta del mes actual en el eje (para el marcador "Hoy").
+  const labelHoy = `${currentMes}/${currentYear}`;
 
-  const patrimonioProyectado = projectionData[projectionData.length - 1]?.patrimonio ?? 0;
+  const projectionData = useMemo(() => {
+    // Eje temporal completo: desde "contar ahorro desde" hasta la fecha
+    // objetivo. Cada nodo es un mes.
+    const meses = periodsBetween(
+      desdeEff.anio,
+      desdeEff.mes,
+      objetivoEff.anio,
+      objetivoEff.mes,
+    );
+    // Indice del mes ACTUAL dentro del eje (frontera conocido/proyeccion).
+    const curIdx = meses.findIndex(
+      (p) => p.anio === currentYear && p.mes === currentMes,
+    );
+
+    // Ahorro REAL de cada mes (para reconstruir el tramo ya conocido).
+    const ahorroReal = meses.map(
+      (p) =>
+        summarizeMonth({
+          mes: p.mes,
+          anio: p.anio,
+          movements: allMovements,
+          rates,
+          viewCurrency,
+        }).ahorro,
+    );
+
+    const round = (n: number) => Math.round(n * 100) / 100;
+
+    return meses.map((p, i) => {
+      let patrimonio: number;
+      if (curIdx < 0) {
+        // Caso raro (el mes actual no cae en el rango): todo proyeccion
+        // anclada al patrimonio actual en el ultimo nodo.
+        patrimonio =
+          patrimonioNetoActual + ahorroMensualMedio * (i - (meses.length - 1));
+      } else if (i < curIdx) {
+        // Pasado CONOCIDO: retrocedemos desde el patrimonio actual restando el
+        // ahorro real de los meses que van de este hasta el actual.
+        let acumulado = 0;
+        for (let k = i; k < curIdx; k++) acumulado += ahorroReal[k] ?? 0;
+        patrimonio = patrimonioNetoActual - acumulado;
+      } else {
+        // Mes actual y futuro: proyeccion lineal con el ahorro medio.
+        patrimonio = patrimonioNetoActual + ahorroMensualMedio * (i - curIdx);
+      }
+      patrimonio = round(patrimonio);
+      const esActual = i === curIdx;
+      return {
+        idx: i,
+        label: `${p.mes}/${p.anio}`,
+        patrimonio,
+        // Dos series que se tocan en el mes actual: solida (real/conocido) y
+        // discontinua (proyeccion).
+        real: curIdx >= 0 && i <= curIdx ? patrimonio : null,
+        proyeccion: curIdx < 0 || i >= curIdx ? patrimonio : null,
+        esActual,
+      };
+    });
+  }, [
+    desdeEff,
+    objetivoEff,
+    currentYear,
+    currentMes,
+    allMovements,
+    rates,
+    viewCurrency,
+    patrimonioNetoActual,
+    ahorroMensualMedio,
+  ]);
+
+  const patrimonioProyectado =
+    projectionData[projectionData.length - 1]?.patrimonio ?? 0;
 
   // Metas: importe objetivo (para los hitos del grafico) y fecha estimada de
   // cumplimiento a partir de lo ya ahorrado + el ahorro mensual medio.
@@ -369,7 +428,8 @@ export default function ProyeccionPage() {
         <CardHeader>
           <CardTitle>Proyeccion</CardTitle>
           <CardDescription>
-            Estimacion lineal sin tener en cuenta inflacion, rendimiento de inversiones, etc.
+            Linea solida = patrimonio real desde el mes elegido; discontinua =
+            proyeccion lineal (sin inflacion ni rendimiento de inversiones).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -394,7 +454,10 @@ export default function ProyeccionPage() {
                 <XAxis dataKey="label" interval="preserveStartEnd" />
                 <YAxis />
                 <Tooltip
-                  formatter={(v: unknown) => money(Number(v) || 0, viewCurrency)}
+                  formatter={(v: unknown, name: unknown) => [
+                    money(Number(v) || 0, viewCurrency),
+                    name === "real" ? "Real" : "Proyeccion",
+                  ]}
                   contentStyle={{
                     backgroundColor: "var(--color-card)",
                     border: "1px solid var(--color-border)",
@@ -414,12 +477,38 @@ export default function ProyeccionPage() {
                     }}
                   />
                 ))}
+                {/* Marca el mes actual: separa lo real de la proyeccion. */}
+                <ReferenceLine
+                  x={labelHoy}
+                  stroke="var(--color-muted-foreground)"
+                  strokeDasharray="2 2"
+                  label={{
+                    value: "Hoy",
+                    position: "insideTopRight",
+                    fontSize: 10,
+                    fill: "var(--color-muted-foreground)",
+                  }}
+                />
+                {/* Tramo conocido (real): linea solida. */}
                 <Line
                   type="monotone"
-                  dataKey="patrimonio"
+                  dataKey="real"
                   stroke="var(--color-primary)"
                   strokeWidth={2}
                   dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+                {/* Tramo futuro (proyeccion): linea discontinua. */}
+                <Line
+                  type="monotone"
+                  dataKey="proyeccion"
+                  stroke="var(--color-primary)"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

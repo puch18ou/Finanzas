@@ -22,6 +22,13 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.30",
+    fecha: "2026-08",
+    cambios: [
+      "Proyección: la gráfica ahora empieza en el mes que eliges en «Contar ahorro desde». Los meses ya pasados se muestran con su patrimonio real (línea sólida) y desde hoy sigue la proyección (línea discontinua), con un marcador «Hoy».",
+    ],
+  },
+  {
     version: "0.1.29",
     fecha: "2026-08",
     cambios: [
