@@ -9,6 +9,7 @@ import {
   getDefaultClassNames,
   type DayButton,
 } from "react-day-picker"
+import { es } from "date-fns/locale"
 
 import { cn } from "@/lib/utils/cn"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -19,6 +20,11 @@ function Calendar({
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "ghost",
+  // Por defecto en castellano y con la semana empezando en LUNES (el locale
+  // `es` de date-fns ya usa weekStartsOn=1; lo dejamos explicito por claridad).
+  // Cualquier uso puede sobreescribirlos pasando sus propios props.
+  locale = es,
+  weekStartsOn = 1,
   formatters,
   components,
   ...props
@@ -30,6 +36,8 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      locale={locale}
+      weekStartsOn={weekStartsOn}
       className={cn(
         "group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,

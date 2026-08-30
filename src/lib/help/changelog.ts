@@ -22,6 +22,13 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.29",
+    fecha: "2026-08",
+    cambios: [
+      "El calendario para elegir fecha ahora está en castellano y la semana empieza en lunes.",
+    ],
+  },
+  {
     version: "0.1.28",
     fecha: "2026-08",
     cambios: [
