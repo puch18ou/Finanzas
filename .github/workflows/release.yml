@@ -70,6 +70,12 @@ jobs:
         with:
           workspaces: src-tauri
       - uses: android-actions/setup-android@v3
+        with:
+          # Por defecto la action instala el paquete SDK obsoleto `tools`, que
+          # Google retiro del repositorio -> `sdkmanager` falla ("Failed to
+          # find package 'tools'"). Instalamos solo platform-tools; las
+          # platforms/build-tools que necesitamos van en el paso siguiente.
+          packages: platform-tools
       - name: Instalar plataforma Android 36
         run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: npm ci

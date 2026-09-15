@@ -22,6 +22,13 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.32",
+    fecha: "2026-09",
+    cambios: [
+      "Arreglo en la publicación de la app de Android (la versión anterior no llegó a generar el APK del móvil).",
+    ],
+  },
+  {
     version: "0.1.31",
     fecha: "2026-09",
     cambios: [
