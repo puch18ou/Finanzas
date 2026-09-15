@@ -14,7 +14,10 @@
     "opener:allow-open-path",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "finanzas-install://*" }]
+      "allow": [
+        { "url": "finanzas-install://*" },
+        { "url": "finanzas-share://*" }
+      ]
     },
     "fs:allow-mkdir",
     "fs:allow-open",

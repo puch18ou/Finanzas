@@ -22,6 +22,7 @@ import {
   readJsonFile,
   type BackupFile,
 } from "@/lib/services/backup-service";
+import { isMobileApp } from "@/lib/utils/platform";
 
 export function useBackup() {
   const repos: Repositories = useRepos();
@@ -31,11 +32,25 @@ export function useBackup() {
     mutationFn: async () => {
       const data = await repos.backup.exportAll();
       const date = new Date().toISOString().slice(0, 10);
-      downloadJson(`finanzas-backup-${date}.json`, data);
+      const filename = `finanzas-backup-${date}.json`;
+      if (isMobileApp()) {
+        // Movil: abrir el selector de compartir de Android (el usuario decide
+        // donde enviarlo/guardarlo). Import dinamico: solo carga los plugins
+        // de Tauri cuando de verdad se usa en el movil.
+        const { shareBackupJson } = await import(
+          "@/lib/services/backup-share"
+        );
+        await shareBackupJson(filename, data);
+      } else {
+        // Escritorio/navegador: descarga clasica.
+        downloadJson(filename, data);
+      }
       return data;
     },
     onSuccess: () => {
-      toast.success("Backup descargado");
+      toast.success(
+        isMobileApp() ? "Elige donde guardar o enviar" : "Backup descargado",
+      );
     },
     onError: (e) => {
       toast.error(

@@ -16,8 +16,10 @@ import {
   Upload,
   AlertTriangle,
   FileJson,
+  Share2,
 } from "lucide-react";
 import { useBackup } from "@/hooks/useBackup";
+import { isMobileApp } from "@/lib/utils/platform";
 import {
   Card,
   CardContent,
@@ -41,6 +43,7 @@ export function BackupCard() {
   const { exportAll, importAll, isExporting, isImporting } = useBackup();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const mobile = isMobileApp();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,8 +66,9 @@ export function BackupCard() {
           Copia de seguridad
         </CardTitle>
         <CardDescription>
-          Exporta todos tus datos a un archivo JSON o restaura desde uno.
-          Util para hacer copias o migrar entre dispositivos.
+          {mobile
+            ? "Exporta todos tus datos a un archivo JSON (eliges dónde guardarlo o a dónde enviarlo) o restaura desde uno. Útil para hacer copias o migrar entre dispositivos."
+            : "Exporta todos tus datos a un archivo JSON o restaura desde uno. Útil para hacer copias o migrar entre dispositivos."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -74,8 +78,16 @@ export function BackupCard() {
             onClick={() => exportAll()}
             disabled={isExporting}
           >
-            <Download className="mr-2 h-4 w-4" />
-            {isExporting ? "Exportando..." : "Exportar a JSON"}
+            {mobile ? (
+              <Share2 className="mr-2 h-4 w-4" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            {isExporting
+              ? "Exportando..."
+              : mobile
+                ? "Exportar / compartir"
+                : "Exportar a JSON"}
           </Button>
 
           <Button

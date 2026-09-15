@@ -22,6 +22,13 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.31",
+    fecha: "2026-09",
+    cambios: [
+      "Móvil: al exportar la copia de seguridad ahora se abre el selector de compartir de Android, así eliges dónde guardarla (Archivos, Drive…) o a dónde enviarla, en vez de que caiga en una carpeta desconocida.",
+    ],
+  },
+  {
     version: "0.1.30",
     fecha: "2026-08",
     cambios: [

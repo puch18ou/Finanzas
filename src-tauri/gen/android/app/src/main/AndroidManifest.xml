@@ -55,5 +55,22 @@
             <data android:scheme="finanzas-install" />
           </intent-filter>
         </activity>
+
+        <!-- Abre el selector de compartir para un fichero de la app (p.ej. la
+             copia de seguridad JSON). Se invoca con
+             openUrl("finanzas-share://share?path=..."). -->
+        <activity
+          android:name=".ShareActivity"
+          android:exported="true"
+          android:noHistory="true"
+          android:excludeFromRecents="true"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar">
+          <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="finanzas-share" />
+          </intent-filter>
+        </activity>
     </application>
 </manifest>
