@@ -55,6 +55,15 @@ export type AddContributionArgs = {
   comision?: number;
   /** Cuenta de la que sale el dinero. Si se indica, se crea el movimiento. */
   cuentaOrigenId?: string | null;
+  /**
+   * Divisa distinta de la cuenta: importe REAL que sale de la cuenta, ya en la
+   * moneda de la cuenta (cambio fijado y editable). Si se da junto con
+   * `monedaCuenta` y esta difiere de la moneda de la inversion, el movimiento
+   * de cargo se crea con ese importe y esa moneda. Si no, se usa el importe en
+   * la moneda de la inversion (comportamiento clasico).
+   */
+  importeCuenta?: number | null;
+  monedaCuenta?: string | null;
   notas?: string | null;
 };
 
@@ -71,6 +80,10 @@ export type UpdateContributionArgs = {
    * no se crea uno al editar; solo se actualiza la fila.
    */
   cuentaId?: string | null;
+  /** Como en AddContributionArgs: importe/moneda reales que salen de la cuenta
+   *  cuando la divisa difiere de la de la inversion (cambio fijado). */
+  importeCuenta?: number | null;
+  monedaCuenta?: string | null;
   notas?: string | null;
 };
 
@@ -122,6 +135,17 @@ export class InvestmentContributionService {
     const comision = Math.max(0, args.comision ?? 0);
     const importeMovimiento = importeComprado + comision;
 
+    // Divisa distinta de la cuenta: el movimiento de cargo se crea en la moneda
+    // de la cuenta con el importe fijado (cambio congelado). Si no, en la moneda
+    // de la inversion (y el saldo lo convierte al cambio actual, como siempre).
+    const crossCurrency =
+      args.monedaCuenta != null &&
+      args.monedaCuenta !== investment.moneda &&
+      args.importeCuenta != null &&
+      args.importeCuenta > 0;
+    const movImporte = crossCurrency ? args.importeCuenta! : importeMovimiento;
+    const movMoneda = crossCurrency ? args.monedaCuenta! : investment.moneda;
+
     // Multi-paso ATOMICO: movimiento de salida (si hay cuenta) + aportacion +
     // recalculo. Si algo falla, se deshace lo creado (ver atomic()).
     await this.atomic(async (onUndo) => {
@@ -134,8 +158,8 @@ export class InvestmentContributionService {
           tipo: "transferencia",
           fecha: args.fecha,
           concepto: `Aportacion a ${investment.nombre}`,
-          importe: importeMovimiento,
-          moneda: investment.moneda,
+          importe: movImporte,
+          moneda: movMoneda,
           cuentaOrigenId: args.cuentaOrigenId,
           cuentaDestinoId: null,
           categoriaId: null,
@@ -158,6 +182,7 @@ export class InvestmentContributionService {
         precioUnitario: args.precioUnitario,
         comision,
         cuentaOrigenId: args.cuentaOrigenId ?? null,
+        importeCuenta: crossCurrency ? args.importeCuenta! : null,
         movimientoId,
         notas: args.notas ?? null,
       });
@@ -318,6 +343,17 @@ export class InvestmentContributionService {
       ? Math.max(0, args.participaciones * args.precioUnitario - comision)
       : args.participaciones * args.precioUnitario + comision;
 
+    // Divisa distinta de la cuenta (solo aportaciones): el movimiento se guarda
+    // en la moneda de la cuenta con el importe fijado. Ver addContribution.
+    const crossCurrency =
+      !c.esRetirada &&
+      args.monedaCuenta != null &&
+      args.monedaCuenta !== inv.moneda &&
+      args.importeCuenta != null &&
+      args.importeCuenta > 0;
+    const movImporte = crossCurrency ? args.importeCuenta! : importeMovimiento;
+    const movMoneda = crossCurrency ? args.monedaCuenta! : inv.moneda;
+
     // Delta de participaciones aplicado al valor actual (al precio de mercado).
     // En una aportacion, mas participaciones suben el valor; en una retirada,
     // mas participaciones retiradas bajan el valor.
@@ -334,7 +370,8 @@ export class InvestmentContributionService {
       const { mes, anio } = extractPeriod(args.fecha);
       await this.movements.update(c.movimientoId, {
         fecha: args.fecha,
-        importe: importeMovimiento,
+        importe: movImporte,
+        moneda: movMoneda,
         // En aportacion el dinero SALE de la cuenta (origen). En retirada
         // ENTRA en la cuenta (destino).
         cuentaOrigenId: c.esRetirada ? null : (args.cuentaId ?? null),
@@ -350,6 +387,7 @@ export class InvestmentContributionService {
       precioUnitario: args.precioUnitario,
       comision,
       cuentaOrigenId: args.cuentaId ?? null,
+      importeCuenta: crossCurrency ? args.importeCuenta! : null,
       notas: args.notas ?? null,
     });
 

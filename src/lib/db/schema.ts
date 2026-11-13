@@ -684,6 +684,12 @@ export const investmentContributions = sqliteTable(
     cuentaOrigenId: text("cuenta_origen_id").references(() => accounts.id),
     movimientoId: text("movimiento_id").references(() => movements.id),
 
+    // Aportacion en divisa DISTINTA de la cuenta de origen: importe REAL que
+    // sale de la cuenta, ya en la moneda de la cuenta (tipo de cambio fijado,
+    // editable). El movimiento de cargo se crea en esa moneda con este importe,
+    // asi el saldo no fluctua. NULL = misma divisa o aportaciones antiguas.
+    importeCuenta: real("importe_cuenta"),
+
     // false = aportacion (compra); true = retirada (reembolso/venta). El
     // recalculo de totales resta las retiradas.
     esRetirada: integer("es_retirada", { mode: "boolean" })

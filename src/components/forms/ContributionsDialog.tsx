@@ -19,6 +19,7 @@ import { useState } from "react";
 import { Plus, Trash2, ArrowDownToLine, Repeat, Pencil } from "lucide-react";
 import type {
   Account,
+  Currency,
   Investment,
   InvestmentContribution,
   RecurringRule,
@@ -52,7 +53,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
-import { formatAmount } from "@/lib/domain/currency";
+import { buildRatesMap, convert, formatAmount } from "@/lib/domain/currency";
 import {
   APORTACION_PERIODICA_NOTA,
   usaParticipaciones,
@@ -70,6 +71,9 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   investment: Investment | null;
   accounts: Account[];
+  /** Para mostrar/editar la conversion cuando la aportacion y la cuenta de
+   *  origen tienen divisas distintas. */
+  currencies: Currency[];
   /** Se llama tras una retirada "todo" (la posicion queda a 0). */
   onWithdrewAll?: () => void;
 };
@@ -97,6 +101,7 @@ export function ContributionsDialog({
   onOpenChange,
   investment,
   accounts,
+  currencies,
   onWithdrewAll,
 }: Props) {
   const {
@@ -128,6 +133,9 @@ export function ContributionsDialog({
   // Comision de la operacion (Lote 17). Solo aplica en modo participaciones.
   const [comision, setComision] = useState("");
   const [cuentaOrigenId, setCuentaOrigenId] = useState("");
+  // Divisa distinta: importe (en la moneda de la cuenta) que sale del banco.
+  // Vacio = usar el cambio actual al guardar. Ver bloque de conversion abajo.
+  const [importeCuentaStr, setImporteCuentaStr] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
 
   // Retirada
@@ -160,6 +168,42 @@ export function ContributionsDialog({
   // Modo participaciones (Acciones/ETF/Cripto) vs "solo dinero" (resto).
   const conParticipaciones = usaParticipaciones(investment.tipo);
 
+  // Conversion de divisa: si la cuenta de origen esta en otra moneda que la
+  // inversion, mostramos y dejamos editar cuanto sale de la cuenta (en la
+  // moneda de la cuenta), con el cambio actual como defecto. Solo en
+  // aportaciones (no retiradas).
+  const assetCur = investment.moneda;
+  const selectedAccount = accounts.find((a) => a.id === cuentaOrigenId);
+  const accountCur = selectedAccount?.moneda ?? null;
+  const crossCurrency =
+    !!accountCur && accountCur !== assetCur && !editingContribution?.esRetirada;
+  const totalAsset = conParticipaciones
+    ? (Number(participaciones) || 0) * (Number(precioUnit) || 0) +
+      (Number(comision) || 0)
+    : Number(total) || 0;
+  const rates = buildRatesMap(currencies);
+  const safeConv = (amount: number, from: string, to: string): number => {
+    try {
+      return convert(amount, from, to, rates);
+    } catch {
+      return NaN;
+    }
+  };
+  const rateAssetToAccount =
+    crossCurrency && accountCur ? safeConv(1, assetCur, accountCur) : NaN;
+  const sugeridoCuenta =
+    crossCurrency && accountCur ? safeConv(totalAsset, assetCur, accountCur) : NaN;
+  // Importe (en la moneda de la cuenta) a guardar: lo editado o, si esta vacio,
+  // la sugerencia al cambio actual.
+  const importeCuentaFinal =
+    crossCurrency
+      ? importeCuentaStr.trim()
+        ? Number(importeCuentaStr)
+        : Number.isFinite(sugeridoCuenta)
+          ? Math.round(sugeridoCuenta * 100) / 100
+          : null
+      : null;
+
   // Aportaciones periodicas (generadas por un plan) vs individuales (resto,
   // incluidas las retiradas).
   const esPeriodica = (c: InvestmentContribution) =>
@@ -174,6 +218,7 @@ export function ContributionsDialog({
     setTotal("");
     setComision("");
     setCuentaOrigenId("");
+    setImporteCuentaStr("");
     setAddError(null);
     setEditingContribution(null);
   }
@@ -183,6 +228,7 @@ export function ContributionsDialog({
     const d = c.fecha instanceof Date ? c.fecha : new Date(c.fecha);
     setFecha(formatDateOnlyString(d));
     setCuentaOrigenId(c.cuentaOrigenId ?? "");
+    setImporteCuentaStr(c.importeCuenta != null ? String(c.importeCuenta) : "");
     setComision((c.comision ?? 0) > 0 ? String(c.comision) : "");
     if (conParticipaciones) {
       setParticipaciones(String(c.participaciones));
@@ -246,6 +292,8 @@ export function ContributionsDialog({
         precioUnitario,
         comision: fee,
         cuentaId: cuentaOrigenId,
+        importeCuenta: crossCurrency ? importeCuentaFinal : null,
+        monedaCuenta: crossCurrency ? accountCur : null,
         notas: editingContribution.notas,
       });
     } else {
@@ -256,6 +304,8 @@ export function ContributionsDialog({
         precioUnitario,
         comision: fee,
         cuentaOrigenId,
+        importeCuenta: crossCurrency ? importeCuentaFinal : null,
+        monedaCuenta: crossCurrency ? accountCur : null,
       });
     }
     resetAddForm();
@@ -793,7 +843,14 @@ export function ContributionsDialog({
                   ? "Cuenta destino"
                   : "Cuenta de origen"}
               </Label>
-              <Select value={cuentaOrigenId} onValueChange={setCuentaOrigenId}>
+              <Select
+                value={cuentaOrigenId}
+                onValueChange={(v) => {
+                  setCuentaOrigenId(v);
+                  // Al cambiar de cuenta, re-sugerimos al cambio actual.
+                  setImporteCuentaStr("");
+                }}
+              >
                 <SelectTrigger id="ap-cuenta">
                   <SelectValue placeholder="Cuenta" />
                 </SelectTrigger>
@@ -816,6 +873,47 @@ export function ContributionsDialog({
                 investment!.moneda,
               )}
             </p>
+          )}
+
+          {/* Conversion de divisa: la cuenta esta en otra moneda que la
+              inversion. Mostramos el cambio actual y dejamos editar cuanto sale
+              de la cuenta (fijando el cambio). */}
+          {crossCurrency && accountCur && (
+            <div className="mt-2 space-y-1.5 rounded-md border bg-muted/40 p-3">
+              {Number.isFinite(rateAssetToAccount) ? (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Cambio actual: 1 {assetCur} ={" "}
+                  {rateAssetToAccount.toFixed(4)} {accountCur}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No hay tipo de cambio para {assetCur}/{accountCur}.
+                </p>
+              )}
+              <Label htmlFor="ap-importe-cuenta" className="text-xs font-medium">
+                Importe que sale de la cuenta ({accountCur})
+              </Label>
+              <Input
+                id="ap-importe-cuenta"
+                type="number"
+                step="0.01"
+                min={0}
+                placeholder={
+                  Number.isFinite(sugeridoCuenta)
+                    ? String(Math.round(sugeridoCuenta * 100) / 100)
+                    : ""
+                }
+                value={importeCuentaStr}
+                onChange={(e) => setImporteCuentaStr(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Por defecto, el cambio actual
+                {Number.isFinite(sugeridoCuenta)
+                  ? ` (${formatAmount(sugeridoCuenta, accountCur)})`
+                  : ""}
+                . Edítalo si lo hiciste a otro cambio.
+              </p>
+            </div>
           )}
           {addError && <p className="mt-2 text-xs text-destructive">{addError}</p>}
 

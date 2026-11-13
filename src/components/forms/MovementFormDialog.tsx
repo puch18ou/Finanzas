@@ -257,12 +257,15 @@ export function MovementFormDialog({
         });
       }
     } else {
-      // creacion: reset a defaults
+      // creacion: reset a defaults. En gasto, la moneda arranca en la divisa
+      // de la cuenta por defecto (sigue a la cuenta con la que pagas).
+      const monedaCuentaDef =
+        accountById.get(defaultAccountId ?? "")?.moneda ?? monedaLocal;
       gastoForm.reset({
         fecha: normalizeDateToUTCNoon(new Date()),
         concepto: "",
         importe: 0,
-        moneda: monedaLocal,
+        moneda: monedaCuentaDef,
         cuentaOrigenId: defaultAccountId ?? "",
         categoriaId: "",
         notas: "",
@@ -486,6 +489,33 @@ export function MovementFormDialog({
     }
   };
 
+  // Gasto: la moneda sigue a la cuenta con la que pagas. Al cambiar de cuenta,
+  // la moneda pasa a la de esa cuenta y el importe se reconvierte al cambio
+  // actual (como sugerencia editable). Solo en gasto (no en devolucion).
+  const handleGastoAccountChange = (
+    field: { onChange: (v: string) => void },
+    accountId: string,
+  ) => {
+    field.onChange(accountId);
+    if (formTipo !== "gasto") return;
+    const acc = accountById.get(accountId);
+    if (!acc) return;
+    const monedaActual = gastoForm.getValues("moneda");
+    if (acc.moneda === monedaActual) return;
+    const importe = gastoForm.getValues("importe");
+    const rates = buildRatesMap(currencies);
+    let convertido = Number.isFinite(importe) ? importe : 0;
+    try {
+      convertido = convert(convertido, monedaActual, acc.moneda, rates);
+    } catch {
+      // Sin tipo de cambio: dejamos el importe como esta.
+    }
+    gastoForm.setValue("moneda", acc.moneda, { shouldValidate: true });
+    gastoForm.setValue("importe", Math.round(convertido * 100) / 100, {
+      shouldValidate: true,
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       <DialogContent
@@ -626,7 +656,10 @@ export function MovementFormDialog({
                   control={gastoForm.control}
                   name="cuentaOrigenId"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => handleGastoAccountChange(field, v)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Cuenta" />
                       </SelectTrigger>

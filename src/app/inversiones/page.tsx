@@ -779,6 +779,7 @@ export default function InversionesPage() {
         onOpenChange={(v) => !v && setContributionsFor(null)}
         investment={contributionsFor}
         accounts={accounts}
+        currencies={currencies}
         onWithdrewAll={() => {
           const inv = contributionsFor;
           setContributionsFor(null);

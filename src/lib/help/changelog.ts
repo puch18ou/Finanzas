@@ -22,6 +22,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.33",
+    fecha: "2026-11",
+    cambios: [
+      "Aportaciones a inversiones en otra divisa: si la inversión cotiza en una moneda (p. ej. $) y pagas desde una cuenta en otra (€), ahora ves la conversión al cambio actual y puedes editar el importe que sale de la cuenta (en €). Ese cambio queda fijado y el saldo ya no fluctúa.",
+      "Gastos: la moneda del gasto sigue a la cuenta con la que pagas. Si pagas con una cuenta de otra divisa, el gasto pasa a esa moneda y el importe se convierte al cambio actual (editable).",
+    ],
+  },
+  {
     version: "0.1.32",
     fecha: "2026-09",
     cambios: [
