@@ -22,6 +22,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.1.34",
+    fecha: "2026-11",
+    cambios: [
+      "Movimientos: la tabla ya no se sale de la pantalla en el PC. Las columnas Concepto y Categoría/Cuentas se ajustan y recortan con «…» (el texto completo al pasar el ratón); fecha, tipo, importe y acciones mantienen su tamaño. Ya no se pierde el botón de añadir.",
+      "Aportaciones a inversiones: al editar una ya creada, el tipo de cambio se muestra fijo (el del momento), no uno que cambia solo. El dinámico es solo al crearla.",
+    ],
+  },
+  {
     version: "0.1.33",
     fecha: "2026-11",
     cambios: [

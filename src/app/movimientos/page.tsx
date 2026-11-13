@@ -522,14 +522,14 @@ export default function MovimientosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[110px]">Fecha</TableHead>
-                  <TableHead className="w-[110px]">Tipo</TableHead>
+                  <TableHead className="w-[104px]">Fecha</TableHead>
+                  <TableHead className="w-[104px]">Tipo</TableHead>
                   <TableHead>Concepto</TableHead>
-                  <TableHead>Cuenta</TableHead>
-                  <TableHead className="text-right">Importe</TableHead>
+                  <TableHead className="w-[150px]">Cuenta</TableHead>
+                  <TableHead className="w-[140px] text-right">Importe</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -626,10 +626,10 @@ export default function MovimientosPage() {
                 : "No hay movimientos en este periodo."}
             </p>
           ) : (
-            <Table data-tour="mov-lista">
+            <Table data-tour="mov-lista" className="table-fixed">
               <TableHeader>
                 <TableRow data-tour="mov-ordenar">
-                  <TableHead className="w-[110px]">
+                  <TableHead className="w-[104px]">
                     <SortHeader
                       label="Fecha"
                       col="fecha"
@@ -638,7 +638,7 @@ export default function MovimientosPage() {
                       onSort={toggleSort}
                     />
                   </TableHead>
-                  <TableHead className="w-[110px]">Tipo</TableHead>
+                  <TableHead className="w-[118px]">Tipo</TableHead>
                   <TableHead>
                     <SortHeader
                       label="Concepto"
@@ -657,7 +657,7 @@ export default function MovimientosPage() {
                       onSort={toggleSort}
                     />
                   </TableHead>
-                  <TableHead className="text-right">
+                  <TableHead className="w-[150px] text-right">
                     <SortHeader
                       label="Importe"
                       col="importe"
@@ -667,7 +667,7 @@ export default function MovimientosPage() {
                       align="right"
                     />
                   </TableHead>
-                  <TableHead className="w-[80px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[132px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -830,6 +830,7 @@ function MovementRow({
   const fecha = m.fecha instanceof Date ? m.fecha : new Date(m.fecha);
   // Las devoluciones se asocian a gastos (y cuotas). El resto de tipos no.
   const esGasto = m.tipo === "gasto" || m.tipo === "cuota";
+  const catOCuentas = renderCategoriaOCuentas(m, catById, accById, invNameByMovId);
 
   return (
     <TableRow>
@@ -848,8 +849,10 @@ function MovementRow({
           )}
         </Badge>
       </TableCell>
-      <TableCell className="font-medium">
-        {m.concepto}
+      <TableCell className="font-medium align-top">
+        <div className="truncate" title={m.concepto}>
+          {m.concepto}
+        </div>
         {m.etiquetas && (
           <div className="mt-1 flex flex-wrap gap-1">
             {parseTags(m.etiquetas).map((t) => (
@@ -864,8 +867,10 @@ function MovementRow({
           </div>
         )}
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {renderCategoriaOCuentas(m, catById, accById, invNameByMovId)}
+      <TableCell className="align-top text-sm text-muted-foreground">
+        <div className="truncate" title={catOCuentas}>
+          {catOCuentas}
+        </div>
       </TableCell>
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass)}>
         {tipoMeta.amountSign}
@@ -988,8 +993,12 @@ function UpcomingRow({
           <Clock className="h-3 w-3 ml-1 opacity-60" aria-label="Previsto" />
         </Badge>
       </TableCell>
-      <TableCell className="font-medium">{rule.nombre}</TableCell>
-      <TableCell className="text-sm">{cuenta}</TableCell>
+      <TableCell className="font-medium">
+        <div className="truncate" title={rule.nombre}>
+          {rule.nombre}
+        </div>
+      </TableCell>
+      <TableCell className="text-sm break-words">{cuenta}</TableCell>
       <TableCell className={cn("text-right tabular-nums font-medium", tipoMeta.amountClass, "opacity-80")}>
         {tipoMeta.amountSign}
         {mask(formatAmount(rule.importe, rule.moneda))}

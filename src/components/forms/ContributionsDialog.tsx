@@ -223,12 +223,36 @@ export function ContributionsDialog({
     setEditingContribution(null);
   }
 
+  // Importe (en la moneda de la cuenta) a mostrar al EDITAR una aportacion:
+  //  - si ya se guardo un importe fijado, ese valor concreto;
+  //  - si es una aportacion antigua en divisa distinta sin valor guardado, una
+  //    FOTO del cambio ACTUAL (numero concreto, NO dinamico) como defecto
+  //    editable. Lo dinamico (recalculo en vivo) solo pasa al CREAR una nueva.
+  function snapshotImporteCuenta(c: InvestmentContribution): string {
+    if (c.esRetirada) return "";
+    if (c.importeCuenta != null) return String(c.importeCuenta);
+    const acc = accounts.find((a) => a.id === c.cuentaOrigenId);
+    if (!acc || acc.moneda === investment!.moneda) return "";
+    const totalAsset = c.participaciones * c.precioUnitario + (c.comision ?? 0);
+    try {
+      const v = convert(
+        totalAsset,
+        investment!.moneda,
+        acc.moneda,
+        buildRatesMap(currencies),
+      );
+      return Number.isFinite(v) ? String(Math.round(v * 100) / 100) : "";
+    } catch {
+      return "";
+    }
+  }
+
   function openEditForm(c: InvestmentContribution) {
     setEditingContribution(c);
     const d = c.fecha instanceof Date ? c.fecha : new Date(c.fecha);
     setFecha(formatDateOnlyString(d));
     setCuentaOrigenId(c.cuentaOrigenId ?? "");
-    setImporteCuentaStr(c.importeCuenta != null ? String(c.importeCuenta) : "");
+    setImporteCuentaStr(snapshotImporteCuenta(c));
     setComision((c.comision ?? 0) > 0 ? String(c.comision) : "");
     if (conParticipaciones) {
       setParticipaciones(String(c.participaciones));
